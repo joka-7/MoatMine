@@ -1,0 +1,67 @@
+# Render Blueprint: API + background worker + Postgres.
+# New → Blueprint → pick this repo. Secrets marked sync:false are prompted on first deploy.
+databases:
+  - name: folio-db
+    plan: basic-256mb
+    databaseName: folio
+    user: folio
+
+envVarGroups:
+  - name: folio-shared
+    envVars:
+      - key: MARKET_PROVIDER
+        value: finnhub
+      - key: FINNHUB_API_KEY
+        sync: false
+      - key: FERNET_KEY
+        sync: false
+      - key: AUTH_MODE
+        value: clerk
+      - key: CLERK_JWKS_URL
+        sync: false
+      - key: CLERK_ISSUER
+        sync: false
+      - key: DEFAULT_MODEL
+        value: anthropic/claude-sonnet-5-5
+      - key: FAST_MODEL
+        value: anthropic/claude-haiku-4-5-20251001
+      - key: FALLBACK_MODELS
+        value: openai/gpt-4o-mini
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+
+services:
+  - type: web
+    name: folio-api
+    runtime: python
+    rootDir: backend
+    plan: starter # free plan sleeps when idle
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT --proxy-headers
+    healthCheckPath: /health
+    envVars:
+      - fromGroup: folio-shared
+      - key: PYTHON_VERSION
+        value: 3.12.7
+      - key: DATABASE_URL
+        fromDatabase: { name: folio-db, property: connectionString }
+      - key: CORS_ORIGINS
+        sync: false # e.g. https://folio.vercel.app,tauri://localhost,http://tauri.localhost
+
+  - type: worker
+    name: folio-worker
+    runtime: python
+    rootDir: backend
+    plan: starter
+    buildCommand: pip install -r requirements.txt
+    startCommand: python -m app.worker
+    envVars:
+      - fromGroup: folio-shared
+      - key: PYTHON_VERSION
+        value: 3.12.7
+      - key: DATABASE_URL
+        fromDatabase: { name: folio-db, property: connectionString }
