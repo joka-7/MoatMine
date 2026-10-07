@@ -34,16 +34,22 @@ render.yaml Render blueprint (API, worker, Postgres)
 | My info | Your own notes, thesis, news and links per stock |
 | **PAPI / MAMI targets** | **P**rofit %, **A**mount (value), **P**eriod (days held), **I**ntent (category plus risk as annualised volatility %). Each has a target and **MA**x/**MI**n bounds. Scope is one symbol or the whole portfolio. Shown as live range bars. |
 | Alerts | Worker evaluates targets and watch prices and writes de-duplicated alerts (bell menu) |
-| AI agent | Tool-using chat through a **model dispatcher**. Tools: portfolio, quotes, ratios, company, earnings, analysts, dividends, valuation, news feed, targets, watchlist, notes |
-| Bring your own AI | Per-user API keys (Fernet-encrypted), or an **external agent** at any OpenAI-compatible endpoint |
+| AI agent | Tool-using chat through **[ModelDispatcher](https://github.com/joka-7/ModelDispatcher)**, bound to the user's risk profile. Tools: portfolio, risk profile, safety score, safety check, portfolio risk, stress test, quotes, ratios, company, earnings, analysts, dividends, valuation, bad times, news feed, targets, watchlist, notes |
+| AI settings | ModelDispatcher's shared `<ModelPicker>`: providers in fallback order, a model each, pooled keys (encrypted server-side), a favorite free AI app (`<AskExternallyButton>` / `<PasteExternalReply>` in chat), plus an **external agent** at any OpenAI-compatible base URL |
 | MCP | `/mcp/` exposes the same tools to Claude Desktop, Claude Code or any MCP client, using per-user revocable tokens |
 
-### Model dispatcher (`backend/app/ai/dispatcher.py`)
-- `auto`: short or simple questions go to `FAST_MODEL`; analysis questions go to `DEFAULT_MODEL`.
-- Any LiteLLM model id can be picked explicitly (`anthropic/…`, `openai/…`, `gemini/…`).
-- Key order for each provider: the user's own key first, then the server env key.
-- If a model fails, the dispatcher walks `FALLBACK_MODELS`.
-- `external` forwards the conversation to the user's own agent.
+### AI via ModelDispatcher (`backend/app/ai/dispatcher.py`)
+
+All AI calls (chat, news digest, safety analyzer) go through `model-dispatcher` (PyPI) and the web
+uses `modeldispatcher-react-ui` / `modeldispatcher-browser-agent` (npm), both 0.6.7.
+
+- Per request the backend builds a provider registry from the user's AI settings plus any vendor the
+  server has a key for (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GEMINI_API_KEY`, `GROQ_API_KEY`).
+- `auto`: ModelDispatcher triages the question and routes cheapest-capable first, falling back across
+  vendors and across a user's pooled keys. A vendor id pins that vendor; `external` uses the user's agent.
+- The user's own key always wins over the server key for the same vendor.
+- Per-user quotas (`AI_REQUESTS_PER_MIN`, `AI_TOKENS_PER_MIN`, `AI_TOKENS_PER_DAY`); when the shared
+  key runs out the API returns ModelDispatcher's handoff and the chat links to AI settings.
 
 The agent has no tool that places trades.
 

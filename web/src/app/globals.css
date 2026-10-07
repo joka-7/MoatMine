@@ -108,3 +108,20 @@ label.f { display: flex; flex-direction: column; gap: 4px; font-size: 12px; colo
   .span2 { grid-column: auto; }
   main { padding: 16px; }
 }
+
+/* ModelDispatcher react-ui components, themed to match */
+.md-picker, .md-ask-externally, .md-no-provider, .md-paste-reply, .md-conversation-intro {
+  --md-accent: var(--accent);
+  --md-accent-ink: var(--accent-ink);
+  --md-accent-soft: color-mix(in srgb, var(--accent) 12%, transparent);
+  --md-border: var(--line);
+  --md-text: var(--text);
+  --md-text-muted: var(--muted);
+  --md-danger: var(--down);
+  --md-success: var(--up);
+  --md-surface: var(--panel-2);
+  --md-surface-muted: var(--bg);
+  color: var(--text);
+}
+.md-picker { max-width: none; }
+.md-conversation-intro { color: var(--muted); font-size: 12px; }

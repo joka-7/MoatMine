@@ -1,5 +1,7 @@
 "use client";
 
+import type { AgentConfig, ExternalChatProviderId } from "modeldispatcher-browser-agent";
+
 // One client for web (Vercel) and desktop (Tauri): both call the Render API.
 const DEFAULT_API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -21,7 +23,7 @@ export function authToken(): string {
 }
 
 export class ApiError extends Error {
-  constructor(public status: number, message: string) {
+  constructor(public status: number, message: string, public body?: unknown) {
     super(message);
   }
 }
@@ -46,12 +48,15 @@ export async function apiWithHeaders<T = unknown>(
   });
   if (!res.ok) {
     let msg = res.statusText;
+    let detail: unknown;
     try {
       const body = await res.json();
       const d = body.detail;
-      msg = typeof d === "string" ? d : typeof d?.message === "string" ? d.message : JSON.stringify(d ?? body);
+      detail = d;
+      msg = typeof d === "string" ? d : typeof d?.message === "string" ? d.message
+        : typeof d?.detail === "string" ? d.detail : JSON.stringify(d ?? body);
     } catch {}
-    throw new ApiError(res.status, msg);
+    throw new ApiError(res.status, msg, detail);
   }
   return { data: res.status === 204 ? (undefined as T) : await res.json(), headers: res.headers };
 }
@@ -179,3 +184,17 @@ export type BuyPlan = {
   verdict: "pass" | "warn" | "block"; status: "blocked" | "cooling_off" | "ready" | "executed" | "cancelled";
   available_at: string; created_at: string; check: CheckResult; executed_holding_id: number | null;
 };
+
+// ---------- AI settings (ModelDispatcher AgentConfig shape) ----------
+
+
+export type ExternalAgent = { base_url: string; model: string; api_key: string };
+export type AiSettings = {
+  config: AgentConfig;
+  favorite: ExternalChatProviderId | null;
+  external: ExternalAgent | null;
+  supported: string[];
+  server_vendors: string[];
+};
+/** Error body from ModelDispatcher (e.g. quota_exceeded with action trigger_key_wizard). */
+export type DispatcherErrorBody = { error: string; detail?: string; action?: string; provider?: string };

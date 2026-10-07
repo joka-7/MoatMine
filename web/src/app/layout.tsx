@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Nav from "@/components/Nav";
+import "modeldispatcher-react-ui/styles.css";
 import "./globals.css";
 
 export const metadata: Metadata = {
