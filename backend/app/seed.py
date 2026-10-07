@@ -3,12 +3,12 @@
 import sys
 from datetime import datetime, timedelta, timezone
 
-from app.db import SessionLocal, init_db
+from app.db import SessionLocal, migrate_to_head
 from app.models import Account, Holding, StockNote, Target, WatchItem
 
 
 def seed(user: str = "dev") -> None:
-    init_db()
+    migrate_to_head()
     with SessionLocal() as db:
         if db.query(Account).filter_by(user_id=user).first():
             print(f"user {user!r} already has data; skipping")

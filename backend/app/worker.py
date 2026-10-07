@@ -13,7 +13,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
-from app.db import SessionLocal, init_db
+from app.db import SessionLocal
 from app.market import get_provider
 from app.models import Alert, RiskProfile, Target, WatchItem
 from app.portfolio import portfolio_snapshot, quotes_for
@@ -89,7 +89,6 @@ async def _risk_rule_alerts(db: Session, user: str, provider) -> int:
 
 
 async def main(once: bool) -> None:
-    init_db()
     interval = get_settings().worker_interval_seconds
     while True:
         try:

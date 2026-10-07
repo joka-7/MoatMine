@@ -70,6 +70,7 @@ cd backend
 python -m venv .venv && . .venv/bin/activate
 pip install -r requirements-dev.txt
 cp .env.example .env    # set FERNET_KEY (command is in the file); add an AI key to try the agent
+alembic upgrade head    # create/upgrade the schema
 python -m app.seed      # demo data for user "dev"
 uvicorn app.main:app --reload
 pytest                  # 62 tests
@@ -108,7 +109,7 @@ The app runs with **no API keys**: `MARKET_PROVIDER=mock` serves deterministic s
   1. Set `AUTH_MODE=clerk` on Render.
   2. Add `@clerk/nextjs` to `web/`.
   3. Return Clerk's `getToken()` from `authToken()` in `web/src/lib/api.ts`.
-- **Schema.** Tables are created with `create_all`. Add Alembic before changing the schema on a live database.
+- **Schema.** Alembic owns the schema (`backend/migrations/`). Render runs `alembic upgrade head` before each deploy of the API and the worker. After changing `app/models.py`, run `alembic revision --autogenerate -m "..."`, review the file, and commit it with the model change. `tests/test_db.py` fails if the models and migrations drift apart. A database created before migrations is adopted by the baseline revision as-is.
 - **Data coverage.** Free Finnhub gives quotes, news, ratios, earnings, recommendations and splits. Company descriptions, statements (Piotroski, Altman), price targets and dividend history need `FMP_API_KEY` or a paid Finnhub plan; without them those sections say so instead of breaking. The FMP mapping follows FMP's documented `/stable` fields but hasn't been run against a live key yet.
 - **Market data licensing.** Finnhub's free plan is for personal use. Check the terms before showing its data to other users. `/stock/candle` may need a paid Finnhub plan; until then, charts fall back to sample data and say so.
 - **Broker sync.** SnapTrade or Plaid Investments can fill the existing `accounts` and `holdings` tables. Today they are entered manually.

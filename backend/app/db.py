@@ -1,4 +1,5 @@
 from collections.abc import Iterator
+from pathlib import Path
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
@@ -24,10 +25,17 @@ engine = _make_engine(get_settings().database_url)
 SessionLocal = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
 
 
-def init_db() -> None:
-    from app import models  # noqa: F401  (register tables)
+def migrate_to_head() -> None:
+    """Apply every pending Alembic migration, as `alembic upgrade head` does.
 
-    Base.metadata.create_all(engine)
+    Deploys run the CLI before the services start; this is for the seed script and tests.
+    """
+    from alembic import command
+    from alembic.config import Config
+
+    cfg = Config(str(Path(__file__).resolve().parent.parent / "alembic.ini"))
+    cfg.attributes["configure_logger"] = False
+    command.upgrade(cfg, "head")
 
 
 def get_db() -> Iterator[Session]:

@@ -14,11 +14,13 @@ os.environ.pop("OPENAI_API_KEY", None)
 import pytest  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
 
+from app.db import migrate_to_head  # noqa: E402
 from app.main import app  # noqa: E402
 
 
 @pytest.fixture(scope="session")
 def client():
+    migrate_to_head()
     with TestClient(app) as c:
         yield c
 

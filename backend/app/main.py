@@ -4,7 +4,6 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
-from app.db import init_db
 from app.market import get_provider
 from app.mcp_server import build_mcp_app, mcp
 from app.routers import ai, portfolio, safety, stocks, targets, watchlist
@@ -14,7 +13,6 @@ mcp_app = build_mcp_app()
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
-    init_db()
     async with mcp.session_manager.run():
         yield
 

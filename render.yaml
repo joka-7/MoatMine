@@ -39,6 +39,7 @@ services:
     rootDir: backend
     plan: starter # free plan sleeps when idle
     buildCommand: pip install -r requirements.txt
+    preDeployCommand: alembic upgrade head # schema first; a failed migration stops the deploy
     startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT --proxy-headers
     healthCheckPath: /health
     envVars:
@@ -56,6 +57,7 @@ services:
     rootDir: backend
     plan: starter
     buildCommand: pip install -r requirements.txt
+    preDeployCommand: alembic upgrade head # safe to run twice: Postgres advisory lock in migrations/env.py
     startCommand: python -m app.worker
     envVars:
       - fromGroup: moatmine-shared
