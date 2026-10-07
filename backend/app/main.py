@@ -7,7 +7,7 @@ from app.config import get_settings
 from app.db import init_db
 from app.market import get_provider
 from app.mcp_server import build_mcp_app, mcp
-from app.routers import ai, portfolio, stocks, targets, watchlist
+from app.routers import ai, portfolio, safety, stocks, targets, watchlist
 
 mcp_app = build_mcp_app()
 
@@ -32,7 +32,7 @@ app.add_middleware(
     expose_headers=["X-Data-Source"],
 )
 
-for r in (portfolio.router, stocks.router, stocks.feed_router, watchlist.router, targets.router, ai.router):
+for r in (portfolio.router, stocks.router, stocks.feed_router, watchlist.router, targets.router, ai.router, safety.router):
     app.include_router(r)
 
 app.mount("/mcp", mcp_app)

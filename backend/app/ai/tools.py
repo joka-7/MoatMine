@@ -16,6 +16,7 @@ from app.market import get_provider
 from app.models import StockNote, Target, WatchItem
 from app.portfolio import portfolio_snapshot, quotes_for
 from app.crises import bad_times
+from app.safety.service import check_for, get_profile, portfolio_risk_report, profile_dict, stock_safety, stress_report
 from app.research import news_feed, valuation
 from app.valuation import Assumptions
 from app.targets import evaluate, risk_by_symbol
@@ -55,6 +56,15 @@ TOOL_SPECS = [
         "drawdown, recovery time, downside capture, plus its own worst drawdowns. Use for any safety/risk question.",
         "parameters": _sym_param(),
     },
+    {"name": "get_risk_profile", "description": "The user's own risk rules: level, max position/sector %, minimum safety score, volatility and loss limits, cooling-off. Every recommendation must respect these.", "parameters": {"type": "object", "properties": {}}},
+    {"name": "get_safety_score", "description": "0–100 safety score for a stock with its components (Altman Z, Piotroski, debt, volatility, worst fall, crisis resilience, size, earnings, valuation) and red flags.", "parameters": _sym_param()},
+    {
+        "name": "safety_check",
+        "description": "Check a proposed buy against the user's risk rules: pass / warn / block with each rule's result. Run this before discussing any buy.",
+        "parameters": {"type": "object", "properties": {"symbol": {"type": "string"}, "amount": {"type": "number", "description": "money to invest"}}, "required": ["symbol", "amount"]},
+    },
+    {"name": "get_portfolio_risk", "description": "Portfolio volatility, beta, value-at-risk, max drawdown, concentration, sectors, correlation and rule breaches.", "parameters": {"type": "object", "properties": {}}},
+    {"name": "get_stress_test", "description": "Today's portfolio replayed through past crises and market falls of 10/20/35%, vs the user's loss limit.", "parameters": {"type": "object", "properties": {}}},
     {"name": "get_news_feed", "description": "Recent news across all holdings and watchlist symbols.", "parameters": {"type": "object", "properties": {}}},
     {"name": "get_targets_status", "description": "User's PAPI targets (profit, amount, period, intent) evaluated against their min/max bounds.", "parameters": {"type": "object", "properties": {}}},
     {"name": "get_watchlist", "description": "User's watchlist with live quotes.", "parameters": {"type": "object", "properties": {}}},
@@ -108,6 +118,17 @@ async def run_tool(name: str, args: dict, db: Session, user: str) -> str:
             out = {k: v[k] for k in ("price", "assumptions", "models", "summary", "indicators", "quality", "disclaimer")}
         case "get_bad_times":
             out = await bad_times(p, sym)
+        case "get_risk_profile":
+            out = profile_dict(get_profile(db, user))
+        case "get_safety_score":
+            out = await stock_safety(p, sym)
+        case "safety_check":
+            out = await check_for(db, user, p, sym, float(args["amount"]))
+        case "get_portfolio_risk":
+            out = await portfolio_risk_report(db, user, p)
+        case "get_stress_test":
+            r = await stress_report(db, user, p)
+            out = {**r, "scenarios": [{k: sc[k] for k in ("name", "change", "change_pct", "worst", "breaches_limit")} for sc in r["scenarios"]]}
         case "get_news_feed":
             out = [{k: n[k] for k in ("symbol", "headline", "source", "datetime")} for n in (await news_feed(db, user, p, 7, 25))]
         case "get_targets_status":

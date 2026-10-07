@@ -10,6 +10,7 @@ from app.db import get_db
 from app.market import get_provider
 from app.models import Account, Holding
 from app.portfolio import portfolio_snapshot
+from app.safety.service import check_for
 from app.schemas import AccountIn, AccountOut, HoldingIn, HoldingUpdate
 
 router = APIRouter(tags=["portfolio"])
@@ -51,13 +52,20 @@ def delete_account(account_id: int, user: str = Depends(current_user), db: Sessi
 
 
 @router.post("/holdings", status_code=201)
-def add_holding(body: HoldingIn, user: str = Depends(current_user), db: Session = Depends(get_db)):
-    _own(db, Account, body.account_id, user)
-    data = body.model_dump(exclude_none=True)
-    h = Holding(user_id=user, **data)
+async def add_holding(body: HoldingIn, user: str = Depends(current_user), db: Session = Depends(get_db)):
+    """Record a position. Always runs the safety check against the user's risk rules.
+
+    Paper accounts enforce it (a blocked buy is refused); real accounts record what was actually
+    bought and return the check as a warning, since refusing wouldn't undo the trade.
+    """
+    acc = _own(db, Account, body.account_id, user)
+    check = await check_for(db, user, get_provider(), body.symbol, body.quantity * body.avg_cost)
+    if acc.broker == "paper" and check["verdict"] == "block":
+        raise HTTPException(409, {"message": "Blocked by your risk rules. Use a buy plan or change your profile.", "check": check})
+    h = Holding(user_id=user, **body.model_dump(exclude_none=True))
     db.add(h)
     db.commit()
-    return {"id": h.id}
+    return {"id": h.id, "check": check}
 
 
 @router.patch("/holdings/{holding_id}")

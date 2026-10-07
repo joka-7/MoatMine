@@ -129,7 +129,7 @@ async def complete(db: Session, user: str, prompt: str, system: str = "", fast: 
 
 
 async def chat(db: Session, user: str, messages: list[dict], requested: str = "auto", context: str = "") -> dict:
-    system = SYSTEM_PROMPT + (f"\nThe user is currently viewing: {context}" if context else "")
+    system = SYSTEM_PROMPT + (f"\n{context}" if context else "")
     convo = [{"role": "system", "content": system}, *messages]
 
     if requested == "external":

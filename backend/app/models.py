@@ -138,3 +138,42 @@ class MCPToken(Base):
     token_hash: Mapped[str] = mapped_column(String(64), unique=True)
     label: Mapped[str] = mapped_column(String(120), default="")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class RiskProfile(Base):
+    """The user's own risk rules. Every safety check, plan and alert is measured against these."""
+
+    __tablename__ = "risk_profiles"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[str] = mapped_column(String(128), unique=True, index=True)
+    level: Mapped[str] = mapped_column(String(20), default="moderate")  # conservative|moderate|balanced|growth
+    answers: Mapped[str] = mapped_column(Text, default="{}")  # questionnaire answers, JSON
+    max_position_pct: Mapped[float] = mapped_column(Float, default=8.0)
+    max_sector_pct: Mapped[float] = mapped_column(Float, default=25.0)
+    min_safety_score: Mapped[float] = mapped_column(Float, default=60.0)
+    max_volatility_pct: Mapped[float] = mapped_column(Float, default=35.0)
+    max_drawdown_pct: Mapped[float] = mapped_column(Float, default=-20.0)  # portfolio loss limit, negative
+    min_market_cap_m: Mapped[float] = mapped_column(Float, default=2000.0)
+    allow_penny_stocks: Mapped[bool] = mapped_column(default=False)
+    cooling_off_hours: Mapped[int] = mapped_column(Integer, default=24)
+    paper_mode: Mapped[bool] = mapped_column(default=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+
+class BuyPlan(Base):
+    """A proposed buy that must pass the safety check (and, if risky, a note + cooling-off) before it runs."""
+
+    __tablename__ = "buy_plans"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[str] = mapped_column(String(128), index=True)
+    account_id: Mapped[int] = mapped_column(ForeignKey("accounts.id", ondelete="CASCADE"))
+    symbol: Mapped[str] = mapped_column(String(16))
+    quantity: Mapped[float] = mapped_column(Float)
+    price: Mapped[float] = mapped_column(Float)
+    note: Mapped[str] = mapped_column(Text, default="")
+    verdict: Mapped[str] = mapped_column(String(10))  # pass | warn | block
+    check_json: Mapped[str] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(String(15))  # blocked | cooling_off | ready | executed | cancelled
+    available_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    executed_holding_id: Mapped[int | None] = mapped_column(Integer, nullable=True)

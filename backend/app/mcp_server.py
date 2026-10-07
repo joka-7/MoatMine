@@ -97,6 +97,31 @@ async def get_bad_times(symbol: str, ctx: Context) -> str:
     return await _call(ctx, "get_bad_times", symbol=symbol)
 
 
+@mcp.tool(description="The user's risk profile rules.")
+async def get_risk_profile(ctx: Context) -> str:
+    return await _call(ctx, "get_risk_profile")
+
+
+@mcp.tool(description="0–100 safety score for a stock with components and red flags.")
+async def get_safety_score(symbol: str, ctx: Context) -> str:
+    return await _call(ctx, "get_safety_score", symbol=symbol)
+
+
+@mcp.tool(description="Check a proposed buy (money amount) against the user's risk rules: pass / warn / block.")
+async def safety_check(symbol: str, amount: float, ctx: Context) -> str:
+    return await _call(ctx, "safety_check", symbol=symbol, amount=amount)
+
+
+@mcp.tool(description="Portfolio volatility, beta, VaR, drawdown, concentration, sectors, correlation, rule breaches.")
+async def get_portfolio_risk(ctx: Context) -> str:
+    return await _call(ctx, "get_portfolio_risk")
+
+
+@mcp.tool(description="Portfolio replayed through past crises and 10/20/35% market falls vs the user's loss limit.")
+async def get_stress_test(ctx: Context) -> str:
+    return await _call(ctx, "get_stress_test")
+
+
 @mcp.tool(description="Recent news across the user's holdings and watchlist.")
 async def get_news_feed(ctx: Context) -> str:
     return await _call(ctx, "get_news_feed")

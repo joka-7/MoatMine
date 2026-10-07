@@ -8,9 +8,25 @@ from app.config import get_settings
 from app.crypto import decrypt, encrypt, mask, new_mcp_token
 from app.db import get_db
 from app.models import AIKey, MCPToken
+from app.safety.service import get_profile, profile_dict
 from app.schemas import AIKeyIn, AIKeyOut, ChatIn
 
 router = APIRouter(prefix="/ai", tags=["ai"])
+
+
+def agent_context(db: Session, user: str, symbol: str | None) -> str:
+    """Bind the agent to the user's own risk rules for this conversation."""
+    p = profile_dict(get_profile(db, user))
+    rules = (
+        f"The user's risk profile is '{p['level']}'{'' if p['saved'] else ' (default, not yet set by the user)'}: "
+        f"max {p['max_position_pct']:g}% in one stock, max {p['max_sector_pct']:g}% in one sector, "
+        f"minimum safety score {p['min_safety_score']:g}, max volatility {p['max_volatility_pct']:g}%/yr, "
+        f"portfolio loss limit {p['max_drawdown_pct']:g}%, minimum market cap ${p['min_market_cap_m']:,.0f}M, "
+        f"penny stocks {'allowed' if p['allow_penny_stocks'] else 'not allowed'}. "
+        "Run safety_check before discussing any buy. If something breaks these rules, say so plainly and "
+        "do not help work around them; the user can change the rules only in the Risk profile page."
+    )
+    return rules + (f" The user is currently viewing {symbol}." if symbol else "")
 
 MODEL_CHOICES = [
     {"id": "auto", "label": "Auto (dispatcher)"},
@@ -45,7 +61,7 @@ async def chat_endpoint(body: ChatIn, user: str = Depends(current_user), db: Ses
             user,
             [m.model_dump() for m in body.messages],
             requested=body.model,
-            context=f"stock {body.symbol}" if body.symbol else "",
+            context=agent_context(db, user, body.symbol),
         )
     except DispatchError as e:
         raise HTTPException(502, str(e)) from e
