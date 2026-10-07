@@ -15,6 +15,8 @@ from app.analytics import price_stats
 from app.market import get_provider
 from app.models import StockNote, Target, WatchItem
 from app.portfolio import portfolio_snapshot, quotes_for
+from app.research import news_feed, valuation
+from app.valuation import Assumptions
 from app.targets import evaluate, risk_by_symbol
 
 
@@ -27,6 +29,26 @@ TOOL_SPECS = [
     {"name": "get_quote", "description": "Latest quote for a symbol.", "parameters": _sym_param()},
     {"name": "get_ratios", "description": "Fundamental ratios (P/E, ROE, margins…) and 1-year price/risk stats (volatility, drawdown, Sharpe, RSI).", "parameters": _sym_param()},
     {"name": "get_news", "description": "Recent company news headlines for a symbol.", "parameters": _sym_param()},
+    {"name": "get_company", "description": "Company profile: description, sector, industry, employees, website, IPO date, market cap.", "parameters": _sym_param()},
+    {"name": "get_earnings", "description": "Recent quarterly EPS: actual vs estimate and surprise %.", "parameters": _sym_param()},
+    {"name": "get_analysts", "description": "Analyst recommendation trend (strong buy … strong sell) and consensus price target.", "parameters": _sym_param()},
+    {"name": "get_dividends", "description": "Dividend history and stock splits.", "parameters": _sym_param()},
+    {
+        "name": "get_valuation",
+        "description": "Fair-value estimate from several models (DCF, Graham, Lynch, DDM, EPV, P/E and EV/EBITDA multiples), "
+        "valuation indicators (PEG, FCF yield, payout…) and quality scores (Piotroski F, Altman Z). "
+        "Optional assumption overrides in percent.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "symbol": {"type": "string"},
+                "discount_rate": {"type": "number"}, "growth_rate": {"type": "number"},
+                "terminal_growth": {"type": "number"}, "margin_of_safety": {"type": "number"},
+            },
+            "required": ["symbol"],
+        },
+    },
+    {"name": "get_news_feed", "description": "Recent news across all holdings and watchlist symbols.", "parameters": {"type": "object", "properties": {}}},
     {"name": "get_targets_status", "description": "User's PAPI targets (profit, amount, period, intent) evaluated against their min/max bounds.", "parameters": {"type": "object", "properties": {}}},
     {"name": "get_watchlist", "description": "User's watchlist with live quotes.", "parameters": {"type": "object", "properties": {}}},
     {"name": "get_notes", "description": "User's own saved notes/thesis for a symbol.", "parameters": _sym_param()},
@@ -65,6 +87,20 @@ async def run_tool(name: str, args: dict, db: Session, user: str) -> str:
             out = {"fundamental": await p.metrics(sym), "price": price_stats([b["c"] for b in bars])}
         case "get_news":
             out = [{k: n[k] for k in ("headline", "source", "datetime", "url")} for n in (await p.news(sym))[:10]]
+        case "get_company":
+            out = {**(await p.profile(sym)), **(await p.company(sym))}
+        case "get_earnings":
+            out = (await p.earnings(sym))[:8]
+        case "get_analysts":
+            out = {"recommendations": (await p.recommendations(sym))[:3], "price_target": await p.price_target(sym)}
+        case "get_dividends":
+            out = {"dividends": (await p.dividends(sym))[:12], "splits": await p.splits(sym)}
+        case "get_valuation":
+            overrides = {k: float(args[k]) for k in ("discount_rate", "growth_rate", "terminal_growth", "margin_of_safety") if args.get(k) is not None}
+            v = await valuation(p, sym, Assumptions(**overrides))
+            out = {k: v[k] for k in ("price", "assumptions", "models", "summary", "indicators", "quality", "disclaimer")}
+        case "get_news_feed":
+            out = [{k: n[k] for k in ("symbol", "headline", "source", "datetime")} for n in (await news_feed(db, user, p, 7, 25))]
         case "get_targets_status":
             snap = await portfolio_snapshot(db, user, p)
             risks = await risk_by_symbol(p, {h["symbol"] for h in snap["holdings"]})

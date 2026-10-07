@@ -6,8 +6,10 @@ import ChatPanel from "@/components/ChatPanel";
 import PriceChart from "@/components/PriceChart";
 import RatiosPanel from "@/components/RatiosPanel";
 import SymbolSearch from "@/components/SymbolSearch";
-import { api, NewsItem, Note, Quote } from "@/lib/api";
-import { date, money, pct, tone } from "@/lib/format";
+import { AnalystsPanel, CompanyCard, DividendsPanel, EarningsPanel, NewsPanel } from "@/components/ResearchPanels";
+import ValuationPanel from "@/components/ValuationPanel";
+import { api, Note, Quote } from "@/lib/api";
+import { money, pct, tone } from "@/lib/format";
 import { useApi } from "@/lib/useApi";
 
 // Query-param route (/stock?s=AAPL) so it works in the static desktop export too.
@@ -19,8 +21,22 @@ export default function StockPage() {
   );
 }
 
+const TABS = [
+  ["overview", "Overview"], ["valuation", "Valuation"], ["financials", "Earnings & dividends"],
+  ["analysts", "Analysts"], ["news", "News"], ["notes", "My info"], ["ai", "Ask AI"],
+] as const;
+type Tab = (typeof TABS)[number][0];
+
 function Stock() {
-  const symbol = (useSearchParams().get("s") || "AAPL").toUpperCase();
+  const params = useSearchParams();
+  const symbol = (params.get("s") || "AAPL").toUpperCase();
+  const [tab, setTabState] = useState<Tab>((TABS.find(([k]) => k === params.get("tab"))?.[0] ?? "overview") as Tab);
+  const setTab = (t: Tab) => {
+    setTabState(t);
+    const u = new URL(window.location.href);
+    u.searchParams.set("tab", t);
+    window.history.replaceState(null, "", u);
+  };
   const { data: q } = useApi<Quote>(`/stocks/${symbol}/quote`);
   const { data: prof } = useApi<{ name: string; industry: string; exchange: string; market_cap: number | null }>(`/stocks/${symbol}/profile`);
   const [msg, setMsg] = useState<string | null>(null);
@@ -50,41 +66,33 @@ function Stock() {
       </div>
       {msg && <div className="sub" style={{ marginBottom: 10 }}>{msg}</div>}
 
-      <div style={{ marginBottom: 16 }}><PriceChart symbol={symbol} /></div>
-      <div style={{ marginBottom: 16 }}><RatiosPanel symbol={symbol} /></div>
-
-      <div className="grid g3">
-        <News symbol={symbol} />
-        <Notes symbol={symbol} />
-        <ChatPanel symbol={symbol} height={300} suggestions={[`Summarise ${symbol}'s valuation`, `How does ${symbol} fit my targets?`]} />
-      </div>
-    </>
-  );
-}
-
-function News({ symbol }: { symbol: string }) {
-  const [days, setDays] = useState(14);
-  const { data } = useApi<NewsItem[]>(`/stocks/${symbol}/news?days=${days}`);
-  return (
-    <div className="card news">
-      <div className="row" style={{ justifyContent: "space-between" }}>
-        <h2 style={{ margin: 0 }}>News</h2>
-        <select value={days} onChange={(e) => setDays(+e.target.value)} style={{ flex: 0, minWidth: 90 }}>
-          {[3, 7, 14, 30, 90].map((d) => <option key={d} value={d}>{d}d</option>)}
-        </select>
-      </div>
-      <ul style={{ maxHeight: 360, overflowY: "auto" }}>
-        {data?.map((n, i) => (
-          <li key={i}>
-            <a href={n.url || undefined} target="_blank" rel="noreferrer">
-              <div className="h">{n.headline}</div>
-              <div className="sub" style={{ fontSize: 12 }}>{n.source} · {date(n.datetime)}</div>
-            </a>
-          </li>
+      <div className="seg" style={{ marginBottom: 16, borderBottom: "1px solid var(--line)", paddingBottom: 10 }}>
+        {TABS.map(([k, label]) => (
+          <button key={k} className={`btn ${tab === k ? "on" : "ghost"}`} onClick={() => setTab(k)}>{label}</button>
         ))}
-      </ul>
-      {data && !data.length && <div className="empty">No recent news.</div>}
-    </div>
+      </div>
+
+      {tab === "overview" && (
+        <div className="grid" style={{ gap: 16 }}>
+          <PriceChart symbol={symbol} />
+          <CompanyCard symbol={symbol} />
+          <RatiosPanel symbol={symbol} />
+        </div>
+      )}
+      {tab === "valuation" && <ValuationPanel symbol={symbol} />}
+      {tab === "financials" && (
+        <div className="grid g2"><EarningsPanel symbol={symbol} /><DividendsPanel symbol={symbol} /></div>
+      )}
+      {tab === "analysts" && <AnalystsPanel symbol={symbol} />}
+      {tab === "news" && <NewsPanel symbol={symbol} />}
+      {tab === "notes" && <div style={{ maxWidth: 720 }}><Notes symbol={symbol} /></div>}
+      {tab === "ai" && (
+        <ChatPanel symbol={symbol} height={460} suggestions={[
+          `Is ${symbol} undervalued? Show the models`, `Summarise ${symbol}'s last earnings`,
+          `What do analysts think of ${symbol}?`, `How does ${symbol} fit my targets?`,
+        ]} />
+      )}
+    </>
   );
 }
 

@@ -1,3 +1,4 @@
+import asyncio
 import time
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
@@ -10,9 +11,13 @@ from app.db import get_db
 from app.market import get_provider
 from app.market.base import RESOLUTION_SECONDS
 from app.models import StockNote
+from app.ai.dispatcher import DispatchError
+from app.research import news_feed, news_summary, valuation
 from app.schemas import NoteIn, NoteOut
+from app.valuation import Assumptions
 
 router = APIRouter(prefix="/stocks", tags=["stocks"])
+feed_router = APIRouter(tags=["news"])
 
 
 def _sym(symbol: str) -> str:
@@ -92,3 +97,73 @@ def delete_note(symbol: str, note_id: int, user: str = Depends(current_user), db
         raise HTTPException(404, "note not found")
     db.delete(n)
     db.commit()
+
+
+# --- company & research ---
+
+
+@router.get("/{symbol}/company")
+async def company(symbol: str):
+    p = get_provider()
+    sym = _sym(symbol)
+    prof, comp = await asyncio.gather(p.profile(sym), p.company(sym))
+    return {**prof, **{k: v for k, v in comp.items() if v not in (None, "")}}
+
+
+@router.get("/{symbol}/earnings")
+async def earnings(symbol: str):
+    return await get_provider().earnings(_sym(symbol))
+
+
+@router.get("/{symbol}/analysts")
+async def analysts(symbol: str):
+    p = get_provider()
+    sym = _sym(symbol)
+    recs, target, q = await asyncio.gather(p.recommendations(sym), p.price_target(sym), p.quote(sym))
+    if target and target.get("mean") and q["price"]:
+        target["upside_pct"] = round((target["mean"] / q["price"] - 1) * 100, 1)
+    return {"recommendations": recs, "price_target": target, "price": q["price"]}
+
+
+@router.get("/{symbol}/dividends")
+async def dividends(symbol: str):
+    p = get_provider()
+    sym = _sym(symbol)
+    divs, splits = await asyncio.gather(p.dividends(sym), p.splits(sym))
+    return {"dividends": divs, "splits": splits}
+
+
+@router.get("/{symbol}/valuation")
+async def stock_valuation(
+    symbol: str,
+    discount_rate: float = Query(9.0, gt=0, le=40),
+    growth_rate: float | None = Query(None, ge=-20, le=60),
+    terminal_growth: float = Query(2.5, ge=-2, le=6),
+    years: int = Query(10, ge=1, le=30),
+    margin_of_safety: float = Query(25.0, ge=0, le=90),
+    bond_yield: float = Query(4.5, gt=0, le=20),
+    pe_multiple: float = Query(18.0, gt=0, le=100),
+    ev_ebitda_multiple: float = Query(12.0, gt=0, le=60),
+    dividend_growth: float = Query(4.0, ge=-10, le=20),
+):
+    """Fair value from several models, valuation indicators and quality scores. All assumptions are overridable."""
+    a = Assumptions(discount_rate, growth_rate, terminal_growth, years, margin_of_safety, bond_yield,
+                    pe_multiple, ev_ebitda_multiple, dividend_growth)
+    return await valuation(get_provider(), _sym(symbol), a)
+
+
+@router.get("/{symbol}/news/summary")
+async def summarize_news(
+    symbol: str, days: int = Query(7, ge=1, le=90), user: str = Depends(current_user), db: Session = Depends(get_db)
+):
+    """AI digest of recent headlines with a sentiment label (fast model, cached 1h)."""
+    try:
+        return await news_summary(db, user, get_provider(), _sym(symbol), days)
+    except DispatchError as e:
+        raise HTTPException(502, str(e)) from e
+
+
+@feed_router.get("/news/feed")
+async def feed(days: int = Query(7, ge=1, le=30), user: str = Depends(current_user), db: Session = Depends(get_db)):
+    """News across everything you hold or watch."""
+    return await news_feed(db, user, get_provider(), days)

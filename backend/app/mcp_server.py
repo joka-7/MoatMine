@@ -63,6 +63,40 @@ async def get_news(symbol: str, ctx: Context) -> str:
     return await _call(ctx, "get_news", symbol=symbol)
 
 
+@mcp.tool(description="Company profile: description, sector, employees, website, market cap.")
+async def get_company(symbol: str, ctx: Context) -> str:
+    return await _call(ctx, "get_company", symbol=symbol)
+
+
+@mcp.tool(description="Quarterly EPS actual vs estimate.")
+async def get_earnings(symbol: str, ctx: Context) -> str:
+    return await _call(ctx, "get_earnings", symbol=symbol)
+
+
+@mcp.tool(description="Analyst recommendation trend and consensus price target.")
+async def get_analysts(symbol: str, ctx: Context) -> str:
+    return await _call(ctx, "get_analysts", symbol=symbol)
+
+
+@mcp.tool(description="Dividend history and splits.")
+async def get_dividends(symbol: str, ctx: Context) -> str:
+    return await _call(ctx, "get_dividends", symbol=symbol)
+
+
+@mcp.tool(description="Fair-value estimate (DCF, Graham, Lynch, DDM, EPV, multiples), valuation indicators, Piotroski F and Altman Z. Rates in percent.")
+async def get_valuation(
+    symbol: str, ctx: Context, discount_rate: float | None = None, growth_rate: float | None = None,
+    terminal_growth: float | None = None, margin_of_safety: float | None = None,
+) -> str:
+    return await _call(ctx, "get_valuation", symbol=symbol, discount_rate=discount_rate, growth_rate=growth_rate,
+                       terminal_growth=terminal_growth, margin_of_safety=margin_of_safety)
+
+
+@mcp.tool(description="Recent news across the user's holdings and watchlist.")
+async def get_news_feed(ctx: Context) -> str:
+    return await _call(ctx, "get_news_feed")
+
+
 @mcp.tool(description="PAPI targets (profit, amount, period, intent) evaluated against MAMI min/max bounds.")
 async def get_targets_status(ctx: Context) -> str:
     return await _call(ctx, "get_targets_status")

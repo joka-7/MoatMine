@@ -24,8 +24,9 @@ MAX_TOOL_ROUNDS = 6
 
 SYSTEM_PROMPT = (
     "You are Folio's investment assistant. Use the tools to look at the user's real portfolio, "
-    "targets (PAPI: profit, amount, period, intent with MAMI min/max bounds), watchlist and market data "
-    "before answering. Be concise and numeric. You provide information and analysis, not personalised "
+    "targets (PAPI: profit, amount, period, intent with MAMI min/max bounds), watchlist, company data, "
+    "earnings, analyst views, news and the valuation models before answering. When discussing value, "
+    "show the spread between models and the assumptions behind them rather than one number. Be concise and numeric. You provide information and analysis, not personalised "
     "financial advice; never claim certainty about future prices. You cannot place trades."
 )
 
@@ -104,6 +105,27 @@ async def _external(db: Session, user: str, messages: list[dict]) -> tuple[str, 
         return data["choices"][0]["message"]["content"], f"external:{row.model or 'default'}"
     except (KeyError, IndexError, TypeError):
         raise DispatchError("External agent response was not OpenAI-compatible") from None
+
+
+async def complete(db: Session, user: str, prompt: str, system: str = "", fast: bool = True) -> dict:
+    """Single tool-free completion through the same key resolution + fallback chain.
+    Used for background-style jobs like news summaries."""
+    s = get_settings()
+    primary = s.fast_model if fast else s.default_model
+    chain = [primary] + [m for m in s.fallback_list if m != primary]
+    msgs = ([{"role": "system", "content": system}] if system else []) + [{"role": "user", "content": prompt}]
+    errors = []
+    for model in chain:
+        key = resolve_key(db, user, model)
+        if not key:
+            errors.append(f"{model}: no API key")
+            continue
+        try:
+            resp = await _completion(model=model, messages=msgs, api_key=key)
+            return {"model": model, "content": resp.choices[0].message.content or ""}
+        except Exception as e:
+            errors.append(f"{model}: {type(e).__name__}: {e}"[:300])
+    raise DispatchError("All models failed — " + " | ".join(errors))
 
 
 async def chat(db: Session, user: str, messages: list[dict], requested: str = "auto", context: str = "") -> dict:

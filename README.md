@@ -17,10 +17,17 @@ render.yaml Render blueprint (API, worker, Postgres)
 | Watchlist | Symbols with notes and price alerts (above / below) |
 | Stock page | Candles or line chart, 1D–5Y ranges, SMA20/50 and volume overlays, zoom in/out/fit plus wheel and drag |
 | Ratios | Valuation, profitability and health ratios from the provider; return, volatility, max drawdown, Sharpe, Sortino, RSI and SMA computed from candles, with a selectable lookback |
-| News & my info | Provider news by date window; your own notes, thesis, news and links per stock |
+| Company info | Description, sector, industry, employees, CEO, IPO, website, market cap |
+| Earnings & dividends | EPS actual vs estimate with surprise %, dividend history chart, stock splits |
+| Analysts | Recommendation trend (strong buy … strong sell) and consensus price target vs current price |
+| **Value estimator** | Eight fair-value models side by side: 2-stage DCF, Graham number, Graham formula, Peter Lynch, dividend discount, earnings power value, P/E multiple and EV/EBITDA multiple. Summary shows the median fair value, low–high range, a margin-of-safety "buy below" price and a verdict. Every assumption is editable (discount rate, growth, terminal growth, years, MOS, bond yield, fair multiples). |
+| Valuation indicators | PEG, earnings yield, FCF yield, P/FCF, P/B, dividend yield, payout ratio, EV/EBITDA, net debt/EBITDA |
+| Quality scores | Piotroski F-score with all 9 checks, and Altman Z-score with its zone |
+| News | Per-stock news by date window, an AI digest with sentiment (fast model, cached 1h), and a dashboard feed across holdings and watchlist |
+| My info | Your own notes, thesis, news and links per stock |
 | **PAPI / MAMI targets** | **P**rofit %, **A**mount (value), **P**eriod (days held), **I**ntent (category plus risk as annualised volatility %). Each has a target and **MA**x/**MI**n bounds. Scope is one symbol or the whole portfolio. Shown as live range bars. |
 | Alerts | Worker evaluates targets and watch prices and writes de-duplicated alerts (bell menu) |
-| AI agent | Tool-using chat (portfolio, quotes, ratios, news, targets, watchlist, notes) through a **model dispatcher** |
+| AI agent | Tool-using chat through a **model dispatcher**. Tools: portfolio, quotes, ratios, company, earnings, analysts, dividends, valuation, news feed, targets, watchlist, notes |
 | Bring your own AI | Per-user API keys (Fernet-encrypted), or an **external agent** at any OpenAI-compatible endpoint |
 | MCP | `/mcp/` exposes the same tools to Claude Desktop, Claude Code or any MCP client, using per-user revocable tokens |
 
@@ -43,7 +50,7 @@ pip install -r requirements-dev.txt
 cp .env.example .env    # set FERNET_KEY (command is in the file); add an AI key to try the agent
 python -m app.seed      # demo data for user "dev"
 uvicorn app.main:app --reload
-pytest                  # 15 tests
+pytest                  # 28 tests
 
 # Web
 cd web
@@ -63,6 +70,7 @@ The app runs with **no API keys**: `MARKET_PROVIDER=mock` serves deterministic s
 
 **Render.** New → Blueprint → this repo. Then fill in the prompted secrets:
 - `FINNHUB_API_KEY`
+- `FMP_API_KEY` (optional: company descriptions, financial statements for Piotroski/Altman, price targets, dividends)
 - `FERNET_KEY`
 - Clerk JWKS URL and issuer
 - AI keys (optional)
@@ -79,6 +87,7 @@ The app runs with **no API keys**: `MARKET_PROVIDER=mock` serves deterministic s
   2. Add `@clerk/nextjs` to `web/`.
   3. Return Clerk's `getToken()` from `authToken()` in `web/src/lib/api.ts`.
 - **Schema.** Tables are created with `create_all`. Add Alembic before changing the schema on a live database.
+- **Data coverage.** Free Finnhub gives quotes, news, ratios, earnings, recommendations and splits. Company descriptions, statements (Piotroski, Altman), price targets and dividend history need `FMP_API_KEY` or a paid Finnhub plan; without them those sections say so instead of breaking. The FMP mapping follows FMP's documented `/stable` fields but hasn't been run against a live key yet.
 - **Market data licensing.** Finnhub's free plan is for personal use. Check the terms before showing its data to other users. `/stock/candle` may need a paid Finnhub plan; until then, charts fall back to sample data and say so.
 - **Broker sync.** SnapTrade or Plaid Investments can fill the existing `accounts` and `holdings` tables. Today they are entered manually.
 - **Chat.** Chat replies are not streamed yet (one response per turn).

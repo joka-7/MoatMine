@@ -93,3 +93,32 @@ export type Alert = { id: number; source: string; symbol: string | null; message
 export type Ratios = { fundamental: Record<string, number | null>; price: Record<string, number | null> };
 export type ChatMsg = { role: "user" | "assistant"; content: string; meta?: string };
 export type ModelChoice = { id: string; label: string; available: boolean };
+
+// ---------- research ----------
+
+export type Company = {
+  symbol: string; name: string; industry: string; sector?: string; exchange: string; currency: string; logo: string;
+  market_cap: number | null; description?: string; website?: string; employees?: number | null; ceo?: string;
+  country?: string; ipo?: string;
+};
+export type Earning = { period: string; actual: number | null; estimate: number | null; surprise_pct: number | null };
+export type Recommendation = { period: string; strong_buy: number; buy: number; hold: number; sell: number; strong_sell: number };
+export type PriceTarget = { high: number | null; low: number | null; mean: number | null; median: number | null; updated: string; upside_pct?: number };
+export type Analysts = { recommendations: Recommendation[]; price_target: PriceTarget | null; price: number };
+export type Dividends = { dividends: { date: string; amount: number | null }[]; splits: { date: string; ratio: string }[] };
+
+export type ValModel = { key: string; name: string; value: number | null; formula: string; skipped: string | null; upside_pct: number | null };
+export type Valuation = {
+  symbol: string; price: number; data_source: string; disclaimer: string;
+  assumptions: Record<string, number | string | null> & { growth_source: string };
+  inputs: Record<string, number | null>;
+  models: ValModel[];
+  summary: { fair_value: number | null; low: number | null; high: number | null; models_used: number; buy_below: number | null; upside_pct: number | null; verdict: string };
+  indicators: Record<string, number | null>;
+  quality: {
+    piotroski: { score: number | null; band?: string; checks: { name: string; pass: boolean }[]; skipped: string | null };
+    altman_z: { score: number | null; zone: "safe" | "grey" | "distress" | null; skipped: string | null };
+  };
+};
+export type NewsSummary = { symbol: string; summary: string; sentiment: "bullish" | "neutral" | "bearish" | "mixed" | "unknown"; points: string[]; watch: string; model?: string; count: number; cached?: boolean };
+export type FeedItem = NewsItem & { symbol: string; held: boolean };

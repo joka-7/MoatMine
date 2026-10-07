@@ -13,6 +13,8 @@ envVarGroups:
         value: finnhub
       - key: FINNHUB_API_KEY
         sync: false
+      - key: FMP_API_KEY
+        sync: false
       - key: FERNET_KEY
         sync: false
       - key: AUTH_MODE

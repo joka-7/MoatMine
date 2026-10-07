@@ -46,3 +46,40 @@ class MarketProvider(Protocol):
     async def profile(self, symbol: str) -> dict: ...
 
     async def search(self, query: str) -> list[dict]: ...
+
+    # --- company & research data (all return None / [] when the plan doesn't include it) ---
+
+    async def company(self, symbol: str) -> dict: ...
+    # {description, website, employees, ceo, country, ipo, sector, industry, logo}
+
+    async def earnings(self, symbol: str) -> list[dict]: ...
+    # [{period, actual, estimate, surprise_pct}] newest first
+
+    async def recommendations(self, symbol: str) -> list[dict]: ...
+    # [{period, strong_buy, buy, hold, sell, strong_sell}] newest first
+
+    async def price_target(self, symbol: str) -> dict | None: ...
+    # {high, low, mean, median, updated}
+
+    async def dividends(self, symbol: str) -> list[dict]: ...
+    # [{date, amount}] newest first
+
+    async def splits(self, symbol: str) -> list[dict]: ...
+    # [{date, ratio}] newest first
+
+    async def fundamentals(self, symbol: str) -> dict: ...
+    # Inputs for valuation, money values in millions (per-share values in currency):
+    # {eps, bvps, fcf_per_share, dividend_per_share, eps_growth_5y, revenue_growth_5y,
+    # shares_outstanding, ebitda, net_debt, statements: {current: {...}, prior: {...}} | None}
+    # statement keys: revenue, gross_profit, net_income, ebit, operating_cash_flow, total_assets,
+    # current_assets, current_liabilities, total_liabilities, long_term_debt, retained_earnings, shares
+
+
+FUNDAMENTAL_KEYS = [
+    "eps", "bvps", "fcf_per_share", "dividend_per_share", "eps_growth_5y", "revenue_growth_5y",
+    "shares_outstanding", "ebitda", "net_debt",
+]
+STATEMENT_KEYS = [
+    "revenue", "gross_profit", "net_income", "ebit", "operating_cash_flow", "total_assets", "current_assets",
+    "current_liabilities", "total_liabilities", "long_term_debt", "retained_earnings", "shares",
+]

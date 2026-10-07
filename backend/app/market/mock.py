@@ -122,3 +122,112 @@ class MockProvider:
         q = query.upper()
         hits = [{"symbol": s, "name": v[0]} for s, v in _KNOWN.items() if q in s or q in v[0].upper()]
         return hits or [{"symbol": q, "name": f"{q} (unverified)"}]
+
+    # --- company & research data (sample values, labelled as such in the UI) ---
+
+    async def company(self, symbol: str) -> dict:
+        name, industry, _ = _KNOWN.get(symbol, (f"{symbol} Corp.", "Unknown", 0))
+        r = random.Random(_seed(symbol, "company"))
+        return {
+            "description": f"{name} is a sample company served by the mock provider. Configure FMP_API_KEY "
+            "for real company descriptions.",
+            "website": "",
+            "employees": r.randint(2_000, 200_000),
+            "ceo": "",
+            "country": "US",
+            "ipo": f"{r.randint(1980, 2015)}-0{r.randint(1, 9)}-1{r.randint(0, 9)}",
+            "sector": industry,
+            "industry": industry,
+            "logo": "",
+        }
+
+    async def earnings(self, symbol: str) -> list[dict]:
+        m = await self.metrics(symbol)
+        q_eps = (m["eps"] or 1) / 4
+        out = []
+        year, q = time.gmtime().tm_year, (time.gmtime().tm_mon - 1) // 3
+        for i in range(8):
+            qq, yy = (q - 1 - i) % 4 + 1, year + (q - 1 - i) // 4
+            r = random.Random(_seed(symbol, "earn", i))
+            est = round(q_eps * (1 - 0.03 * i) , 2)
+            act = round(est * (1 + r.gauss(0.03, 0.06)), 2)
+            out.append({
+                "period": f"{yy}-Q{qq}",
+                "actual": act,
+                "estimate": est,
+                "surprise_pct": round((act / est - 1) * 100, 2) if est else None,
+            })
+        return out
+
+    async def recommendations(self, symbol: str) -> list[dict]:
+        out = []
+        for i in range(6):
+            r = random.Random(_seed(symbol, "rec", i))
+            mon = (time.gmtime().tm_mon - 1 - i) % 12 + 1
+            yr = time.gmtime().tm_year - (1 if time.gmtime().tm_mon - 1 - i < 0 else 0)
+            out.append({
+                "period": f"{yr}-{mon:02d}-01",
+                "strong_buy": r.randint(2, 15), "buy": r.randint(5, 20), "hold": r.randint(3, 15),
+                "sell": r.randint(0, 4), "strong_sell": r.randint(0, 2),
+            })
+        return out
+
+    async def price_target(self, symbol: str) -> dict | None:
+        p = _price_at(symbol, int(time.time()))
+        r = random.Random(_seed(symbol, "pt"))
+        mean = p * r.uniform(0.95, 1.25)
+        return {
+            "high": round(mean * 1.3, 2), "low": round(mean * 0.7, 2), "mean": round(mean, 2),
+            "median": round(mean * 1.01, 2), "updated": time.strftime("%Y-%m-%d"),
+        }
+
+    async def dividends(self, symbol: str) -> list[dict]:
+        m = await self.metrics(symbol)
+        dy = m["dividend_yield"] or 0
+        if dy < 0.5:
+            return []
+        per_q = round(_base(symbol) * dy / 100 / 4, 4)
+        now = time.time()
+        return [
+            {"date": time.strftime("%Y-%m-%d", time.gmtime(now - i * 91 * 86400)), "amount": round(per_q * (1 - 0.01 * i), 4)}
+            for i in range(12)
+        ]
+
+    async def splits(self, symbol: str) -> list[dict]:
+        return [{"date": "2020-08-31", "ratio": "4:1"}] if symbol in ("AAPL", "TSLA") else []
+
+    async def fundamentals(self, symbol: str) -> dict:
+        m = await self.metrics(symbol)
+        r = random.Random(_seed(symbol, "fund"))
+        shares = 5_000.0  # millions — matches profile market_cap
+        eps = m["eps"]
+        cur = {
+            "revenue": round(eps * shares / (m["net_margin"] / 100 if m["net_margin"] > 1 else 0.1), 1),
+        }
+        cur["net_income"] = round(eps * shares, 1)
+        cur["gross_profit"] = round(cur["revenue"] * m["gross_margin"] / 100, 1)
+        cur["ebit"] = round(cur["net_income"] * 1.25, 1)
+        cur["operating_cash_flow"] = round(cur["net_income"] * r.uniform(0.9, 1.4), 1)
+        cur["total_assets"] = round(cur["revenue"] * r.uniform(0.8, 2.0), 1)
+        cur["current_assets"] = round(cur["total_assets"] * r.uniform(0.25, 0.45), 1)
+        cur["current_liabilities"] = round(cur["current_assets"] / m["current_ratio"], 1)
+        cur["total_liabilities"] = round(cur["total_assets"] * r.uniform(0.3, 0.7), 1)
+        cur["long_term_debt"] = round(cur["total_liabilities"] * r.uniform(0.2, 0.6), 1)
+        cur["retained_earnings"] = round(cur["total_assets"] * r.uniform(0.1, 0.5), 1)
+        cur["shares"] = shares
+        g = r.uniform(0.92, 1.05)
+        prior = {k: round(v / g * r.uniform(0.97, 1.03), 1) for k, v in cur.items()}
+        prior["shares"] = round(shares * r.uniform(0.99, 1.02), 1)
+        fcf = cur["operating_cash_flow"] * 0.8
+        return {
+            "eps": eps,
+            "bvps": round(_base(symbol) / m["pb"], 2),
+            "fcf_per_share": round(fcf / shares, 2),
+            "dividend_per_share": round(_base(symbol) * (m["dividend_yield"] or 0) / 100, 2),
+            "eps_growth_5y": round(r.uniform(-3, 25), 2),
+            "revenue_growth_5y": round(r.uniform(0, 20), 2),
+            "shares_outstanding": shares,
+            "ebitda": round(cur["ebit"] * 1.2, 1),
+            "net_debt": round(cur["long_term_debt"] - cur["current_assets"] * 0.3, 1),
+            "statements": {"current": cur, "prior": prior},
+        }

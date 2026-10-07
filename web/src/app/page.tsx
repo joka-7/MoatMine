@@ -3,6 +3,7 @@
 import Link from "next/link";
 import AlertsBell from "@/components/AlertsBell";
 import AllocationPie from "@/components/AllocationPie";
+import NewsFeed from "@/components/NewsFeed";
 import SymbolSearch from "@/components/SymbolSearch";
 import ValueChart from "@/components/ValueChart";
 import { Evaluation, Portfolio } from "@/lib/api";
@@ -82,6 +83,7 @@ export default function Dashboard() {
           ))}
         </div>
       </div>
+      <div style={{ marginTop: 16 }}><NewsFeed /></div>
     </>
   );
 }

@@ -109,3 +109,106 @@ class FinnhubProvider:
     async def search(self, query: str) -> list[dict]:
         d = await self._get("/search", q=query)
         return [{"symbol": r["symbol"], "name": r.get("description", "")} for r in d.get("result", [])[:15]]
+
+    # --- company & research data ---
+    # Free Finnhub covers profile2, earnings, recommendation trends and splits.
+    # Price targets and dividend history are paid on most plans: those return None / [].
+    # Company descriptions and financial statements aren't in Finnhub's free data; set
+    # FMP_API_KEY and the router sends those calls to FMP instead.
+
+    async def _safe(self, path: str, default, **params):
+        try:
+            return await self._get(path, **params)
+        except httpx.HTTPStatusError:
+            return default
+
+    async def company(self, symbol: str) -> dict:
+        p = await self._safe("/stock/profile2", {}, symbol=symbol)
+        return {
+            "description": "",
+            "website": p.get("weburl", ""),
+            "employees": None,
+            "ceo": "",
+            "country": p.get("country", ""),
+            "ipo": p.get("ipo", ""),
+            "sector": p.get("finnhubIndustry", ""),
+            "industry": p.get("finnhubIndustry", ""),
+            "logo": p.get("logo", ""),
+        }
+
+    async def earnings(self, symbol: str) -> list[dict]:
+        rows = await self._safe("/stock/earnings", [], symbol=symbol)
+        return [
+            {
+                "period": r.get("period", ""),
+                "actual": r.get("actual"),
+                "estimate": r.get("estimate"),
+                "surprise_pct": r.get("surprisePercent"),
+            }
+            for r in rows
+        ]
+
+    async def recommendations(self, symbol: str) -> list[dict]:
+        rows = await self._safe("/stock/recommendation", [], symbol=symbol)
+        return [
+            {
+                "period": r.get("period", ""),
+                "strong_buy": r.get("strongBuy", 0), "buy": r.get("buy", 0), "hold": r.get("hold", 0),
+                "sell": r.get("sell", 0), "strong_sell": r.get("strongSell", 0),
+            }
+            for r in rows
+        ]
+
+    async def price_target(self, symbol: str) -> dict | None:
+        d = await self._safe("/stock/price-target", None, symbol=symbol)
+        if not d or d.get("targetMean") is None:
+            return None
+        return {
+            "high": d.get("targetHigh"), "low": d.get("targetLow"), "mean": d.get("targetMean"),
+            "median": d.get("targetMedian"), "updated": d.get("lastUpdated", ""),
+        }
+
+    async def dividends(self, symbol: str) -> list[dict]:
+        today = date.today()
+        rows = await self._safe("/stock/dividend", [], symbol=symbol, **{"from": str(today - timedelta(days=365 * 5)), "to": str(today)})
+        return sorted(({"date": r.get("exDate") or r.get("date", ""), "amount": r.get("amount")} for r in rows), key=lambda r: r["date"], reverse=True)
+
+    async def splits(self, symbol: str) -> list[dict]:
+        today = date.today()
+        rows = await self._safe("/stock/split", [], symbol=symbol, **{"from": "2000-01-01", "to": str(today)})
+        return sorted(
+            ({"date": r.get("date", ""), "ratio": f"{r.get('toFactor', '?')}:{r.get('fromFactor', '?')}"} for r in rows),
+            key=lambda r: r["date"], reverse=True,
+        )
+
+    async def fundamentals(self, symbol: str) -> dict:
+        m = (await self._safe("/stock/metric", {}, symbol=symbol, metric="all")).get("metric", {})
+        prof = await self._safe("/stock/profile2", {}, symbol=symbol)
+
+        def first(*keys):
+            for k in keys:
+                if m.get(k) is not None:
+                    return m[k]
+            return None
+
+        price = None
+        try:
+            price = (await self.quote(symbol))["price"]
+        except httpx.HTTPError:
+            pass
+        pfcf = first("pfcfShareTTM", "pfcfShareAnnual")
+        ev = first("enterpriseValue")
+        ev_ebitda = first("evEbitdaTTM", "currentEv/ebitdaTTM")
+        mcap = first("marketCapitalization") or prof.get("marketCapitalization")
+        return {
+            "eps": first("epsTTM", "epsAnnual"),
+            "bvps": first("bookValuePerShareQuarterly", "bookValuePerShareAnnual"),
+            "fcf_per_share": round(price / pfcf, 4) if price and pfcf else first("freeCashFlowPerShareTTM"),
+            "dividend_per_share": first("dividendPerShareTTM", "dividendPerShareAnnual"),
+            "eps_growth_5y": first("epsGrowth5Y"),
+            "revenue_growth_5y": first("revenueGrowth5Y"),
+            "shares_outstanding": prof.get("shareOutstanding"),
+            "ebitda": round(ev / ev_ebitda, 1) if ev and ev_ebitda else None,
+            "net_debt": round(ev - mcap, 1) if ev and mcap else None,
+            "statements": None,
+        }

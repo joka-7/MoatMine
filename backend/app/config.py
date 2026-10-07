@@ -20,6 +20,8 @@ class Settings(BaseSettings):
     # market data: "mock" (no key needed) or "finnhub"
     market_provider: str = "mock"
     finnhub_api_key: str = ""
+    # optional: company descriptions, financial statements, price targets, dividends
+    fmp_api_key: str = ""
 
     # encrypts user-supplied AI keys at rest (Fernet key; generate with app.crypto.new_key())
     fernet_key: str = ""

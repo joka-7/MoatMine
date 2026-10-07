@@ -32,7 +32,7 @@ app.add_middleware(
     expose_headers=["X-Data-Source"],
 )
 
-for r in (portfolio.router, stocks.router, watchlist.router, targets.router, ai.router):
+for r in (portfolio.router, stocks.router, stocks.feed_router, watchlist.router, targets.router, ai.router):
     app.include_router(r)
 
 app.mount("/mcp", mcp_app)

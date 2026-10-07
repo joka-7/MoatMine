@@ -188,6 +188,6 @@ def test_mcp_requires_token_and_serves_tools(client, alice_account):
     assert client.post("/mcp/", json=init, headers=h).status_code == 200
     tools = client.post("/mcp/", json={"jsonrpc": "2.0", "id": 2, "method": "tools/list"}, headers=h).json()
     names = {t["name"] for t in tools["result"]["tools"]}
-    assert {"get_portfolio", "get_targets_status", "get_quote"} <= names
+    assert {"get_portfolio", "get_targets_status", "get_quote", "get_valuation", "get_company", "get_news_feed"} <= names
     res = client.post("/mcp/", json=rpc, headers=h).json()
     assert "AAPL" in res["result"]["content"][0]["text"]
