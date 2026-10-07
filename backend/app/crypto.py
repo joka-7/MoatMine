@@ -31,7 +31,7 @@ def mask(secret: str) -> str:
 
 def new_mcp_token() -> tuple[str, str]:
     """Return (plain_token, sha256_hex). Only the hash is stored."""
-    token = "moatrics_" + secrets.token_urlsafe(32)
+    token = "moatmine_" + secrets.token_urlsafe(32)
     return token, hash_token(token)
 
 

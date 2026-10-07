@@ -1,5 +1,5 @@
 """MCP server mounted at /mcp so external agents (Claude Desktop/Code, other MCP clients)
-can use the same tools as the in-app agent, scoped to one user by a Moatrics MCP token.
+can use the same tools as the in-app agent, scoped to one user by a MoatMine MCP token.
 
 Create a token in Settings → AI → "MCP access", then point your client at
   https://<render-app>/mcp/   with header  Authorization: Bearer <token>
@@ -17,8 +17,8 @@ from app.db import SessionLocal
 from app.models import MCPToken
 
 mcp = MCPServer(
-    name="moatrics",
-    instructions="Read a Moatrics user's portfolio, PAPI/MAMI targets, watchlist and market data. No trading.",
+    name="moatmine",
+    instructions="Read a MoatMine user's portfolio, PAPI/MAMI targets, watchlist and market data. No trading.",
 )
 
 
@@ -143,7 +143,7 @@ async def get_notes(symbol: str, ctx: Context) -> str:
 
 
 class _BearerGate:
-    """Reject requests without a valid Moatrics MCP token before they reach the MCP transport."""
+    """Reject requests without a valid MoatMine MCP token before they reach the MCP transport."""
 
     def __init__(self, app: ASGIApp):
         self.app = app

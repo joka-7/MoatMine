@@ -19,12 +19,12 @@ async def lifespan(_: FastAPI):
         yield
 
 
-app = FastAPI(title="Moatrics API", version="0.1.0", lifespan=lifespan)
+app = FastAPI(title="MoatMine API", version="0.1.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=get_settings().cors_list,
-    # e.g. ^https://moatrics-[a-z0-9-]+-yourteam\.vercel\.app$ for your own preview deployments
+    # e.g. ^https://moatmine-[a-z0-9-]+-yourteam\.vercel\.app$ for your own preview deployments
     allow_origin_regex=get_settings().cors_origin_regex or None,
     allow_credentials=False,  # bearer tokens, no cookies
     allow_methods=["*"],

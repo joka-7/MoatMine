@@ -2,5 +2,5 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 fn main() {
-    moatrics_desktop_lib::run()
+    moatmine_desktop_lib::run()
 }

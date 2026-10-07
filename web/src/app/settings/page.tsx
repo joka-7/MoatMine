@@ -25,8 +25,8 @@ function Connection() {
   const [status, setStatus] = useState<string>("");
   useEffect(() => { setUrl(apiBase()); setToken(authToken()); }, []);
   const save = async () => {
-    localStorage.setItem("moatrics.api", url);
-    localStorage.setItem("moatrics.token", token);
+    localStorage.setItem("moatmine.api", url);
+    localStorage.setItem("moatmine.token", token);
     try { const h = await api<{ market_provider: string }>("/health"); setStatus(`Connected · market data: ${h.market_provider}`); }
     catch (e) { setStatus(`Failed: ${(e as Error).message}`); }
   };

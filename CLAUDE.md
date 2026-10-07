@@ -168,7 +168,7 @@
 
 ## Project-specific
 
-## Project: Moatrics
+## Project: MoatMine
 
 Investment app whose purpose is **risk-aware, safe investing**: users set their own risk rules and
 the app checks every stock and the whole portfolio against them. Never describe returns as "safe" or

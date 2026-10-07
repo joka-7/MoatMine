@@ -14,12 +14,12 @@ function ls(key: string): string | null {
 }
 
 export function apiBase(): string {
-  return (ls("moatrics.api") || DEFAULT_API).replace(/\/$/, "");
+  return (ls("moatmine.api") || DEFAULT_API).replace(/\/$/, "");
 }
 
 // Swap this for Clerk's getToken() when AUTH_MODE=clerk on the backend.
 export function authToken(): string {
-  return ls("moatrics.token") || "dev";
+  return ls("moatmine.token") || "dev";
 }
 
 export class ApiError extends Error {

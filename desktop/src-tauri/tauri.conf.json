@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Moatrics",
+  "productName": "MoatMine",
   "version": "0.1.0",
-  "identifier": "app.moatrics.desktop",
+  "identifier": "app.moatmine.desktop",
   "build": {
     "beforeDevCommand": "npm --prefix ../web run dev",
     "devUrl": "http://localhost:3000",
@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "Moatrics",
+        "title": "MoatMine",
         "width": 1400,
         "height": 900,
         "minWidth": 960,
