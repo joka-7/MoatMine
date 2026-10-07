@@ -1,0 +1,22 @@
+# AI-assistant config manifest, consumed by `python .ai/bin/ai-sync`.
+# .ai is the ogen-ai submodule (https://github.com/joka-7/ogen-ai). See .ai/README.md.
+
+[project]
+name = "Safe Algo"
+
+[stack]
+# FastAPI backend (Python) + Next.js/React web app (TypeScript) + Tauri desktop shell
+languages  = ["python", "typescript"]
+frameworks = ["react"]
+practices  = ["testing", "git-commits", "security", "architecture", "documentation", "verification"]
+
+[tools]
+targets = ["claude"]
+
+[options]
+# `copy`, not `symlink`: Render and Vercel builds don't initialize the .ai submodule,
+# so symlinks into it would dangle there. Re-run ai-sync after pulling rule updates.
+link_mode = "copy"
+local_tail = "ai-config.local.md"
+# All 11 role agents (/role-review, /role, /role-implement, ...)
+claude_agents = true
