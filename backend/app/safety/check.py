@@ -37,6 +37,7 @@ class Book:
     total_value: float  # holdings + cash, before the buy
     by_symbol: dict[str, float]  # current market value per symbol
     by_sector: dict[str, float]
+    cash: float = 0.0  # part of total_value; a buy is paid from it first
 
 
 def _r(rule: str, status: str, message: str) -> dict:
@@ -61,7 +62,8 @@ def check_buy(rules: Rules, c: Candidate, book: Book) -> dict:
     if "penny" in flag_codes and not rules.allow_penny_stocks:
         results.append(_r("penny", "fail", "Penny stocks are off in your risk profile"))
 
-    after_total = book.total_value + c.amount
+    # cash already counts in total_value, so only the part of the buy that cash can't cover is new money
+    after_total = book.total_value + c.amount - min(c.amount, max(book.cash, 0.0))
     pos = book.by_symbol.get(c.symbol, 0.0) + c.amount
     pos_pct = pos / after_total * 100 if after_total else 100.0
     if pos_pct > rules.max_position_pct:

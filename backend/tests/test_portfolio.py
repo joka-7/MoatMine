@@ -93,3 +93,39 @@ def test_agent_tools_take_a_book_mode(two_books, tool, args, expect):
     with SessionLocal() as db:
         out = json.loads(asyncio.run(run_tool(tool, args, db, "pat")))
     assert expect(out), out
+
+
+@pytest.mark.parametrize(
+    ("broker", "cash", "qty", "status", "cash_after"),
+    [
+        ("paper", 1_000, 2, 201, 800),  # 2 × 100 paid from paper cash
+        ("paper", 1_000, 20, 409, 1_000),  # 2,000 > 1,000: refused, nothing changes
+        ("manual", 0, 20, 201, 0),  # real accounts record broker trades; cash is the user's to edit
+    ],
+)
+def test_pay_for_paper_buy_on_add_holding(client, broker, cash, qty, status, cash_after):
+    who = auth(f"cashier-{broker}-{qty}")
+    loose = {"level": "growth", "max_position_pct": 100, "max_sector_pct": 100, "min_safety_score": 0,
+             "max_volatility_pct": 300, "min_market_cap_m": 0, "allow_penny_stocks": True, "cooling_off_hours": 0}
+    client.put("/safety/profile", json=loose, headers=who)
+    acc = client.post("/accounts", json={"name": "A", "broker": broker, "cash": cash}, headers=who).json()["id"]
+    r = client.post("/holdings", json={"account_id": acc, "symbol": "AAPL", "quantity": qty, "avg_cost": 100}, headers=who)
+    assert r.status_code == status, r.text
+    accounts = {a["id"]: a for a in client.get("/accounts", headers=who).json()}
+    assert accounts[acc]["cash"] == cash_after
+    held = client.get(f"/portfolio?mode={'paper' if broker == 'paper' else 'real'}", headers=who).json()["holdings"]
+    assert len(held) == (1 if status == 201 else 0)
+
+
+def test_pay_for_paper_buy_on_plan_execute(client):
+    who = auth("planner-cash")
+    loose = {"level": "growth", "max_position_pct": 100, "max_sector_pct": 100, "min_safety_score": 0,
+             "max_volatility_pct": 300, "min_market_cap_m": 0, "allow_penny_stocks": True, "cooling_off_hours": 0}
+    client.put("/safety/profile", json=loose, headers=who)
+    acc = client.post("/accounts", json={"name": "P", "broker": "paper", "cash": 10}, headers=who).json()["id"]
+    plan = client.post("/plans", json={"account_id": acc, "symbol": "MSFT", "quantity": 1,
+                                       "note": "Practice buy to test the paper cash balance."}, headers=who).json()
+    assert plan["status"] == "ready", plan
+    r = client.post(f"/plans/{plan['id']}/execute", headers=who)
+    assert r.status_code == 409 and "paper cash" in r.json()["detail"]["message"]
+    assert client.get("/portfolio?mode=paper", headers=who).json()["holdings"] == []

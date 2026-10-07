@@ -11,6 +11,7 @@ from typing import Literal
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.errors import InsufficientPaperCashError
 from app.market.base import MarketProvider
 from app.models import Account, Holding
 
@@ -24,6 +25,22 @@ def is_paper(account: Account) -> bool:
 
 def book_mode_of(account: Account) -> BookMode:
     return "paper" if is_paper(account) else "real"
+
+
+def pay_for_paper_buy(account: Account, cost: float) -> None:
+    """Take a paper buy's cost out of the paper account's cash.
+
+    Real accounts are left alone: they record trades that already happened at the broker, and the
+    user keeps their cash figure in step with the broker statement.
+
+    Raises:
+        InsufficientPaperCashError: the paper account can't cover the cost.
+    """
+    if not is_paper(account):
+        return
+    if cost > account.cash + 1e-9:
+        raise InsufficientPaperCashError(f"{account.name} has {account.cash:,.2f} paper cash; this buy costs {cost:,.2f}")
+    account.cash = round(account.cash - cost, 2)
 
 
 def accounts_in_book(db: Session, user_id: str, mode: BookMode) -> list[Account]:

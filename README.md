@@ -18,7 +18,7 @@ render.yaml Render blueprint (API, worker, Postgres)
 |---|---|
 | **Safety score** | 0–100 final score and A–F grades by area (financial health, quality & earnings, price risk, crisis resilience, size, valuation, **moat**: return on capital, margin stability and steady growth over up to 10 years), red flags, a rule-based summary and an AI analyzer that explains the grades against the user's rules |
 | **Risk profile** | 5-question questionnaire → conservative / moderate / balanced / growth, with editable rules: max position %, max sector %, minimum safety score, max volatility, portfolio loss limit, minimum company size, penny stocks, cooling-off hours, paper mode |
-| **Safety check & buy plans** | Every buy is checked against the rules: pass, warn (needs a written reason + cooling-off wait) or block. The reason is saved to the stock's journal. Paper accounts enforce blocks; real accounts warn |
+| **Safety check & buy plans** | Every buy is checked against the rules: pass, warn (needs a written reason + cooling-off wait) or block. The reason is saved to the stock's journal. Paper accounts enforce blocks and pay for buys from their cash; real accounts warn. Position size counts a buy as paid from cash first |
 | **Portfolio risk** | Volatility, beta, 1-month value-at-risk, worst fall, concentration, sectors vs limit, correlation heatmap, rule breaches (also raised as alerts by the worker) |
 | **Stress tests** | Today's holdings replayed through the dot-com crash, 2008, 2011, Q4 2018, COVID and 2022, plus 10/20/35% market falls, against the user's loss limit |
 | Accounts & portfolio | Accounts with cash, holdings, live P/L, weights, day change, allocation donut, value-over-time chart |

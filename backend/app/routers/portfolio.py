@@ -9,7 +9,8 @@ from app.auth import current_user
 from app.db import get_db
 from app.market import get_provider
 from app.models import Account, Holding
-from app.portfolio import BookMode, book_mode_of, holdings_in_book, is_paper, portfolio_snapshot
+from app.errors import InsufficientPaperCashError
+from app.portfolio import BookMode, book_mode_of, holdings_in_book, is_paper, pay_for_paper_buy, portfolio_snapshot
 from app.safety.service import check_for
 from app.schemas import AccountIn, AccountOut, HoldingIn, HoldingUpdate
 
@@ -55,13 +56,18 @@ def delete_account(account_id: int, user: str = Depends(current_user), db: Sessi
 async def add_holding(body: HoldingIn, user: str = Depends(current_user), db: Session = Depends(get_db)):
     """Record a position. Always runs the safety check against the user's risk rules.
 
-    Paper accounts enforce it (a blocked buy is refused); real accounts record what was actually
-    bought and return the check as a warning, since refusing wouldn't undo the trade.
+    Paper accounts enforce it (a blocked buy is refused) and pay for the buy from their cash;
+    real accounts record what was actually bought and return the check as a warning, since
+    refusing wouldn't undo the trade.
     """
     acc = _own(db, Account, body.account_id, user)
     check = await check_for(db, user, get_provider(), body.symbol, body.quantity * body.avg_cost, book_mode_of(acc))
     if is_paper(acc) and check["verdict"] == "block":
         raise HTTPException(409, {"message": "Blocked by your risk rules. Use a buy plan or change your profile.", "check": check})
+    try:
+        pay_for_paper_buy(acc, body.quantity * body.avg_cost)
+    except InsufficientPaperCashError as e:
+        raise HTTPException(409, {"message": str(e), "check": check}) from e
     h = Holding(user_id=user, **body.model_dump(exclude_none=True))
     db.add(h)
     db.commit()

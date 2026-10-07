@@ -90,7 +90,7 @@ export default function PortfolioPage() {
           </form>
           <div className="sub" style={{ fontSize: 12, marginTop: 8 }}>
             Recording a buy you already made. To decide on a new buy first, use the stock&apos;s Safety tab → Check a buy.
-            Paper accounts refuse buys your rules block.
+            Paper accounts refuse buys your rules block, and pay for each buy from their cash.
           </div>
           {lastCheck && lastCheck.verdict !== "pass" && (
             <div className="card" style={{ marginTop: 10, background: "var(--bg)" }}>

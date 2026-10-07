@@ -144,6 +144,20 @@ def test_check_blocks(kw, rule):
     assert r["verdict"] == "block" and any(c["rule"] == rule and c["status"] == "fail" for c in r["checks"])
 
 
+@pytest.mark.parametrize("book, amount, pos_pct, status", [
+    # 50k all cash, 8% limit: a 4,200 buy is paid from cash, so it is 4,200 / 50,000 = 8.4% (not 4,200 / 54,200)
+    (chk.Book(total_value=50_000, by_symbol={}, by_sector={}, cash=50_000), 4_200, "8.4%", "fail"),
+    (chk.Book(total_value=50_000, by_symbol={}, by_sector={}, cash=50_000), 3_900, "7.8%", "pass"),
+    # only 1,000 cash: the other 3,200 is new money, so the book grows to 53,200 → 7.9%
+    (chk.Book(total_value=50_000, by_symbol={}, by_sector={}, cash=1_000), 4_200, "7.9%", "pass"),
+])
+def test_check_buy_pays_from_cash_first(book, amount, pos_pct, status):
+    rules = chk.Rules(**{**RULES.__dict__, "max_position_pct": 8})
+    r = chk.check_buy(rules, cand(symbol="NEW", amount=amount), book)
+    pos = next(c for c in r["checks"] if c["rule"] == "position_size")
+    assert pos["status"] == status and f"{pos_pct} of your portfolio" in pos["message"]
+
+
 @pytest.mark.parametrize("kw, rule", [
     (dict(volatility_pct=50), "volatility"),
     (dict(market_cap_m=500), "size"),

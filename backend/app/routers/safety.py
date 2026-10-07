@@ -10,7 +10,8 @@ from app.auth import current_user
 from app.db import get_db
 from app.market import get_provider
 from app.models import Account, BuyPlan, Holding, StockNote
-from app.portfolio import BookMode, book_mode_of
+from app.errors import InsufficientPaperCashError
+from app.portfolio import BookMode, book_mode_of, pay_for_paper_buy
 from app.safety.profile import LEVELS, QUESTIONS, level_from_answers
 from app.safety.service import (
     ai_analysis, check_for, get_profile, portfolio_risk_report, profile_dict, save_profile, stock_safety, stress_report,
@@ -214,6 +215,10 @@ async def execute_plan(plan_id: int, user: str = Depends(current_user), db: Sess
         p.status, p.check_json, p.verdict = "blocked", json.dumps(recheck), "block"
         db.commit()
         raise HTTPException(409, {"message": "The buy no longer passes your rules.", "check": recheck})
+    try:
+        pay_for_paper_buy(acc, p.quantity * price)
+    except InsufficientPaperCashError as e:
+        raise HTTPException(409, {"message": str(e), "check": recheck}) from e
     h = Holding(user_id=user, account_id=p.account_id, symbol=p.symbol, quantity=p.quantity, avg_cost=price)
     db.add(h)
     db.flush()
