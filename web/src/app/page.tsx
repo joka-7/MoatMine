@@ -6,13 +6,14 @@ import AllocationPie from "@/components/AllocationPie";
 import NewsFeed from "@/components/NewsFeed";
 import SymbolSearch from "@/components/SymbolSearch";
 import ValueChart from "@/components/ValueChart";
-import { Evaluation, Portfolio } from "@/lib/api";
+import { Evaluation, Portfolio, RiskProfile } from "@/lib/api";
 import { money, pct, tone } from "@/lib/format";
 import { useApi } from "@/lib/useApi";
 
 export default function Dashboard() {
   const { data: p, error } = useApi<Portfolio>("/portfolio");
   const { data: evals } = useApi<Evaluation[]>("/targets/evaluate");
+  const { data: profile } = useApi<RiskProfile>("/safety/profile");
   const t = p?.totals;
 
   return (
@@ -25,6 +26,15 @@ export default function Dashboard() {
         </div>
       </div>
 
+      {profile && !profile.saved && (
+        <div className="card" style={{ marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap", borderColor: "color-mix(in srgb, var(--accent) 45%, var(--line))" }}>
+          <div>
+            <b>Set your risk profile first.</b>{" "}
+            <span className="sub">Five questions set the rules every safety check, buy plan and the AI agent will follow.</span>
+          </div>
+          <Link href="/risk-profile" className="btn primary">Start</Link>
+        </div>
+      )}
       {error && <div className="err" style={{ marginBottom: 16 }}>Can't reach the API: {error}. Check Settings → API URL.</div>}
 
       <div className="grid g4" style={{ marginBottom: 16 }}>

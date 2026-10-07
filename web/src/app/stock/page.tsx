@@ -8,6 +8,7 @@ import RatiosPanel from "@/components/RatiosPanel";
 import SymbolSearch from "@/components/SymbolSearch";
 import { AnalystsPanel, CompanyCard, DividendsPanel, EarningsPanel, NewsPanel } from "@/components/ResearchPanels";
 import BadTimesPanel from "@/components/BadTimesPanel";
+import SafetyPanel from "@/components/SafetyPanel";
 import ValuationPanel from "@/components/ValuationPanel";
 import { api, Note, Quote } from "@/lib/api";
 import { money, pct, tone } from "@/lib/format";
@@ -23,7 +24,7 @@ export default function StockPage() {
 }
 
 const TABS = [
-  ["overview", "Overview"], ["valuation", "Valuation"], ["badtimes", "Bad times"], ["financials", "Earnings & dividends"],
+  ["overview", "Overview"], ["safety", "Safety"], ["valuation", "Valuation"], ["badtimes", "Bad times"], ["financials", "Earnings & dividends"],
   ["analysts", "Analysts"], ["news", "News"], ["notes", "My info"], ["ai", "Ask AI"],
 ] as const;
 type Tab = (typeof TABS)[number][0];
@@ -80,6 +81,7 @@ function Stock() {
           <RatiosPanel symbol={symbol} />
         </div>
       )}
+      {tab === "safety" && <SafetyPanel symbol={symbol} />}
       {tab === "valuation" && <ValuationPanel symbol={symbol} />}
       {tab === "badtimes" && <BadTimesPanel symbol={symbol} />}
       {tab === "financials" && (
@@ -90,7 +92,7 @@ function Stock() {
       {tab === "notes" && <div style={{ maxWidth: 720 }}><Notes symbol={symbol} /></div>}
       {tab === "ai" && (
         <ChatPanel symbol={symbol} height={460} suggestions={[
-          `Is ${symbol} undervalued? Show the models`, `How did ${symbol} do in past crises?`, `Summarise ${symbol}'s last earnings`,
+          `Does ${symbol} fit my risk rules?`, `Is ${symbol} undervalued? Show the models`, `How did ${symbol} do in past crises?`, `Summarise ${symbol}'s last earnings`,
           `What do analysts think of ${symbol}?`, `How does ${symbol} fit my targets?`,
         ]} />
       )}

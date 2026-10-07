@@ -3,13 +3,15 @@
 import Link from "next/link";
 import { useState } from "react";
 import SymbolSearch from "@/components/SymbolSearch";
-import { api, Portfolio } from "@/lib/api";
+import { CheckView } from "@/components/SafetyBits";
+import { api, CheckResult, Portfolio } from "@/lib/api";
 import { date, money, pct, tone } from "@/lib/format";
 import { useApi } from "@/lib/useApi";
 
 export default function PortfolioPage() {
   const { data: p, reload, error } = useApi<Portfolio>("/portfolio");
   const [err, setErr] = useState<string | null>(null);
+  const [lastCheck, setLastCheck] = useState<CheckResult | null>(null);
   const [acc, setAcc] = useState({ name: "", broker: "manual", currency: "USD", cash: "" });
   const [h, setH] = useState({ account_id: "", symbol: "", quantity: "", avg_cost: "", opened_at: "" });
 
@@ -40,7 +42,12 @@ export default function PortfolioPage() {
           </table>
           <form className="row" style={{ marginTop: 12 }} onSubmit={(e) => { e.preventDefault(); run(async () => { await api("/accounts", { method: "POST", json: { ...acc, cash: +acc.cash || 0 } }); setAcc({ ...acc, name: "", cash: "" }); }); }}>
             <label className="f">Name<input required value={acc.name} onChange={(e) => setAcc({ ...acc, name: e.target.value })} placeholder="e.g. IBKR" /></label>
-            <label className="f">Broker<input value={acc.broker} onChange={(e) => setAcc({ ...acc, broker: e.target.value })} /></label>
+            <label className="f">Type
+              <select value={acc.broker === "paper" ? "paper" : "manual"} onChange={(e) => setAcc({ ...acc, broker: e.target.value })}>
+                <option value="manual">Real (manual)</option>
+                <option value="paper">Paper (practice)</option>
+              </select>
+            </label>
             <label className="f">Cash<input type="number" step="any" value={acc.cash} onChange={(e) => setAcc({ ...acc, cash: e.target.value })} /></label>
             <button className="btn primary">Add account</button>
           </form>
@@ -50,10 +57,11 @@ export default function PortfolioPage() {
         <div className="card">
           <h2>Add holding</h2>
           <form className="grid" onSubmit={(e) => { e.preventDefault(); run(async () => {
-            await api("/holdings", { method: "POST", json: {
+            const out = await api<{ id: number; check: CheckResult }>("/holdings", { method: "POST", json: {
               account_id: +h.account_id, symbol: h.symbol, quantity: +h.quantity, avg_cost: +h.avg_cost,
               ...(h.opened_at ? { opened_at: new Date(h.opened_at).toISOString() } : {}),
             } });
+            setLastCheck(out.check);
             setH({ ...h, symbol: "", quantity: "", avg_cost: "" });
           }); }}>
             <div className="row">
@@ -74,6 +82,16 @@ export default function PortfolioPage() {
             </div>
             <button className="btn primary" disabled={!h.symbol || !h.account_id}>Add holding</button>
           </form>
+          <div className="sub" style={{ fontSize: 12, marginTop: 8 }}>
+            Recording a buy you already made. To decide on a new buy first, use the stock&apos;s Safety tab → Check a buy.
+            Paper accounts refuse buys your rules block.
+          </div>
+          {lastCheck && lastCheck.verdict !== "pass" && (
+            <div className="card" style={{ marginTop: 10, background: "var(--bg)" }}>
+              <div className="sub" style={{ fontSize: 12, marginBottom: 6 }}>Added — but note your risk rules:</div>
+              <CheckView check={lastCheck} />
+            </div>
+          )}
         </div>
       </div>
 

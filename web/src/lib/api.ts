@@ -48,7 +48,8 @@ export async function apiWithHeaders<T = unknown>(
     let msg = res.statusText;
     try {
       const body = await res.json();
-      msg = typeof body.detail === "string" ? body.detail : JSON.stringify(body.detail ?? body);
+      const d = body.detail;
+      msg = typeof d === "string" ? d : typeof d?.message === "string" ? d.message : JSON.stringify(d ?? body);
     } catch {}
     throw new ApiError(res.status, msg);
   }
@@ -132,4 +133,49 @@ export type BadTimes = {
   crises: { key: string; name: string; start: string; end: string; description: string; stock: CrisisStats | null; benchmark: CrisisStats | null }[];
   resilience: { downside_capture_pct: number | null; label: string; crises_covered: number; recovered_count?: number; avg_drawdown_pct?: number; avg_benchmark_drawdown_pct?: number };
   worst_drawdowns: { peak_date: string; trough_date: string; depth_pct: number; fall_days: number; recovery_date: string | null; recovery_days: number | null; recovered: boolean }[];
+};
+
+// ---------- safety ----------
+
+export type Grade = "A" | "B" | "C" | "D" | "F";
+export type SafetyFlag = { code: string; severity: "high" | "medium"; message: string };
+export type SafetyArea = { key: string; name: string; score: number | null; grade: Grade | null; weight: number };
+export type SafetyReport = {
+  symbol: string; score: number | null; grade: Grade | null; coverage_pct: number; sector: string | null; data_source: string;
+  components: { name: string; max: number; points: number | null; value: unknown; note: string }[];
+  areas: SafetyArea[];
+  analysis: { verdict: string; strengths: string[]; weaknesses: string[]; missing: string[]; summary: string };
+  flags: SafetyFlag[];
+  facts: Record<string, number | string | null>;
+};
+export type SafetyAnalysis = { symbol: string; overview: string; areas: { name: string; comment: string }[]; fit: string; improve: string; model: string };
+export type CheckItem = { rule: string; status: "pass" | "warn" | "fail"; message: string };
+export type CheckResult = {
+  symbol: string; amount: number; price?: number; verdict: "pass" | "warn" | "block"; risky: boolean;
+  requires_note: boolean; cooling_off_hours: number; checks: CheckItem[];
+  safety: { score: number | null; grade: Grade | null; flags: SafetyFlag[] };
+};
+export type RiskRules = {
+  max_position_pct: number; max_sector_pct: number; min_safety_score: number; max_volatility_pct: number;
+  max_drawdown_pct: number; min_market_cap_m: number; allow_penny_stocks: boolean; cooling_off_hours: number;
+};
+export type RiskLevel = "conservative" | "moderate" | "balanced" | "growth";
+export type RiskProfile = RiskRules & { saved: boolean; level: RiskLevel; answers: Record<string, number>; paper_mode: boolean };
+export type Question = { id: string; text: string; options: string[] };
+export type PortfolioRisk = {
+  total_value: number; invested_value: number; cash_pct: number; days: number; volatility_pct: number | null; beta: number | null;
+  var95_1d: number | null; var95_1m: number | null; max_drawdown_pct: number | null; top_position_pct: number | null;
+  effective_holdings: number | null; holdings_count: number; sectors: Record<string, number>;
+  correlation: { symbols: string[]; matrix: (number | null)[][] }; avg_correlation: number | null;
+  breaches: { rule: string; subject: string; message: string }[]; rules: RiskRules; data_source: string;
+};
+export type StressScenario = {
+  key: string; name: string; kind: "historical" | "hypothetical"; change: number; change_pct: number; breaches_limit: boolean;
+  worst: { symbol: string; change_pct: number; change: number; basis: string }[];
+};
+export type StressReport = { total_value: number; loss_limit_pct: number; scenarios: StressScenario[]; note: string; data_source: string };
+export type BuyPlan = {
+  id: number; account_id: number; symbol: string; quantity: number; price: number; amount: number; note: string;
+  verdict: "pass" | "warn" | "block"; status: "blocked" | "cooling_off" | "ready" | "executed" | "cancelled";
+  available_at: string; created_at: string; check: CheckResult; executed_holding_id: number | null;
 };
