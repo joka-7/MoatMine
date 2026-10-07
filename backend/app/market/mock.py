@@ -231,3 +231,28 @@ class MockProvider:
             "net_debt": round(cur["long_term_debt"] - cur["current_assets"] * 0.3, 1),
             "statements": {"current": cur, "prior": prior},
         }
+
+    async def history(self, symbol: str) -> list[dict]:
+        m = await self.metrics(symbol)
+        r = random.Random(_seed(symbol, "history"))
+        growth = r.uniform(-0.02, 0.14)  # company's underlying revenue growth
+        margin = (m["gross_margin"] or 40) / 100
+        op_margin = max(0.02, (m["net_margin"] or 10) / 100 * 1.3)
+        year = time.gmtime().tm_year - 1
+        revenue = _base(symbol) * 5_000 / (m["ps"] or 5)  # millions, consistent with mock market cap
+        rows = []
+        for i in range(10):
+            jitter = r.gauss(0, 0.015)
+            gm = max(0.05, margin + r.gauss(0, 0.02))
+            rows.append({
+                "year": year - i,
+                "revenue": round(revenue, 1),
+                "gross_profit": round(revenue * gm, 1),
+                "operating_income": round(revenue * max(0.0, op_margin + jitter), 1),
+                "net_income": round(revenue * max(0.0, op_margin + jitter) * 0.78, 1),
+                "equity": round(revenue * r.uniform(0.4, 0.9), 1),
+                "debt": round(revenue * r.uniform(0.05, 0.4), 1),
+                "cash": round(revenue * r.uniform(0.05, 0.25), 1),
+            })
+            revenue /= 1 + growth + r.gauss(0, 0.04)
+        return rows

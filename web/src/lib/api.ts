@@ -152,6 +152,12 @@ export type SafetyReport = {
   analysis: { verdict: string; strengths: string[]; weaknesses: string[]; missing: string[]; summary: string };
   flags: SafetyFlag[];
   facts: Record<string, number | string | null>;
+  moat: MoatMetrics | null;
+};
+export type MoatMetrics = {
+  years: number; roic_avg_pct: number | null; roic_consistency: number | null; gross_margin_avg_pct: number | null;
+  gross_margin_std_pp: number | null; revenue_cagr_pct: number | null; growth_consistency: number | null;
+  series: { year: number; roic_pct: number | null; gross_margin_pct: number | null; revenue: number }[];
 };
 export type SafetyAnalysis = { symbol: string; overview: string; areas: { name: string; comment: string }[]; fit: string; improve: string; model: string };
 export type CheckItem = { rule: string; status: "pass" | "warn" | "fail"; message: string };

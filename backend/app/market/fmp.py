@@ -102,3 +102,23 @@ class FMPProvider:
             "net_debt": _mil(b.get("netDebt")),
             "statements": {"current": stmt(0), "prior": stmt(1)},
         }
+
+    async def history(self, symbol: str) -> list[dict]:
+        inc = await self._get("/income-statement", symbol=symbol, limit=10)
+        bal = await self._get("/balance-sheet-statement", symbol=symbol, limit=10)
+        by_year = {str(b.get("fiscalYear") or b.get("calendarYear") or b.get("date", "")[:4]): b for b in bal}
+        rows = []
+        for a in inc:
+            y = str(a.get("fiscalYear") or a.get("calendarYear") or a.get("date", "")[:4])
+            b = by_year.get(y, {})
+            rows.append({
+                "year": int(y) if y.isdigit() else None,
+                "revenue": _mil(a.get("revenue")),
+                "gross_profit": _mil(a.get("grossProfit")),
+                "operating_income": _mil(a.get("operatingIncome")),
+                "net_income": _mil(a.get("netIncome")),
+                "equity": _mil(b.get("totalStockholdersEquity")),
+                "debt": _mil(b.get("totalDebt")),
+                "cash": _mil(b.get("cashAndCashEquivalents")),
+            })
+        return rows

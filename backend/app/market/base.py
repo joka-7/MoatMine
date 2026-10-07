@@ -74,10 +74,14 @@ class MarketProvider(Protocol):
     # statement keys: revenue, gross_profit, net_income, ebit, operating_cash_flow, total_assets,
     # current_assets, current_liabilities, total_liabilities, long_term_debt, retained_earnings, shares
 
+    async def history(self, symbol: str) -> list[dict]: ...
+    # Annual financials, newest first, money in millions:
+    # [{year, revenue, gross_profit, operating_income, net_income, equity, debt, cash}]
+
 
 FUNDAMENTAL_KEYS = [
     "eps", "bvps", "fcf_per_share", "dividend_per_share", "eps_growth_5y", "revenue_growth_5y",
-    "shares_outstanding", "ebitda", "net_debt",
+    "shares_outstanding", "ebitda", "net_debt", "roic_5y",
 ]
 STATEMENT_KEYS = [
     "revenue", "gross_profit", "net_income", "ebit", "operating_cash_flow", "total_assets", "current_assets",

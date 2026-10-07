@@ -17,7 +17,8 @@ LOOSE = {"level": "growth", "max_position_pct": 100, "max_sector_pct": 100, "min
 
 BEST = StockFacts(price=100, altman_zone="safe", piotroski=9, net_debt_to_ebitda=-0.5, volatility_pct=15,
                   max_drawdown_pct=-10, downside_capture_pct=60, market_cap_m=500_000, eps_quarters=(1, 1, 1, 1),
-                  eps_ttm=4, fair_value=120)
+                  eps_ttm=4, fair_value=120, roic_avg_pct=20, roic_consistency=1.0, gross_margin_std_pp=1.5,
+                  revenue_cagr_pct=8, growth_consistency=1.0)
 
 
 def test_score_best_case_is_100_and_grade_a():
@@ -30,15 +31,15 @@ def test_area_grades_and_analysis():
                                 max_drawdown_pct=-70, market_cap_m=500_000))
     areas = {a["key"]: a for a in r["areas"]}
     assert areas["financial_health"]["grade"] == "A" and areas["price_risk"]["grade"] == "F"
-    assert areas["valuation"]["grade"] is None and areas["financial_health"]["weight"] == 30
+    assert areas["valuation"]["grade"] is None and areas["financial_health"]["weight"] == 26  # 30 of 115 points
     a = r["analysis"]
     assert a["strengths"] == ["Financial health", "Size"] and a["weaknesses"] == ["Price risk"]
-    assert "Valuation" in a["missing"] and a["summary"].startswith("Strong on financial health, size.")
+    assert {"Valuation", "Moat"} <= set(a["missing"]) and a["summary"].startswith("Strong on financial health, size.")
 
 
 def test_score_renormalises_missing_components():
     r = safety_score(StockFacts(price=100, volatility_pct=15, market_cap_m=500_000))
-    assert r["coverage_pct"] == 25 and r["score"] == 100  # only volatility (15) + size (10) known, both full marks
+    assert r["coverage_pct"] == 22 and r["score"] == 100  # only volatility (15) + size (10) of 115 known, both full marks
 
 
 @pytest.mark.parametrize("facts, code", [
@@ -52,6 +53,47 @@ def test_high_severity_flag_caps_score(facts, code):
 
 def test_score_no_data():
     assert safety_score(StockFacts())["score"] is None
+
+
+# ---------------- moat ----------------
+
+from app.safety.moat import moat_metrics, roic_pct  # noqa: E402
+from app.safety.score import moat_components  # noqa: E402
+
+
+def hist(revs, gms, oi_margin=0.2, equity=500, debt=100, cash=100):
+    """Annual rows newest first, built from oldest-first lists."""
+    rows = [{"year": 2020 + i, "revenue": r, "gross_profit": r * g, "operating_income": r * oi_margin,
+             "net_income": r * oi_margin * 0.8, "equity": equity, "debt": debt, "cash": cash}
+            for i, (r, g) in enumerate(zip(revs, gms))]
+    return list(reversed(rows))
+
+
+def test_roic_formula():
+    # 100 × (1 − 0.21) / (500 + 100 − 100) = 15.8%
+    assert roic_pct({"operating_income": 100, "equity": 500, "debt": 100, "cash": 100}) == pytest.approx(15.8)
+    assert roic_pct({"operating_income": 100, "equity": 50, "debt": 0, "cash": 100}) is None  # negative capital
+
+
+def test_moat_metrics_hand_checked():
+    m = moat_metrics(hist([1000, 1100, 1210, 1331, 1464.1], [0.40, 0.41, 0.40, 0.39, 0.40]))
+    assert m["years"] == 5 and m["revenue_cagr_pct"] == pytest.approx(10.0)
+    assert m["growth_consistency"] == 1.0 and m["gross_margin_std_pp"] == pytest.approx(0.63, abs=0.01)
+    # operating income 20% of revenue, invested capital fixed at 500 → ROIC rises with revenue
+    assert m["roic_avg_pct"] == pytest.approx(mean_roic := sum(r * 0.2 * 0.79 / 500 * 100 for r in [1000, 1100, 1210, 1331, 1464.1]) / 5, abs=0.1)
+    assert mean_roic > 30 and m["roic_consistency"] == 1.0
+    assert [p["year"] for p in m["series"]] == [2020, 2021, 2022, 2023, 2024]
+    assert moat_metrics(hist([1, 2, 3], [0.4] * 3)) is None  # under 4 years
+
+
+@pytest.mark.parametrize("facts, expected", [
+    (dict(roic_avg_pct=20, roic_consistency=1.0, gross_margin_std_pp=1, revenue_cagr_pct=8, growth_consistency=1.0), [7, 4, 4]),
+    (dict(roic_avg_pct=12, roic_consistency=0.5, gross_margin_std_pp=4, revenue_cagr_pct=2, growth_consistency=0.5), [3.8, 3, 2]),
+    (dict(roic_avg_pct=12), [3.8, None, None]),  # 5-year average only: consistency unknown → 75%
+    (dict(roic_avg_pct=3, gross_margin_std_pp=12, revenue_cagr_pct=-3, growth_consistency=0.0), [0, 0, 0]),
+])
+def test_moat_components(facts, expected):
+    assert [c["points"] for c in moat_components(StockFacts(**facts))] == expected
 
 
 # ---------------- profile ----------------
@@ -171,7 +213,9 @@ def test_profile_roundtrip_and_auto_target(client):
 def test_stock_safety_endpoint(client):
     r = client.get("/stocks/msft/safety").json()
     assert r["symbol"] == "MSFT" and 0 <= r["score"] <= 100 and r["grade"] in "ABCDF"
-    assert len(r["components"]) == 9 and r["sector"]
+    assert len(r["components"]) == 12 and r["sector"]
+    moat = next(a for a in r["areas"] if a["key"] == "moat")
+    assert moat["grade"] is not None and r["moat"]["years"] == 10 and len(r["moat"]["series"]) == 10
 
 
 def test_plans_flow(client):

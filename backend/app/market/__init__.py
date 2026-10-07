@@ -43,6 +43,9 @@ class RoutedProvider:
     async def splits(self, symbol):
         return await self._try_fmp("splits", symbol)
 
+    async def history(self, symbol):
+        return await self._try_fmp("history", symbol)
+
     async def fundamentals(self, symbol):
         base = await self.primary.fundamentals(symbol)
         if not self.fmp:

@@ -57,7 +57,7 @@ TOOL_SPECS = [
         "parameters": _sym_param(),
     },
     {"name": "get_risk_profile", "description": "The user's own risk rules: level, max position/sector %, minimum safety score, volatility and loss limits, cooling-off. Every recommendation must respect these.", "parameters": {"type": "object", "properties": {}}},
-    {"name": "get_safety_score", "description": "0–100 safety score for a stock with its components (Altman Z, Piotroski, debt, volatility, worst fall, crisis resilience, size, earnings, valuation) and red flags.", "parameters": _sym_param()},
+    {"name": "get_safety_score", "description": "0–100 safety score for a stock with its components (Altman Z, Piotroski, debt, volatility, worst fall, crisis resilience, size, earnings, valuation, moat: return on capital, margin stability, steady growth) with A–F grades by area and red flags.", "parameters": _sym_param()},
     {
         "name": "safety_check",
         "description": "Check a proposed buy against the user's risk rules: pass / warn / block with each rule's result. Run this before discussing any buy.",

@@ -15,6 +15,7 @@ from app.market.base import MarketProvider
 from app.models import Account, RiskProfile, Target
 from app.portfolio import portfolio_snapshot
 from app.safety.check import Book, Candidate, Rules, check_buy
+from app.safety.moat import moat_metrics
 from app.safety.profile import DEFAULT_RULES, RULE_KEYS
 from app.safety.risk import align, beta, daily_returns, portfolio_risk, stress_scenarios
 from app.safety.score import StockFacts, safety_score
@@ -30,7 +31,7 @@ AUTO_TARGET = "Risk profile (auto)"
 @ttl_cache(600)
 async def stock_safety(provider: MarketProvider, symbol: str) -> dict:
     now = int(time.time())
-    quote, fund, daily, weekly5y, company, profile, earnings, hist = await asyncio.gather(
+    quote, fund, daily, weekly5y, company, profile, earnings, hist, annual = await asyncio.gather(
         provider.quote(symbol),
         provider.fundamentals(symbol),
         provider.candles(symbol, "D", now - 365 * 86400, now),
@@ -39,7 +40,9 @@ async def stock_safety(provider: MarketProvider, symbol: str) -> dict:
         provider.profile(symbol),
         provider.earnings(symbol),
         bad_times(provider, symbol, BENCHMARK),
+        provider.history(symbol),
     )
+    moat = moat_metrics(annual)
     price = quote["price"]
     val = estimate(price, fund, Assumptions())
     weekly = [b["c"] for b in weekly5y]
@@ -63,6 +66,11 @@ async def stock_safety(provider: MarketProvider, symbol: str) -> dict:
         eps_quarters=tuple(e["actual"] for e in earnings[:8] if e.get("actual") is not None),
         eps_ttm=fund.get("eps"),
         fair_value=val["summary"]["fair_value"],
+        roic_avg_pct=moat["roic_avg_pct"] if moat else fund.get("roic_5y"),
+        roic_consistency=moat["roic_consistency"] if moat else None,
+        gross_margin_std_pp=moat["gross_margin_std_pp"] if moat else None,
+        revenue_cagr_pct=moat["revenue_cagr_pct"] if moat else None,
+        growth_consistency=moat["growth_consistency"] if moat else None,
     )
     report = safety_score(facts)
     return {
@@ -70,6 +78,7 @@ async def stock_safety(provider: MarketProvider, symbol: str) -> dict:
         **report,
         "facts": {k: getattr(facts, k) for k in facts.__dataclass_fields__ if k != "eps_quarters"},
         "sector": company.get("sector") or profile.get("industry") or None,
+        "moat": moat,
         "data_source": provider.name,
     }
 

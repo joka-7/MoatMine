@@ -210,5 +210,11 @@ class FinnhubProvider:
             "shares_outstanding": prof.get("shareOutstanding"),
             "ebitda": round(ev / ev_ebitda, 1) if ev and ev_ebitda else None,
             "net_debt": round(ev - mcap, 1) if ev and mcap else None,
+            "roic_5y": first("roi5Y"),  # 5-year average return on investment, %
             "statements": None,
         }
+
+    async def history(self, symbol: str) -> list[dict]:
+        # Annual statements need FMP (or a paid Finnhub plan); the Moat grade then falls back
+        # to the 5-year return-on-investment average in fundamentals()["roic_5y"].
+        return []

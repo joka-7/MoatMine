@@ -1,7 +1,7 @@
 """Safety score (0–100) for a single stock.
 
 A weighted blend of financial strength, quality, leverage, price risk, crisis behaviour, size,
-earnings stability and valuation. Components with no data are left out and the score is
+earnings stability, valuation and moat (return on capital, margin stability, steady growth). Components with no data are left out and the score is
 re-normalised over the ones that have data, so a missing feed lowers confidence (reported as
 `coverage_pct`) rather than silently scoring as zero.
 """
@@ -27,6 +27,12 @@ class StockFacts:
     eps_quarters: tuple[float, ...] = ()  # recent quarterly EPS, newest first
     eps_ttm: float | None = None
     fair_value: float | None = None
+    # moat (from up to 10 years of annual history; roic_avg_pct may come from a 5y average only)
+    roic_avg_pct: float | None = None
+    roic_consistency: float | None = None  # share of years with ROIC ≥ 10%, 0–1
+    gross_margin_std_pp: float | None = None  # year-to-year spread of gross margin, percentage points
+    revenue_cagr_pct: float | None = None
+    growth_consistency: float | None = None  # share of years revenue grew, 0–1
 
 
 def _tiered(value: float, tiers: list[tuple[float, float]], default: float) -> float:
@@ -89,7 +95,32 @@ def components(f: StockFacts) -> list[dict]:
     else:
         val, val_value = None, None
     out.append(_component("Valuation", 5, val, val_value, "price ÷ fair value: ≤1 5 · ≤1.15 3"))
+    out.extend(moat_components(f))
     return out
+
+
+def moat_components(f: StockFacts) -> list[dict]:
+    """Return on capital (7), margin stability (4), steady growth (4)."""
+    if f.roic_avg_pct is None:
+        roic = None
+    else:
+        base = next((p for limit, p in [(15, 7.0), (10, 5.0), (6, 2.5)] if f.roic_avg_pct >= limit), 0.0)
+        # consistency scales it: a moat holds every year, not just on average. Unknown → 75%.
+        roic = base * (0.5 + 0.5 * f.roic_consistency) if f.roic_consistency is not None else base * 0.75
+    margin = None if f.gross_margin_std_pp is None else _tiered(f.gross_margin_std_pp, [(2, 4), (5, 3), (10, 1.5)], 0)
+    if f.growth_consistency is None or f.revenue_cagr_pct is None:
+        growth = None
+    else:
+        cagr_pts = 2.0 if f.revenue_cagr_pct >= 5 else 1.0 if f.revenue_cagr_pct >= 0 else 0.0
+        growth = f.growth_consistency * 2 + cagr_pts
+    return [
+        _component("Return on capital", 7, roic, f.roic_avg_pct,
+                   "avg ROIC: ≥15% 7 · ≥10% 5 · ≥6% 2.5, scaled by share of years ≥10%"),
+        _component("Margin stability", 4, margin, f.gross_margin_std_pp,
+                   "gross-margin spread across years: ≤2pp 4 · ≤5pp 3 · ≤10pp 1.5"),
+        _component("Steady growth", 4, growth, f.revenue_cagr_pct,
+                   "revenue CAGR ≥5% 2 (≥0% 1) + 2 × share of years revenue grew"),
+    ]
 
 
 def flags(f: StockFacts) -> list[dict]:
@@ -117,7 +148,9 @@ AREAS = [
     ("resilience", "Crisis resilience", ["Crisis resilience"]),
     ("size", "Size", ["Company size"]),
     ("valuation", "Valuation", ["Valuation"]),
+    ("moat", "Moat", ["Return on capital", "Margin stability", "Steady growth"]),
 ]
+TOTAL_WEIGHT = 115  # sum of every component's max points
 
 
 def grade_for(score: float | None) -> str | None:
@@ -132,7 +165,7 @@ def area_grades(comps: list[dict]) -> list[dict]:
         mx = sum(c["max"] for c in parts)
         score = round(sum(c["points"] for c in parts) / mx * 100) if mx else None
         out.append({"key": key, "name": label, "score": score, "grade": grade_for(score),
-                    "weight": sum(by_name[n]["max"] for n in names)})
+                    "weight": round(sum(by_name[n]["max"] for n in names) / TOTAL_WEIGHT * 100)})
     return out
 
 
@@ -180,7 +213,7 @@ def safety_score(f: StockFacts) -> dict:
         "grade": grade,
         "areas": areas,
         "analysis": analyze(areas, fl, score, grade),
-        "coverage_pct": round(total_max),  # weights sum to 100, so this is % of the model with data
+        "coverage_pct": round(total_max / TOTAL_WEIGHT * 100),  # % of the model that had data
         "components": comps,
         "flags": fl,
     }

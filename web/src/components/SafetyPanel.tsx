@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { api, ApiError, BuyPlan, CheckResult, Portfolio, RiskProfile, SafetyAnalysis, SafetyReport } from "@/lib/api";
 import { useApi } from "@/lib/useApi";
+import MoatCard from "./MoatCard";
 import { CheckView, GradeBadge, ScoreRing } from "./SafetyBits";
 
 function fmtFact(v: unknown) {
@@ -54,7 +55,7 @@ export default function SafetyPanel({ symbol }: { symbol: string }) {
                 <GradeBadge grade={a.grade} size={34} />
                 <div>
                   <div>{a.name}</div>
-                  <div className="sub" style={{ fontSize: 12 }}>{a.score == null ? "no data" : `${a.score}/100`} · weight {a.weight}%</div>
+                  <div className="sub" style={{ fontSize: 12 }}>{a.score == null ? "no data" : `${a.score}/100`} · {a.weight}% of score</div>
                 </div>
               </div>
             ))}
@@ -67,6 +68,8 @@ export default function SafetyPanel({ symbol }: { symbol: string }) {
           )}
         </div>
       </div>
+
+      {r && <MoatCard moat={r.moat} area={r.areas.find((a) => a.key === "moat")} />}
 
       <div className="grid g3">
         <div className="card span2">
