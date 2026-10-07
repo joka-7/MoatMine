@@ -13,6 +13,7 @@ from app.analytics import annual_volatility_pct
 from app.cache import ttl_cache
 from app.crises import CRISES, HISTORY_START, _ts, bad_times, crisis_stats
 from app.market.base import MarketProvider
+from app.market.sources import source_label, track_sources
 from app.models import RiskProfile, Target
 from app.portfolio import BookMode, portfolio_snapshot
 from app.safety.check import Book, Candidate, Rules, check_buy
@@ -34,17 +35,18 @@ AUTO_TARGET = "Risk profile (auto)"
 @ttl_cache(600)
 async def stock_safety(provider: MarketProvider, symbol: str) -> dict:
     now = int(time.time())
-    quote, fund, daily, weekly5y, company, profile, earnings, hist, annual = await asyncio.gather(
-        provider.quote(symbol),
-        provider.fundamentals(symbol),
-        provider.candles(symbol, "D", now - 365 * 86400, now),
-        provider.candles(symbol, "W", now - 5 * 365 * 86400, now),
-        provider.company(symbol),
-        provider.profile(symbol),
-        provider.earnings(symbol),
-        bad_times(provider, symbol, BENCHMARK),
-        provider.history(symbol),
-    )
+    with track_sources() as used:
+        quote, fund, daily, weekly5y, company, profile, earnings, hist, annual = await asyncio.gather(
+            provider.quote(symbol),
+            provider.fundamentals(symbol),
+            provider.candles(symbol, "D", now - 365 * 86400, now),
+            provider.candles(symbol, "W", now - 5 * 365 * 86400, now),
+            provider.company(symbol),
+            provider.profile(symbol),
+            provider.earnings(symbol),
+            bad_times(provider, symbol, BENCHMARK),
+            provider.history(symbol),
+        )
     moat = moat_metrics(annual)
     price = quote["price"]
     val = estimate(price, fund, Assumptions())
@@ -82,7 +84,7 @@ async def stock_safety(provider: MarketProvider, symbol: str) -> dict:
         "facts": {k: getattr(facts, k) for k in facts.__dataclass_fields__ if k != "eps_quarters"},
         "sector": company.get("sector") or profile.get("industry") or None,
         "moat": moat,
-        "data_source": provider.name,
+        "data_source": source_label(provider.name, used),
     }
 
 
@@ -189,7 +191,8 @@ async def portfolio_risk_report(db: Session, user: str, provider: MarketProvider
     rules = rules_for(db, user)
     now = int(time.time())
     syms = sorted(values)
-    bars = await asyncio.gather(*(provider.candles(s, "D", now - 365 * 86400, now) for s in [*syms, BENCHMARK]))
+    with track_sources() as used:
+        bars = await asyncio.gather(*(provider.candles(s, "D", now - 365 * 86400, now) for s in [*syms, BENCHMARK]))
     series = {s: [(b["t"], b["c"]) for b in bs] for s, bs in zip([*syms, BENCHMARK], bars)}
     _, closes = align(series)
     bench = closes.pop(BENCHMARK, None)
@@ -206,7 +209,7 @@ async def portfolio_risk_report(db: Session, user: str, provider: MarketProvider
             breaches.append({"rule": "sector", "subject": sec, "message": f"{sec} is {pct:.1f}% of the portfolio (limit {rules.max_sector_pct:g}%)"})
     out["breaches"] = breaches
     out["rules"] = {k: getattr(rules, k) for k in RULE_KEYS}
-    out["data_source"] = provider.name
+    out["data_source"] = source_label(provider.name, used)
     out["mode"] = mode
     return out
 
@@ -217,8 +220,9 @@ async def stress_report(db: Session, user: str, provider: MarketProvider, mode: 
     now = int(time.time())
     start = _ts(HISTORY_START)
     syms = sorted(values)
-    weekly = await asyncio.gather(*(provider.candles(s, "W", start, now) for s in [*syms, BENCHMARK]))
-    daily = await asyncio.gather(*(provider.candles(s, "D", now - 365 * 86400, now) for s in [*syms, BENCHMARK]))
+    with track_sources() as used:
+        weekly = await asyncio.gather(*(provider.candles(s, "W", start, now) for s in [*syms, BENCHMARK]))
+        daily = await asyncio.gather(*(provider.candles(s, "D", now - 365 * 86400, now) for s in [*syms, BENCHMARK]))
     wk = dict(zip([*syms, BENCHMARK], weekly))
     _, aligned = align({s: [(b["t"], b["c"]) for b in bs] for s, bs in zip([*syms, BENCHMARK], daily)})
     bench_r = daily_returns(aligned.get(BENCHMARK, []))
@@ -243,7 +247,7 @@ async def stress_report(db: Session, user: str, provider: MarketProvider, mode: 
         "loss_limit_pct": limit,
         "betas": {s: (round(b, 2) if b is not None else None) for s, b in betas.items()},
         "scenarios": scenarios,
-        "data_source": provider.name,
+        "data_source": source_label(provider.name, used),
         "mode": mode,
         "note": "Replays past crises on today's holdings. Past falls don't predict future ones.",
         "as_of": datetime.now(timezone.utc).date().isoformat(),

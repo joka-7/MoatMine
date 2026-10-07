@@ -1,11 +1,15 @@
 """PAPI (Profit, Amount, Period, Intent) evaluation against MAMI (min/max) bounds."""
 
+import logging
 import time
 from datetime import datetime, timezone
 
 from app.analytics import annual_volatility_pct
 from app.market.base import MarketProvider
+from app.market.sources import MOCK_FALLBACK, track_sources
 from app.models import Target
+
+logger = logging.getLogger(__name__)
 
 INTENTS = ["growth", "income", "speculation", "hedge", "retirement", "custom"]
 
@@ -28,14 +32,19 @@ def check_bound(value: float | None, target: float | None, lo: float | None, hi:
 
 
 async def risk_by_symbol(provider: MarketProvider, symbols: set[str], lookback_days: int = 365) -> dict[str, float | None]:
+    """Annualised volatility per symbol; None where real prices aren't available (targets then show no_data)."""
     end = int(time.time())
     out: dict[str, float | None] = {}
     for s in symbols:
         try:
-            bars = await provider.candles(s, "D", end - lookback_days * 86400, end)
-            out[s] = annual_volatility_pct([b["c"] for b in bars])
+            with track_sources() as used:
+                bars = await provider.candles(s, "D", end - lookback_days * 86400, end)
         except Exception:
+            logger.warning("candles failed; risk unknown for this symbol", extra={"symbol": s}, exc_info=True)
             out[s] = None
+            continue
+        # sample bars would make target alerts fire on made-up volatility
+        out[s] = None if MOCK_FALLBACK in used else annual_volatility_pct([b["c"] for b in bars])
     return out
 
 

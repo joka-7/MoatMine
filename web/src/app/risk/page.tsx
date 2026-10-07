@@ -47,6 +47,7 @@ export default function RiskPage() {
       {mode === "paper" && <PaperNotice />}
       {error && <div className="err" style={{ marginBottom: 16 }}>{error}</div>}
       {r && r.holdings_count === 0 && <div className="card empty" style={{ marginBottom: 16 }}>Add holdings to see portfolio risk.</div>}
+      {r?.data_source.startsWith("mock") && <div className="sub" style={{ fontSize: 12, marginBottom: 12 }}>Risk numbers below use sample price data, not real history.</div>}
 
       {!!r?.breaches.length && (
         <div className="card" style={{ marginBottom: 16, borderColor: "color-mix(in srgb, var(--down) 40%, var(--line))" }}>

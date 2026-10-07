@@ -1,10 +1,12 @@
 """Finnhub provider. Free tier covers quote, news, metrics, profile, search.
 
 Note: Finnhub's /stock/candle needs a paid plan on most accounts. If it errors,
-candles fall back to the mock series so charts still render (clearly flagged
-via the `X-Data-Source` header set by the router).
+candles fall back to the mock series so charts still render, and the fallback is
+recorded with app.market.sources so every result built on those bars is labelled
+as sample data.
 """
 
+import logging
 import time
 from datetime import date, timedelta
 
@@ -12,6 +14,9 @@ import httpx
 
 from app.market.base import Candle, NewsItem, Quote
 from app.market.mock import MockProvider
+from app.market.sources import MOCK_FALLBACK, note_source
+
+logger = logging.getLogger(__name__)
 
 BASE = "https://finnhub.io/api/v1"
 
@@ -38,10 +43,9 @@ _METRIC_MAP = {
 class FinnhubProvider:
     name = "finnhub"
 
-    def __init__(self, api_key: str):
-        self._client = httpx.AsyncClient(base_url=BASE, timeout=10, params={"token": api_key})
+    def __init__(self, api_key: str, transport: httpx.AsyncBaseTransport | None = None):
+        self._client = httpx.AsyncClient(base_url=BASE, timeout=10, params={"token": api_key}, transport=transport)
         self._fallback = MockProvider()
-        self.candles_fell_back = False
 
     async def _get(self, path: str, **params):
         r = await self._client.get(path, params=params)
@@ -64,13 +68,16 @@ class FinnhubProvider:
             d = await self._get("/stock/candle", symbol=symbol, resolution=resolution, **{"from": start, "to": end})
             if d.get("s") != "ok":
                 return []
-            self.candles_fell_back = False
             return [
                 {"t": t, "o": o, "h": h, "l": lo, "c": c, "v": v}
                 for t, o, h, lo, c, v in zip(d["t"], d["o"], d["h"], d["l"], d["c"], d["v"])
             ]
-        except httpx.HTTPStatusError:
-            self.candles_fell_back = True
+        except httpx.HTTPStatusError as e:
+            logger.warning(
+                "finnhub candles unavailable; using sample data",
+                extra={"symbol": symbol, "status_code": e.response.status_code},
+            )
+            note_source(MOCK_FALLBACK)
             return await self._fallback.candles(symbol, resolution, start, end)
 
     async def metrics(self, symbol: str) -> dict[str, float | None]:

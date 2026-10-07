@@ -17,10 +17,6 @@ class RoutedProvider:
     def __getattr__(self, item):  # quote, candles, metrics, news, profile, search, earnings, recommendations
         return getattr(self.primary, item)
 
-    @property
-    def candles_fell_back(self) -> bool:
-        return getattr(self.primary, "candles_fell_back", False)
-
     async def _try_fmp(self, method: str, symbol: str):
         if self.fmp:
             try:

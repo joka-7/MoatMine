@@ -10,6 +10,7 @@ from app.auth import current_user
 from app.db import get_db
 from app.market import get_provider
 from app.market.base import RESOLUTION_SECONDS
+from app.market.sources import source_label, track_sources
 from app.models import StockNote
 from app.ai.dispatcher import DispatchError
 from app.routers.ai import dispatch_error_response
@@ -49,9 +50,9 @@ async def candles(
     end = end or int(time.time())
     start = start or end - 365 * 86400
     provider = get_provider()
-    bars = await provider.candles(_sym(symbol), resolution, start, end)
-    source = "mock-fallback" if getattr(provider, "candles_fell_back", False) else provider.name
-    response.headers["X-Data-Source"] = source
+    with track_sources() as used:
+        bars = await provider.candles(_sym(symbol), resolution, start, end)
+    response.headers["X-Data-Source"] = source_label(provider.name, used)
     return bars
 
 

@@ -12,6 +12,7 @@ import time
 from datetime import date, datetime, timezone
 
 from app.market.base import Candle, MarketProvider
+from app.market.sources import source_label, track_sources
 
 CRISES = [
     # key, name, start (market peak), end (market trough), short description
@@ -117,10 +118,11 @@ def _resilience(rows: list[dict]) -> dict:
 async def bad_times(provider: MarketProvider, symbol: str, benchmark: str = "SPY") -> dict:
     end = int(time.time())
     start = _ts(HISTORY_START)
-    stock_bars, bench_bars = await asyncio.gather(
-        provider.candles(symbol, "W", start, end),
-        provider.candles(benchmark, "W", start, end) if benchmark != symbol else asyncio.sleep(0, result=None),
-    )
+    with track_sources() as used:
+        stock_bars, bench_bars = await asyncio.gather(
+            provider.candles(symbol, "W", start, end),
+            provider.candles(benchmark, "W", start, end) if benchmark != symbol else asyncio.sleep(0, result=None),
+        )
     if bench_bars is None:
         bench_bars = stock_bars
     rows = []
@@ -138,7 +140,7 @@ async def bad_times(provider: MarketProvider, symbol: str, benchmark: str = "SPY
         "crises": rows,
         "resilience": _resilience(rows),
         "worst_drawdowns": worst_drawdowns(stock_bars),
-        "data_source": "mock-fallback" if getattr(provider, "candles_fell_back", False) else provider.name,
+        "data_source": source_label(provider.name, used),
         "note": "Weekly closes. Past behaviour in crises does not predict future behaviour.",
         "as_of": date.today().isoformat(),
     }

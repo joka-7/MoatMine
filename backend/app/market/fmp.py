@@ -18,8 +18,8 @@ def _mil(v):
 class FMPProvider:
     name = "fmp"
 
-    def __init__(self, api_key: str):
-        self._client = httpx.AsyncClient(base_url=BASE, timeout=15, params={"apikey": api_key})
+    def __init__(self, api_key: str, transport: httpx.AsyncBaseTransport | None = None):
+        self._client = httpx.AsyncClient(base_url=BASE, timeout=15, params={"apikey": api_key}, transport=transport)
 
     async def _get(self, path: str, **params):
         r = await self._client.get(path, params=params)
