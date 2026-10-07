@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+import logging
 import time
 from datetime import datetime, timezone
 
@@ -20,6 +21,8 @@ from app.safety.profile import DEFAULT_RULES, RULE_KEYS
 from app.safety.risk import align, beta, daily_returns, portfolio_risk, stress_scenarios
 from app.safety.score import StockFacts, safety_score
 from app.valuation import Assumptions, estimate
+
+logger = logging.getLogger(__name__)
 
 BENCHMARK = "SPY"
 AUTO_TARGET = "Risk profile (auto)"
@@ -136,8 +139,15 @@ async def book_for(
 ) -> tuple[dict, Book, dict[str, str | None]]:
     snap = await portfolio_snapshot(db, user, provider, mode)
     syms = sorted({h["symbol"] for h in snap["holdings"]})
-    reports = await asyncio.gather(*(sector_of(provider, s) for s in syms))
-    sectors = dict(zip(syms, reports))
+    reports = await asyncio.gather(*(sector_of(provider, s) for s in syms), return_exceptions=True)
+    sectors: dict[str, str | None] = {}
+    for sym, rep in zip(syms, reports):
+        if isinstance(rep, Exception):
+            # an unknown sector only skips that holding's sector rule; it must not sink the whole check
+            logger.warning("sector lookup failed; counting it as Unknown", extra={"symbol": sym, "error": type(rep).__name__})
+            sectors[sym] = None
+        else:
+            sectors[sym] = rep
     by_symbol: dict[str, float] = {}
     by_sector: dict[str, float] = {}
     for h in snap["holdings"]:
