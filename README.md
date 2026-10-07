@@ -22,6 +22,7 @@ render.yaml Render blueprint (API, worker, Postgres)
 | **Portfolio risk** | Volatility, beta, 1-month value-at-risk, worst fall, concentration, sectors vs limit, correlation heatmap, rule breaches (also raised as alerts by the worker) |
 | **Stress tests** | Today's holdings replayed through the dot-com crash, 2008, 2011, Q4 2018, COVID and 2022, plus 10/20/35% market falls, against the user's loss limit |
 | Accounts & portfolio | Accounts with cash, holdings, live P/L, weights, day change, allocation donut, value-over-time chart |
+| **Real vs paper** | Paper (practice) accounts are a separate book. Real-money totals, risk, stress tests, alerts and position-size checks never include paper money. The dashboard, Portfolio and Risk pages have a Real money / Paper toggle, and the agent's portfolio tools take `mode: real \| paper` |
 | Watchlist | Symbols with notes and price alerts (above / below) |
 | Stock page | Candles or line chart, 1D–5Y ranges, SMA20/50 and volume overlays, zoom in/out/fit plus wheel and drag |
 | Ratios | Valuation, profitability and health ratios from the provider; return, volatility, max drawdown, Sharpe, Sortino, RSI and SMA computed from candles, with a selectable lookback |

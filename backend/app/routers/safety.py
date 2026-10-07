@@ -10,6 +10,7 @@ from app.auth import current_user
 from app.db import get_db
 from app.market import get_provider
 from app.models import Account, BuyPlan, Holding, StockNote
+from app.portfolio import BookMode, book_mode_of
 from app.safety.profile import LEVELS, QUESTIONS, level_from_answers
 from app.safety.service import (
     ai_analysis, check_for, get_profile, portfolio_risk_report, profile_dict, save_profile, stock_safety, stress_report,
@@ -92,6 +93,7 @@ class CheckIn(BaseModel):
     symbol: str
     amount: float | None = Field(None, gt=0)
     quantity: float | None = Field(None, gt=0)
+    mode: BookMode = "real"  # which book the money would go into
 
     @field_validator("symbol")
     @classmethod
@@ -114,19 +116,19 @@ async def _amount(body: CheckIn) -> tuple[float, float]:
 @router.post("/safety/check")
 async def safety_check(body: CheckIn, user: str = Depends(current_user), db: Session = Depends(get_db)):
     amount, price = await _amount(body)
-    out = await check_for(db, user, get_provider(), body.symbol, amount)
+    out = await check_for(db, user, get_provider(), body.symbol, amount, body.mode)
     out["price"] = price
     return out
 
 
 @router.get("/safety/portfolio")
-async def portfolio_risk(user: str = Depends(current_user), db: Session = Depends(get_db)):
-    return await portfolio_risk_report(db, user, get_provider())
+async def portfolio_risk(mode: BookMode = "real", user: str = Depends(current_user), db: Session = Depends(get_db)):
+    return await portfolio_risk_report(db, user, get_provider(), mode)
 
 
 @router.get("/safety/stress")
-async def stress(user: str = Depends(current_user), db: Session = Depends(get_db)):
-    return await stress_report(db, user, get_provider())
+async def stress(mode: BookMode = "real", user: str = Depends(current_user), db: Session = Depends(get_db)):
+    return await stress_report(db, user, get_provider(), mode)
 
 
 # ---------------- buy plans: check → (note + cooling-off) → execute ----------------
@@ -177,7 +179,7 @@ async def create_plan(body: PlanIn, user: str = Depends(current_user), db: Sessi
     if not acc or acc.user_id != user:
         raise HTTPException(404, "account not found")
     price = (await get_provider().quote(body.symbol))["price"]
-    check = await check_for(db, user, get_provider(), body.symbol, body.quantity * price)
+    check = await check_for(db, user, get_provider(), body.symbol, body.quantity * price, book_mode_of(acc))
     if check["requires_note"] and len(body.note.strip()) < 20:
         raise HTTPException(422, {"message": "This buy breaks some of your rules. Write why you still want it (20+ characters).", "check": check})
 
@@ -202,9 +204,12 @@ async def execute_plan(plan_id: int, user: str = Depends(current_user), db: Sess
     out = _plan_out(p)
     if out["status"] != "ready":
         raise HTTPException(409, f"plan is {out['status']}" + (f" until {out['available_at']}" if out["status"] == "cooling_off" else ""))
+    acc = db.get(Account, p.account_id)
+    if acc is None:
+        raise HTTPException(404, "account not found")
     # re-check at execution time: prices and the portfolio may have moved during cooling-off
     price = (await get_provider().quote(p.symbol))["price"]
-    recheck = await check_for(db, user, get_provider(), p.symbol, p.quantity * price)
+    recheck = await check_for(db, user, get_provider(), p.symbol, p.quantity * price, book_mode_of(acc))
     if recheck["verdict"] == "block":
         p.status, p.check_json, p.verdict = "blocked", json.dumps(recheck), "block"
         db.commit()

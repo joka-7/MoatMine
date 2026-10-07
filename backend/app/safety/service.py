@@ -12,8 +12,8 @@ from app.analytics import annual_volatility_pct
 from app.cache import ttl_cache
 from app.crises import CRISES, HISTORY_START, _ts, bad_times, crisis_stats
 from app.market.base import MarketProvider
-from app.models import Account, RiskProfile, Target
-from app.portfolio import portfolio_snapshot
+from app.models import RiskProfile, Target
+from app.portfolio import BookMode, portfolio_snapshot
 from app.safety.check import Book, Candidate, Rules, check_buy
 from app.safety.moat import moat_metrics
 from app.safety.profile import DEFAULT_RULES, RULE_KEYS
@@ -131,8 +131,10 @@ def _sync_auto_target(db: Session, user: str, p: RiskProfile) -> None:
 # ---------------- book & checks ----------------
 
 
-async def book_for(db: Session, user: str, provider: MarketProvider) -> tuple[dict, Book, dict[str, str | None]]:
-    snap = await portfolio_snapshot(db, user, provider)
+async def book_for(
+    db: Session, user: str, provider: MarketProvider, mode: BookMode = "real"
+) -> tuple[dict, Book, dict[str, str | None]]:
+    snap = await portfolio_snapshot(db, user, provider, mode)
     syms = sorted({h["symbol"] for h in snap["holdings"]})
     reports = await asyncio.gather(*(sector_of(provider, s) for s in syms))
     sectors = dict(zip(syms, reports))
@@ -151,28 +153,27 @@ async def sector_of(provider: MarketProvider, symbol: str) -> str | None:
     return c.get("sector") or c.get("industry") or None
 
 
-async def check_for(db: Session, user: str, provider: MarketProvider, symbol: str, amount: float) -> dict:
-    report, (_, book, _) = await asyncio.gather(stock_safety(provider, symbol), book_for(db, user, provider))
+async def check_for(
+    db: Session, user: str, provider: MarketProvider, symbol: str, amount: float, mode: BookMode = "real"
+) -> dict:
+    """Safety check for buying `amount` of `symbol`, sized against the book the money would go into."""
+    report, (_, book, _) = await asyncio.gather(stock_safety(provider, symbol), book_for(db, user, provider, mode))
     f = report["facts"]
     cand = Candidate(
         symbol=symbol, amount=amount, sector=report["sector"], price=f["price"], fair_value=f["fair_value"],
         market_cap_m=f["market_cap_m"], volatility_pct=f["volatility_pct"], safety=report,
     )
     out = check_buy(rules_for(db, user), cand, book)
+    out["mode"] = mode
     out["safety"] = {"score": report["score"], "grade": report["grade"], "flags": report["flags"]}
     return out
-
-
-def account_is_paper(db: Session, account_id: int) -> bool:
-    acc = db.get(Account, account_id)
-    return bool(acc and acc.broker == "paper")
 
 
 # ---------------- portfolio risk & stress ----------------
 
 
-async def portfolio_risk_report(db: Session, user: str, provider: MarketProvider) -> dict:
-    snap, book, sectors = await book_for(db, user, provider)
+async def portfolio_risk_report(db: Session, user: str, provider: MarketProvider, mode: BookMode = "real") -> dict:
+    snap, book, sectors = await book_for(db, user, provider, mode)
     values = book.by_symbol
     rules = rules_for(db, user)
     now = int(time.time())
@@ -195,11 +196,12 @@ async def portfolio_risk_report(db: Session, user: str, provider: MarketProvider
     out["breaches"] = breaches
     out["rules"] = {k: getattr(rules, k) for k in RULE_KEYS}
     out["data_source"] = provider.name
+    out["mode"] = mode
     return out
 
 
-async def stress_report(db: Session, user: str, provider: MarketProvider) -> dict:
-    snap, book, _ = await book_for(db, user, provider)
+async def stress_report(db: Session, user: str, provider: MarketProvider, mode: BookMode = "real") -> dict:
+    snap, book, _ = await book_for(db, user, provider, mode)
     values = book.by_symbol
     now = int(time.time())
     start = _ts(HISTORY_START)
@@ -231,6 +233,7 @@ async def stress_report(db: Session, user: str, provider: MarketProvider) -> dic
         "betas": {s: (round(b, 2) if b is not None else None) for s, b in betas.items()},
         "scenarios": scenarios,
         "data_source": provider.name,
+        "mode": mode,
         "note": "Replays past crises on today's holdings. Past falls don't predict future ones.",
         "as_of": datetime.now(timezone.utc).date().isoformat(),
     }

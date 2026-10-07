@@ -3,15 +3,18 @@
 import Link from "next/link";
 import AlertsBell from "@/components/AlertsBell";
 import AllocationPie from "@/components/AllocationPie";
+import BookToggle, { PaperNotice } from "@/components/BookToggle";
 import NewsFeed from "@/components/NewsFeed";
 import SymbolSearch from "@/components/SymbolSearch";
 import ValueChart from "@/components/ValueChart";
 import { Evaluation, Portfolio, RiskProfile } from "@/lib/api";
 import { money, pct, tone } from "@/lib/format";
 import { useApi } from "@/lib/useApi";
+import { useBookMode } from "@/lib/useBookMode";
 
 export default function Dashboard() {
-  const { data: p, error } = useApi<Portfolio>("/portfolio");
+  const [mode, setMode] = useBookMode();
+  const { data: p, error } = useApi<Portfolio>(`/portfolio?mode=${mode}`);
   const { data: evals } = useApi<Evaluation[]>("/targets/evaluate");
   const { data: profile } = useApi<RiskProfile>("/safety/profile");
   const t = p?.totals;
@@ -21,6 +24,7 @@ export default function Dashboard() {
       <div className="topbar">
         <h1>Dashboard</h1>
         <div className="row" style={{ flex: 0 }}>
+          <BookToggle mode={mode} onChange={setMode} />
           <SymbolSearch />
           <AlertsBell />
         </div>
@@ -35,6 +39,7 @@ export default function Dashboard() {
           <Link href="/risk-profile" className="btn primary">Start</Link>
         </div>
       )}
+      {mode === "paper" && <PaperNotice />}
       {error && <div className="err" style={{ marginBottom: 16 }}>Can't reach the API: {error}. Check Settings → API URL.</div>}
 
       <div className="grid g4" style={{ marginBottom: 16 }}>
@@ -45,7 +50,7 @@ export default function Dashboard() {
       </div>
 
       <div className="grid g3" style={{ marginBottom: 16 }}>
-        <div className="span2"><ValueChart /></div>
+        <div className="span2"><ValueChart mode={mode} /></div>
         <div className="card">
           <h2>Allocation</h2>
           {p && <AllocationPie holdings={p.holdings} cash={p.totals.cash} />}
@@ -79,6 +84,7 @@ export default function Dashboard() {
         </div>
         <div className="card">
           <h2>Targets</h2>
+          {mode === "paper" && <div className="sub" style={{ fontSize: 12, marginBottom: 6 }}>Targets track real money only.</div>}
           {!evals?.length && <div className="empty"><Link href="/targets" style={{ color: "var(--accent)" }}>Set a PAPI target →</Link></div>}
           {evals?.map((e) => (
             <Link key={e.target_id} href="/targets" style={{ display: "block", padding: "8px 0", borderBottom: "1px solid var(--line)" }}>

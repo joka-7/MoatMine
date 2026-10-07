@@ -33,7 +33,9 @@ def agent_context(db: Session, user: str, symbol: str | None) -> str:
         f"portfolio loss limit {p['max_drawdown_pct']:g}%, minimum market cap ${p['min_market_cap_m']:,.0f}M, "
         f"penny stocks {'allowed' if p['allow_penny_stocks'] else 'not allowed'}. "
         "Run safety_check before discussing any buy. If something breaks these rules, say so plainly and "
-        "do not help work around them; the user can change the rules only in the Risk profile page."
+        "do not help work around them; the user can change the rules only in the Risk profile page. "
+        "Real-money and paper (practice) accounts are separate books: the portfolio tools default to real money; "
+        "pass mode='paper' only when the user asks about paper trading, and never add the two together."
     )
     return rules + (f" The user is currently viewing {symbol}." if symbol else "")
 

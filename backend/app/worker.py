@@ -1,7 +1,8 @@
 """Background worker (Render "Background Worker" service).
 
-Every WORKER_INTERVAL_SECONDS: evaluate each user's PAPI targets and watchlist price alerts,
-and write deduplicated Alert rows that the UI shows in the bell menu.
+Every WORKER_INTERVAL_SECONDS: evaluate each user's PAPI targets, risk-rule concentration and
+watchlist price alerts, and write deduplicated Alert rows that the UI shows in the bell menu.
+Targets and risk rules are checked against real-money accounts only; paper accounts never alert.
 Run:  python -m app.worker        (or --once for a single pass)
 """
 
@@ -43,7 +44,7 @@ async def run_once() -> int:
                 created += await _risk_rule_alerts(db, user, provider)
             targets = db.scalars(select(Target).where(Target.user_id == user)).all()
             if targets:
-                snap = await portfolio_snapshot(db, user, provider)
+                snap = await portfolio_snapshot(db, user, provider, "real")
                 risks = await risk_by_symbol(provider, {h["symbol"] for h in snap["holdings"]})
                 for t in targets:
                     for key, msg in breach_messages(evaluate(t, snap, risks)):
@@ -68,9 +69,9 @@ async def run_once() -> int:
 
 
 async def _risk_rule_alerts(db: Session, user: str, provider) -> int:
-    """Position and sector concentration against the user's risk profile."""
+    """Position and sector concentration of the real-money book against the user's risk profile."""
     rules = rules_for(db, user)
-    _, book, _ = await book_for(db, user, provider)
+    _, book, _ = await book_for(db, user, provider, "real")
     total = book.total_value
     n = 0
     if not total:

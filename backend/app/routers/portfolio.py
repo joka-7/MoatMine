@@ -9,7 +9,7 @@ from app.auth import current_user
 from app.db import get_db
 from app.market import get_provider
 from app.models import Account, Holding
-from app.portfolio import portfolio_snapshot
+from app.portfolio import BookMode, book_mode_of, holdings_in_book, is_paper, portfolio_snapshot
 from app.safety.service import check_for
 from app.schemas import AccountIn, AccountOut, HoldingIn, HoldingUpdate
 
@@ -59,8 +59,8 @@ async def add_holding(body: HoldingIn, user: str = Depends(current_user), db: Se
     bought and return the check as a warning, since refusing wouldn't undo the trade.
     """
     acc = _own(db, Account, body.account_id, user)
-    check = await check_for(db, user, get_provider(), body.symbol, body.quantity * body.avg_cost)
-    if acc.broker == "paper" and check["verdict"] == "block":
+    check = await check_for(db, user, get_provider(), body.symbol, body.quantity * body.avg_cost, book_mode_of(acc))
+    if is_paper(acc) and check["verdict"] == "block":
         raise HTTPException(409, {"message": "Blocked by your risk rules. Use a buy plan or change your profile.", "check": check})
     h = Holding(user_id=user, **body.model_dump(exclude_none=True))
     db.add(h)
@@ -84,16 +84,19 @@ def delete_holding(holding_id: int, user: str = Depends(current_user), db: Sessi
 
 
 @router.get("/portfolio")
-async def get_portfolio(user: str = Depends(current_user), db: Session = Depends(get_db)):
-    return await portfolio_snapshot(db, user, get_provider())
+async def get_portfolio(mode: BookMode = "real", user: str = Depends(current_user), db: Session = Depends(get_db)):
+    return await portfolio_snapshot(db, user, get_provider(), mode)
 
 
 @router.get("/portfolio/history")
 async def portfolio_history(
-    days: int = Query(180, ge=7, le=3650), user: str = Depends(current_user), db: Session = Depends(get_db)
+    days: int = Query(180, ge=7, le=3650),
+    mode: BookMode = "real",
+    user: str = Depends(current_user),
+    db: Session = Depends(get_db),
 ):
-    """Daily market value of current holdings (quantities held constant) — for the value-over-time chart."""
-    holdings = db.scalars(select(Holding).where(Holding.user_id == user)).all()
+    """Daily market value of one book's current holdings (quantities held constant) — for the value-over-time chart."""
+    holdings = holdings_in_book(db, user, mode)
     if not holdings:
         return []
     end = int(time.time())

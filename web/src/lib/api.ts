@@ -73,6 +73,7 @@ export type HoldingRow = {
   opened_at: string; stale: boolean;
 };
 export type Portfolio = {
+  mode: "real" | "paper";
   accounts: Account[];
   holdings: HoldingRow[];
   totals: { cash: number; invested_value: number; net_worth: number; cost: number; pnl: number; pnl_pct: number; day_change: number };
@@ -174,6 +175,7 @@ export type RiskLevel = "conservative" | "moderate" | "balanced" | "growth";
 export type RiskProfile = RiskRules & { saved: boolean; level: RiskLevel; answers: Record<string, number>; paper_mode: boolean };
 export type Question = { id: string; text: string; options: string[] };
 export type PortfolioRisk = {
+  mode: "real" | "paper";
   total_value: number; invested_value: number; cash_pct: number; days: number; volatility_pct: number | null; beta: number | null;
   var95_1d: number | null; var95_1m: number | null; max_drawdown_pct: number | null; top_position_pct: number | null;
   effective_holdings: number | null; holdings_count: number; sectors: Record<string, number>;
@@ -184,7 +186,7 @@ export type StressScenario = {
   key: string; name: string; kind: "historical" | "hypothetical"; change: number; change_pct: number; breaches_limit: boolean;
   worst: { symbol: string; change_pct: number; change: number; basis: string }[];
 };
-export type StressReport = { total_value: number; loss_limit_pct: number; scenarios: StressScenario[]; note: string; data_source: string };
+export type StressReport = { mode: "real" | "paper"; total_value: number; loss_limit_pct: number; scenarios: StressScenario[]; note: string; data_source: string };
 export type BuyPlan = {
   id: number; account_id: number; symbol: string; quantity: number; price: number; amount: number; note: string;
   verdict: "pass" | "warn" | "block"; status: "blocked" | "cooling_off" | "ready" | "executed" | "cancelled";

@@ -3,19 +3,20 @@
 import { AreaSeries, ColorType, UTCTimestamp, createChart, IChartApi } from "lightweight-charts";
 import { useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
+import type { BookMode } from "@/lib/useBookMode";
 
 const SPANS = [30, 90, 180, 365, 1095] as const;
 const LABEL: Record<number, string> = { 30: "1M", 90: "3M", 180: "6M", 365: "1Y", 1095: "3Y" };
 
-export default function ValueChart() {
+export default function ValueChart({ mode }: { mode: BookMode }) {
   const el = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const [days, setDays] = useState<number>(180);
   const [points, setPoints] = useState<{ t: number; value: number }[] | null>(null);
 
   useEffect(() => {
-    api<{ t: number; value: number }[]>(`/portfolio/history?days=${days}`).then(setPoints).catch(() => setPoints([]));
-  }, [days]);
+    api<{ t: number; value: number }[]>(`/portfolio/history?days=${days}&mode=${mode}`).then(setPoints).catch(() => setPoints([]));
+  }, [days, mode]);
 
   useEffect(() => {
     if (!el.current || !points?.length) return;

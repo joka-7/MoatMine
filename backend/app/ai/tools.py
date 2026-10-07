@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 from app.analytics import price_stats
 from app.market import get_provider
 from app.models import StockNote, Target, WatchItem
-from app.portfolio import portfolio_snapshot, quotes_for
+from app.portfolio import BookMode, portfolio_snapshot, quotes_for
 from app.crises import bad_times
 from app.safety.service import check_for, get_profile, portfolio_risk_report, profile_dict, stock_safety, stress_report
 from app.research import news_feed, valuation
@@ -26,8 +26,25 @@ def _sym_param(desc: str = "Ticker symbol, e.g. AAPL") -> dict:
     return {"type": "object", "properties": {"symbol": {"type": "string", "description": desc}}, "required": ["symbol"]}
 
 
+_MODE_PROP = {
+    "mode": {
+        "type": "string",
+        "enum": ["real", "paper"],
+        "description": "Which book: 'real' money (default) or 'paper' practice accounts. They are never mixed.",
+    }
+}
+
+
+def _mode_param() -> dict:
+    return {"type": "object", "properties": dict(_MODE_PROP)}
+
+
+def _mode(args: dict) -> BookMode:
+    return "paper" if args.get("mode") == "paper" else "real"
+
+
 TOOL_SPECS = [
-    {"name": "get_portfolio", "description": "User's accounts, holdings with P/L and weights, and totals.", "parameters": {"type": "object", "properties": {}}},
+    {"name": "get_portfolio", "description": "User's accounts, holdings with P/L and weights, and totals for the real-money or the paper book.", "parameters": _mode_param()},
     {"name": "get_quote", "description": "Latest quote for a symbol.", "parameters": _sym_param()},
     {"name": "get_ratios", "description": "Fundamental ratios (P/E, ROE, margins…) and 1-year price/risk stats (volatility, drawdown, Sharpe, RSI).", "parameters": _sym_param()},
     {"name": "get_news", "description": "Recent company news headlines for a symbol.", "parameters": _sym_param()},
@@ -61,10 +78,14 @@ TOOL_SPECS = [
     {
         "name": "safety_check",
         "description": "Check a proposed buy against the user's risk rules: pass / warn / block with each rule's result. Run this before discussing any buy.",
-        "parameters": {"type": "object", "properties": {"symbol": {"type": "string"}, "amount": {"type": "number", "description": "money to invest"}}, "required": ["symbol", "amount"]},
+        "parameters": {
+            "type": "object",
+            "properties": {"symbol": {"type": "string"}, "amount": {"type": "number", "description": "money to invest"}, **_MODE_PROP},
+            "required": ["symbol", "amount"],
+        },
     },
-    {"name": "get_portfolio_risk", "description": "Portfolio volatility, beta, value-at-risk, max drawdown, concentration, sectors, correlation and rule breaches.", "parameters": {"type": "object", "properties": {}}},
-    {"name": "get_stress_test", "description": "Today's portfolio replayed through past crises and market falls of 10/20/35%, vs the user's loss limit.", "parameters": {"type": "object", "properties": {}}},
+    {"name": "get_portfolio_risk", "description": "Portfolio volatility, beta, value-at-risk, max drawdown, concentration, sectors, correlation and rule breaches, for the real-money or the paper book.", "parameters": _mode_param()},
+    {"name": "get_stress_test", "description": "Today's portfolio (real-money or paper book) replayed through past crises and market falls of 10/20/35%, vs the user's loss limit.", "parameters": _mode_param()},
     {"name": "get_news_feed", "description": "Recent news across all holdings and watchlist symbols.", "parameters": {"type": "object", "properties": {}}},
     {"name": "get_targets_status", "description": "User's PAPI targets (profit, amount, period, intent) evaluated against their min/max bounds.", "parameters": {"type": "object", "properties": {}}},
     {"name": "get_watchlist", "description": "User's watchlist with live quotes.", "parameters": {"type": "object", "properties": {}}},
@@ -95,7 +116,7 @@ async def run_tool(name: str, args: dict, db: Session, user: str) -> str:
     sym = (args.get("symbol") or "").strip().upper()
     match name:
         case "get_portfolio":
-            out = await portfolio_snapshot(db, user, p)
+            out = await portfolio_snapshot(db, user, p, _mode(args))
         case "get_quote":
             out = await p.quote(sym)
         case "get_ratios":
@@ -123,11 +144,11 @@ async def run_tool(name: str, args: dict, db: Session, user: str) -> str:
         case "get_safety_score":
             out = await stock_safety(p, sym)
         case "safety_check":
-            out = await check_for(db, user, p, sym, float(args["amount"]))
+            out = await check_for(db, user, p, sym, float(args["amount"]), _mode(args))
         case "get_portfolio_risk":
-            out = await portfolio_risk_report(db, user, p)
+            out = await portfolio_risk_report(db, user, p, _mode(args))
         case "get_stress_test":
-            r = await stress_report(db, user, p)
+            r = await stress_report(db, user, p, _mode(args))
             out = {**r, "scenarios": [{k: sc[k] for k in ("name", "change", "change_pct", "worst", "breaches_limit")} for sc in r["scenarios"]]}
         case "get_news_feed":
             out = [{k: n[k] for k in ("symbol", "headline", "source", "datetime")} for n in (await news_feed(db, user, p, 7, 25))]

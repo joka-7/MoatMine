@@ -1,10 +1,12 @@
 "use client";
 
 import Link from "next/link";
+import BookToggle, { PaperNotice } from "@/components/BookToggle";
 import { Bar, BarChart, Cell, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { PortfolioRisk, StressReport } from "@/lib/api";
 import { money, num, pct } from "@/lib/format";
 import { useApi } from "@/lib/useApi";
+import { useBookMode } from "@/lib/useBookMode";
 
 const TT = { background: "#14171c", border: "1px solid #262a32", borderRadius: 8 };
 
@@ -15,8 +17,9 @@ function corrColor(c: number | null) {
 }
 
 export default function RiskPage() {
-  const { data: r, error } = useApi<PortfolioRisk>("/safety/portfolio");
-  const { data: s } = useApi<StressReport>("/safety/stress");
+  const [mode, setMode] = useBookMode();
+  const { data: r, error } = useApi<PortfolioRisk>(`/safety/portfolio?mode=${mode}`);
+  const { data: s } = useApi<StressReport>(`/safety/stress?mode=${mode}`);
 
   const tiles: [string, string, string?][] = r ? [
     ["Volatility", r.volatility_pct == null ? "—" : `${num(r.volatility_pct)}%/yr`, "how much the portfolio swings"],
@@ -39,7 +42,9 @@ export default function RiskPage() {
           <h1>Portfolio risk</h1>
           <div className="sub">Measured against <Link href="/risk-profile" style={{ textDecoration: "underline" }}>your risk profile</Link>.</div>
         </div>
+        <BookToggle mode={mode} onChange={setMode} />
       </div>
+      {mode === "paper" && <PaperNotice />}
       {error && <div className="err" style={{ marginBottom: 16 }}>{error}</div>}
       {r && r.holdings_count === 0 && <div className="card empty" style={{ marginBottom: 16 }}>Add holdings to see portfolio risk.</div>}
 

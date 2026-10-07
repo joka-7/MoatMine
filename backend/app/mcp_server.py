@@ -15,6 +15,7 @@ from app.ai.tools import run_tool
 from app.crypto import hash_token
 from app.db import SessionLocal
 from app.models import MCPToken
+from app.portfolio import BookMode
 
 mcp = MCPServer(
     name="moatmine",
@@ -43,9 +44,9 @@ async def _call(ctx: Context, name: str, **args) -> str:
         return await run_tool(name, args, db, user)
 
 
-@mcp.tool(description="User's accounts, holdings with P/L and weights, and totals.")
-async def get_portfolio(ctx: Context) -> str:
-    return await _call(ctx, "get_portfolio")
+@mcp.tool(description="User's accounts, holdings with P/L and weights, and totals. mode: 'real' (default) or 'paper'.")
+async def get_portfolio(ctx: Context, mode: BookMode = "real") -> str:
+    return await _call(ctx, "get_portfolio", mode=mode)
 
 
 @mcp.tool(description="Latest quote for a ticker symbol.")
@@ -107,19 +108,19 @@ async def get_safety_score(symbol: str, ctx: Context) -> str:
     return await _call(ctx, "get_safety_score", symbol=symbol)
 
 
-@mcp.tool(description="Check a proposed buy (money amount) against the user's risk rules: pass / warn / block.")
-async def safety_check(symbol: str, amount: float, ctx: Context) -> str:
-    return await _call(ctx, "safety_check", symbol=symbol, amount=amount)
+@mcp.tool(description="Check a proposed buy (money amount) against the user's risk rules: pass / warn / block. mode: 'real' (default) or 'paper'.")
+async def safety_check(symbol: str, amount: float, ctx: Context, mode: BookMode = "real") -> str:
+    return await _call(ctx, "safety_check", symbol=symbol, amount=amount, mode=mode)
 
 
-@mcp.tool(description="Portfolio volatility, beta, VaR, drawdown, concentration, sectors, correlation, rule breaches.")
-async def get_portfolio_risk(ctx: Context) -> str:
-    return await _call(ctx, "get_portfolio_risk")
+@mcp.tool(description="Portfolio volatility, beta, VaR, drawdown, concentration, sectors, correlation, rule breaches. mode: 'real' (default) or 'paper'.")
+async def get_portfolio_risk(ctx: Context, mode: BookMode = "real") -> str:
+    return await _call(ctx, "get_portfolio_risk", mode=mode)
 
 
-@mcp.tool(description="Portfolio replayed through past crises and 10/20/35% market falls vs the user's loss limit.")
-async def get_stress_test(ctx: Context) -> str:
-    return await _call(ctx, "get_stress_test")
+@mcp.tool(description="Portfolio replayed through past crises and 10/20/35% market falls vs the user's loss limit. mode: 'real' (default) or 'paper'.")
+async def get_stress_test(ctx: Context, mode: BookMode = "real") -> str:
+    return await _call(ctx, "get_stress_test", mode=mode)
 
 
 @mcp.tool(description="Recent news across the user's holdings and watchlist.")

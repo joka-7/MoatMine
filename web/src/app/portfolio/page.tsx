@@ -2,21 +2,27 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import BookToggle from "@/components/BookToggle";
 import SymbolSearch from "@/components/SymbolSearch";
 import { CheckView } from "@/components/SafetyBits";
-import { api, CheckResult, Portfolio } from "@/lib/api";
+import { Account, api, CheckResult, Portfolio } from "@/lib/api";
 import { date, money, pct, tone } from "@/lib/format";
 import { useApi } from "@/lib/useApi";
+import { useBookMode } from "@/lib/useBookMode";
+
+const accountLabel = (a: Account) => a.name + (a.broker === "paper" ? " (paper)" : "");
 
 export default function PortfolioPage() {
-  const { data: p, reload, error } = useApi<Portfolio>("/portfolio");
+  const [mode, setMode] = useBookMode();
+  const { data: p, reload, error } = useApi<Portfolio>(`/portfolio?mode=${mode}`);
+  const { data: accounts, reload: reloadAccounts } = useApi<Account[]>("/accounts");
   const [err, setErr] = useState<string | null>(null);
   const [lastCheck, setLastCheck] = useState<CheckResult | null>(null);
   const [acc, setAcc] = useState({ name: "", broker: "manual", currency: "USD", cash: "" });
   const [h, setH] = useState({ account_id: "", symbol: "", quantity: "", avg_cost: "", opened_at: "" });
 
   const run = async (fn: () => Promise<unknown>) => {
-    try { setErr(null); await fn(); await reload(); } catch (e) { setErr((e as Error).message); }
+    try { setErr(null); await fn(); await Promise.all([reload(), reloadAccounts()]); } catch (e) { setErr((e as Error).message); }
   };
 
   return (
@@ -30,7 +36,7 @@ export default function PortfolioPage() {
           <table>
             <thead><tr><th>Name</th><th>Broker</th><th className="n">Cash</th><th /></tr></thead>
             <tbody>
-              {p?.accounts.map((a) => (
+              {accounts?.map((a) => (
                 <tr key={a.id}>
                   <td>{a.name}</td><td className="sub">{a.broker}</td><td className="n">{money(a.cash, a.currency)}</td>
                   <td style={{ textAlign: "right" }}>
@@ -68,7 +74,7 @@ export default function PortfolioPage() {
               <label className="f">Account
                 <select required value={h.account_id} onChange={(e) => setH({ ...h, account_id: e.target.value })}>
                   <option value="">—</option>
-                  {p?.accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+                  {accounts?.map((a) => <option key={a.id} value={a.id}>{accountLabel(a)}</option>)}
                 </select>
               </label>
               <label className="f">Symbol {h.symbol && <b className="sym" style={{ color: "var(--accent)" }}>{h.symbol}</b>}
@@ -96,7 +102,10 @@ export default function PortfolioPage() {
       </div>
 
       <div className="card">
-        <h2>Positions</h2>
+        <div className="row" style={{ justifyContent: "space-between", marginBottom: 8 }}>
+          <h2 style={{ margin: 0 }}>Positions</h2>
+          <BookToggle mode={mode} onChange={setMode} />
+        </div>
         <table>
           <thead>
             <tr><th>Symbol</th><th>Account</th><th className="n">Qty</th><th className="n">Avg cost</th><th className="n">Price</th><th className="n">Value</th><th className="n">P/L</th><th>Opened</th><th /></tr>
@@ -105,7 +114,7 @@ export default function PortfolioPage() {
             {p?.holdings.map((r) => (
               <tr key={r.id}>
                 <td><Link className="sym" href={`/stock?s=${r.symbol}`}>{r.symbol}</Link></td>
-                <td className="sub">{p.accounts.find((a) => a.id === r.account_id)?.name}</td>
+                <td className="sub">{accounts?.find((a) => a.id === r.account_id)?.name}</td>
                 <td className="n">{r.quantity}</td>
                 <td className="n">{money(r.avg_cost)}</td>
                 <td className="n">{money(r.price)}</td>

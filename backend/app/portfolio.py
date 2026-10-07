@@ -1,12 +1,40 @@
-"""Portfolio valuation shared by the API, the AI tools, the MCP server and the worker."""
+"""Portfolio valuation shared by the API, the AI tools, the MCP server and the worker.
+
+Paper (practice) accounts and real accounts are two separate books: every total, risk number,
+stress test, alert and position-size check is computed for one book only, so practice money
+never makes the real portfolio look bigger or more diversified than it is.
+"""
 
 import asyncio
+from typing import Literal
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.market.base import MarketProvider
 from app.models import Account, Holding
+
+BookMode = Literal["real", "paper"]
+PAPER_BROKER = "paper"
+
+
+def is_paper(account: Account) -> bool:
+    return account.broker == PAPER_BROKER
+
+
+def book_mode_of(account: Account) -> BookMode:
+    return "paper" if is_paper(account) else "real"
+
+
+def accounts_in_book(db: Session, user_id: str, mode: BookMode) -> list[Account]:
+    paper = Account.broker == PAPER_BROKER
+    q = select(Account).where(Account.user_id == user_id, paper if mode == "paper" else ~paper)
+    return list(db.scalars(q.order_by(Account.id)).all())
+
+
+def holdings_in_book(db: Session, user_id: str, mode: BookMode) -> list[Holding]:
+    ids = [a.id for a in accounts_in_book(db, user_id, mode)]
+    return list(db.scalars(select(Holding).where(Holding.user_id == user_id, Holding.account_id.in_(ids))).all())
 
 
 async def quotes_for(provider: MarketProvider, symbols: set[str]) -> dict[str, dict]:
@@ -15,9 +43,10 @@ async def quotes_for(provider: MarketProvider, symbols: set[str]) -> dict[str, d
     return {s: q for s, q in zip(syms, results) if not isinstance(q, Exception)}
 
 
-async def portfolio_snapshot(db: Session, user_id: str, provider: MarketProvider) -> dict:
-    accounts = db.scalars(select(Account).where(Account.user_id == user_id)).all()
-    holdings = db.scalars(select(Holding).where(Holding.user_id == user_id)).all()
+async def portfolio_snapshot(db: Session, user_id: str, provider: MarketProvider, mode: BookMode = "real") -> dict:
+    """Accounts, priced holdings and totals for one book (real money by default, or paper)."""
+    accounts = accounts_in_book(db, user_id, mode)
+    holdings = holdings_in_book(db, user_id, mode)
     quotes = await quotes_for(provider, {h.symbol for h in holdings})
 
     rows = []
@@ -54,6 +83,7 @@ async def portfolio_snapshot(db: Session, user_id: str, provider: MarketProvider
         r["weight_pct"] = round(r["value"] / total_value * 100, 2) if total_value else 0.0
 
     return {
+        "mode": mode,
         "accounts": [
             {"id": a.id, "name": a.name, "broker": a.broker, "currency": a.currency, "cash": a.cash} for a in accounts
         ],
