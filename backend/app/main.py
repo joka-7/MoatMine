@@ -1,16 +1,23 @@
 import logging
+import re
+import uuid
+from collections.abc import Awaitable, Callable
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, Response
+from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.exc import SQLAlchemyError
 
 from app.config import get_settings
 from app.db import schema_is_current
+from app.log_config import configure_logging, request_id
 from app.mcp_server import build_mcp_app, mcp
 from app.routers import ai, portfolio, safety, stocks, targets, watchlist
 
+configure_logging(get_settings().log_level, get_settings().log_format)
 logger = logging.getLogger(__name__)
+
+_CLIENT_REQUEST_ID = re.compile(r"[A-Za-z0-9._-]{1,64}")
 
 mcp_app = build_mcp_app()
 
@@ -31,8 +38,22 @@ app.add_middleware(
     allow_credentials=False,  # bearer tokens, no cookies
     allow_methods=["*"],
     allow_headers=["*"],
-    expose_headers=["X-Data-Source"],
+    expose_headers=["X-Data-Source", "X-Request-ID"],
 )
+
+
+@app.middleware("http")
+async def tag_request(request: Request, call_next: Callable[[Request], Awaitable[Response]]) -> Response:
+    """Give every request an id (the caller's X-Request-ID if it is well-formed) for logs and the response."""
+    given = request.headers.get("x-request-id", "")
+    rid = given if _CLIENT_REQUEST_ID.fullmatch(given) else uuid.uuid4().hex
+    token = request_id.set(rid)
+    try:
+        response = await call_next(request)
+    finally:
+        request_id.reset(token)
+    response.headers["X-Request-ID"] = rid
+    return response
 
 for r in (portfolio.router, stocks.router, stocks.feed_router, watchlist.router, targets.router, ai.router, safety.router):
     app.include_router(r)

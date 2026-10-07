@@ -50,3 +50,15 @@ def test_fundamentals_without_statements():
 def test_http_errors_raise_so_the_router_falls_back():
     with pytest.raises(httpx.HTTPStatusError):
         asyncio.run(provider({}, status=402).company("AAPL"))
+
+
+def test_routed_provider_logs_fmp_fallback_without_the_key(caplog):
+    from app.market import RoutedProvider
+    from app.market.mock import MockProvider
+
+    routed = RoutedProvider(MockProvider(), provider({}, status=402))
+    with caplog.at_level("WARNING", logger="app.market"):
+        company = asyncio.run(routed.company("AAPL"))
+    assert company["sector"]  # served by the primary provider
+    rec = next(r for r in caplog.records if r.name == "app.market")
+    assert rec.status_code == 402 and rec.method == "company" and "test-key" not in rec.getMessage()

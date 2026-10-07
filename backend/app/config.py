@@ -43,6 +43,9 @@ class Settings(BaseSettings):
 
     worker_interval_seconds: int = 300
 
+    log_level: str = "INFO"
+    log_format: Literal["json", "text"] = "text"  # json in production (render.yaml)
+
     @model_validator(mode="after")
     def _auth_is_safe(self) -> Self:
         """Refuse to start with an auth setup that would let anyone act as any user."""

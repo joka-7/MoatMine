@@ -44,7 +44,8 @@ class FinnhubProvider:
     name = "finnhub"
 
     def __init__(self, api_key: str, transport: httpx.AsyncBaseTransport | None = None):
-        self._client = httpx.AsyncClient(base_url=BASE, timeout=10, params={"token": api_key}, transport=transport)
+        # the key goes in a header, not the URL, so it can't leak through logged URLs or error messages
+        self._client = httpx.AsyncClient(base_url=BASE, timeout=10, headers={"X-Finnhub-Token": api_key}, transport=transport)
         self._fallback = MockProvider()
 
     async def _get(self, path: str, **params):
@@ -126,7 +127,8 @@ class FinnhubProvider:
     async def _safe(self, path: str, default, **params):
         try:
             return await self._get(path, **params)
-        except httpx.HTTPStatusError:
+        except httpx.HTTPStatusError as e:  # expected on plans without this endpoint
+            logger.debug("finnhub endpoint unavailable", extra={"path": path, "status_code": e.response.status_code})
             return default
 
     async def company(self, symbol: str) -> dict:
@@ -201,8 +203,8 @@ class FinnhubProvider:
         price = None
         try:
             price = (await self.quote(symbol))["price"]
-        except httpx.HTTPError:
-            pass
+        except httpx.HTTPError as e:  # fcf_per_share then falls back to Finnhub's own field
+            logger.warning("finnhub quote failed inside fundamentals", extra={"symbol": symbol, "error": type(e).__name__})
         pfcf = first("pfcfShareTTM", "pfcfShareAnnual")
         ev = first("enterpriseValue")
         ev_ebitda = first("evEbitdaTTM", "currentEv/ebitdaTTM")

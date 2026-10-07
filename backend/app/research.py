@@ -3,15 +3,19 @@
 import asyncio
 import hashlib
 import json
+import logging
 import re
 import time
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.market import describe_error
 from app.market.base import MarketProvider
 from app.models import Holding, WatchItem
 from app.valuation import Assumptions, estimate
+
+logger = logging.getLogger(__name__)
 
 
 async def valuation(provider: MarketProvider, symbol: str, a: Assumptions) -> dict:
@@ -30,7 +34,8 @@ async def news_feed(db: Session, user: str, provider: MarketProvider, days: int 
     results = await asyncio.gather(*(provider.news(s, days) for s in syms), return_exceptions=True)
     seen, out = set(), []
     for sym, items in zip(syms, results):
-        if isinstance(items, Exception):
+        if isinstance(items, Exception):  # one symbol's news missing shouldn't empty the feed
+            logger.warning("news failed", extra={"symbol": sym, **describe_error(items)})
             continue
         for n in items:
             key = n["url"] or n["headline"]

@@ -9,6 +9,8 @@ databases:
 envVarGroups:
   - name: moatmine-shared
     envVars:
+      - key: LOG_FORMAT
+        value: json
       - key: MARKET_PROVIDER
         value: finnhub
       - key: FINNHUB_API_KEY

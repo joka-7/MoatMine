@@ -97,3 +97,14 @@ def test_research_endpoints_degrade_on_paid_plan_errors():
 def test_quote_raises_on_http_error():
     with pytest.raises(httpx.HTTPStatusError):
         asyncio.run(provider({}).quote("FAIL"))
+
+
+def test_api_key_travels_in_a_header_not_the_url():
+    seen: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        return httpx.Response(200, json={"c": 1})
+
+    asyncio.run(FinnhubProvider("secret-key", transport=httpx.MockTransport(handler)).quote("AAPL"))
+    assert seen[0].headers["X-Finnhub-Token"] == "secret-key" and "secret-key" not in str(seen[0].url)

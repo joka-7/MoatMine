@@ -1,13 +1,25 @@
+import logging
 from functools import lru_cache
+
+import httpx
 
 from app.config import get_settings
 from app.market.base import FUNDAMENTAL_KEYS, MarketProvider
+
+logger = logging.getLogger(__name__)
+
+
+def describe_error(e: Exception) -> dict[str, object]:
+    """Loggable fields for a provider error. Never the message: httpx errors embed the URL and its apikey."""
+    status = e.response.status_code if isinstance(e, httpx.HTTPStatusError) else None
+    return {"error": type(e).__name__, "status_code": status}
 
 
 class RoutedProvider:
     """Primary provider (mock / finnhub) for everything; if FMP is configured, company
     profiles, statements, price targets, dividends and splits come from FMP first.
-    Any FMP error falls back to the primary, so a missing plan feature never breaks a page."""
+    Any FMP error falls back to the primary, so a missing plan feature never breaks a page; each
+    fallback is logged so a revoked key or exhausted quota shows up in the logs."""
 
     def __init__(self, primary: MarketProvider, fmp=None):
         self.primary = primary
@@ -23,8 +35,8 @@ class RoutedProvider:
                 out = await getattr(self.fmp, method)(symbol)
                 if out:
                     return out
-            except Exception:
-                pass
+            except Exception as e:  # deliberate: any FMP failure degrades to the primary provider
+                logger.warning("fmp failed; using primary provider", extra={"method": method, "symbol": symbol, **describe_error(e)})
         return await getattr(self.primary, method)(symbol)
 
     async def company(self, symbol):
@@ -48,7 +60,8 @@ class RoutedProvider:
             return base
         try:
             f = await self.fmp.fundamentals(symbol)
-        except Exception:
+        except Exception as e:  # deliberate: any FMP failure degrades to the primary provider
+            logger.warning("fmp failed; using primary provider", extra={"method": "fundamentals", "symbol": symbol, **describe_error(e)})
             return base
         # FMP wins where it has a value; primary fills the gaps (e.g. 5y growth rates)
         merged = {k: f.get(k) if f.get(k) is not None else base.get(k) for k in FUNDAMENTAL_KEYS}

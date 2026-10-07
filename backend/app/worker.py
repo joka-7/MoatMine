@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session
 
 from app.config import get_settings
 from app.db import SessionLocal
+from app.log_config import configure_logging
 from app.market import get_provider
 from app.market.base import MarketProvider
 from app.models import Alert, RiskProfile, Target, WatchItem
@@ -22,7 +23,7 @@ from app.portfolio import portfolio_snapshot, quotes_for
 from app.safety.service import book_for, rules_for
 from app.targets import breach_messages, evaluate, risk_by_symbol
 
-log = logging.getLogger("moatmine.worker")
+logger = logging.getLogger(__name__)
 
 
 def _emit(db: Session, user: str, source: str, ref_id: int, symbol: str | None, key: str, msg: str) -> bool:
@@ -53,9 +54,9 @@ async def run_once() -> int:
             except Exception:  # isolation boundary: log, drop this user's pass, keep going
                 db.rollback()
                 failed += 1
-                log.exception("worker: alerts failed for one user", extra={"user_id": user})
+                logger.exception("worker: alerts failed for one user", extra={"user_id": user})
     if failed:
-        log.warning("worker pass finished with %d failed user(s)", failed)
+        logger.warning("worker pass finished with %d failed user(s)", failed)
     return created
 
 
@@ -114,14 +115,14 @@ async def main(once: bool) -> None:
     while True:
         try:
             n = await run_once()
-            log.info("worker pass done, %d new alerts", n)
+            logger.info("worker pass done, %d new alerts", n)
         except Exception:
-            log.exception("worker pass failed")
+            logger.exception("worker pass failed")
         if once:
             return
         await asyncio.sleep(interval)
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO)
+    configure_logging(get_settings().log_level, get_settings().log_format)
     asyncio.run(main(once="--once" in sys.argv))

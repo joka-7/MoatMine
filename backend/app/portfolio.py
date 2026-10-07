@@ -6,14 +6,18 @@ never makes the real portfolio look bigger or more diversified than it is.
 """
 
 import asyncio
+import logging
 from typing import Literal
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.errors import InsufficientPaperCashError
+from app.market import describe_error
 from app.market.base import MarketProvider
 from app.models import Account, Holding
+
+logger = logging.getLogger(__name__)
 
 BookMode = Literal["real", "paper"]
 PAPER_BROKER = "paper"
@@ -57,6 +61,9 @@ def holdings_in_book(db: Session, user_id: str, mode: BookMode) -> list[Holding]
 async def quotes_for(provider: MarketProvider, symbols: set[str]) -> dict[str, dict]:
     syms = sorted(symbols)
     results = await asyncio.gather(*(provider.quote(s) for s in syms), return_exceptions=True)
+    for s, q in zip(syms, results):
+        if isinstance(q, Exception):  # the holding is then marked stale and priced at cost
+            logger.warning("quote failed", extra={"symbol": s, **describe_error(q)})
     return {s: q for s, q in zip(syms, results) if not isinstance(q, Exception)}
 
 
