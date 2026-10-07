@@ -1,13 +1,13 @@
 # Render Blueprint: API + background worker + Postgres.
 # New → Blueprint → pick this repo. Secrets marked sync:false are prompted on first deploy.
 databases:
-  - name: folio-db
+  - name: safe-algo-db
     plan: basic-256mb
-    databaseName: folio
-    user: folio
+    databaseName: safealgo
+    user: safealgo
 
 envVarGroups:
-  - name: folio-shared
+  - name: safe-algo-shared
     envVars:
       - key: MARKET_PROVIDER
         value: finnhub
@@ -38,7 +38,7 @@ envVarGroups:
 
 services:
   - type: web
-    name: folio-api
+    name: safe-algo-api
     runtime: python
     rootDir: backend
     plan: starter # free plan sleeps when idle
@@ -46,24 +46,24 @@ services:
     startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT --proxy-headers
     healthCheckPath: /health
     envVars:
-      - fromGroup: folio-shared
+      - fromGroup: safe-algo-shared
       - key: PYTHON_VERSION
         value: 3.12.7
       - key: DATABASE_URL
-        fromDatabase: { name: folio-db, property: connectionString }
+        fromDatabase: { name: safe-algo-db, property: connectionString }
       - key: CORS_ORIGINS
-        sync: false # e.g. https://folio.vercel.app,tauri://localhost,http://tauri.localhost
+        sync: false # e.g. https://safe-algo.vercel.app,tauri://localhost,http://tauri.localhost
 
   - type: worker
-    name: folio-worker
+    name: safe-algo-worker
     runtime: python
     rootDir: backend
     plan: starter
     buildCommand: pip install -r requirements.txt
     startCommand: python -m app.worker
     envVars:
-      - fromGroup: folio-shared
+      - fromGroup: safe-algo-shared
       - key: PYTHON_VERSION
         value: 3.12.7
       - key: DATABASE_URL
-        fromDatabase: { name: folio-db, property: connectionString }
+        fromDatabase: { name: safe-algo-db, property: connectionString }

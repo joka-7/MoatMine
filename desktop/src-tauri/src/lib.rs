@@ -7,5 +7,5 @@ pub fn run() {
         // open news / note links in the system browser instead of inside the app window
         .plugin(tauri_plugin_opener::init())
         .run(tauri::generate_context!())
-        .expect("error while running Folio desktop");
+        .expect("error while running Safe Algo desktop");
 }

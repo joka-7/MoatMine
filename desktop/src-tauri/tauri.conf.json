@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Folio",
+  "productName": "Safe Algo",
   "version": "0.1.0",
-  "identifier": "app.folio.desktop",
+  "identifier": "app.safealgo.desktop",
   "build": {
     "beforeDevCommand": "npm --prefix ../web run dev",
     "devUrl": "http://localhost:3000",
@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "Folio",
+        "title": "Safe Algo",
         "width": 1400,
         "height": 900,
         "minWidth": 960,

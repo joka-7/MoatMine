@@ -15,7 +15,7 @@ def seed(user: str = "dev") -> None:
             return
         now = datetime.now(timezone.utc)
         acc = Account(user_id=user, name="Brokerage", broker="manual", cash=4200)
-        db.add(acc)
+        db.add_all([acc, Account(user_id=user, name="Paper", broker="paper", cash=50_000)])
         db.flush()
         for sym, qty, cost, days in [("AAPL", 25, 168, 400), ("MSFT", 12, 380, 260), ("NVDA", 40, 95, 150), ("SPY", 10, 510, 600)]:
             db.add(Holding(user_id=user, account_id=acc.id, symbol=sym, quantity=qty, avg_cost=cost, opened_at=now - timedelta(days=days)))
