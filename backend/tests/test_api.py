@@ -1,7 +1,10 @@
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
+
 import pytest
+from model_dispatcher import ModelTier
 
 from app.ai import dispatcher
+from app.jsontypes import JSONDict
 from tests.conftest import auth, reply, tool_call
 
 A = auth("alice")
@@ -13,7 +16,7 @@ def alice_account(client):
     r = client.post("/accounts", json={"name": "IBKR", "cash": 1000}, headers=A)
     assert r.status_code == 201
     acc = r.json()["id"]
-    opened = (datetime.now(timezone.utc) - timedelta(days=40)).isoformat()
+    opened = (datetime.now(UTC) - timedelta(days=40)).isoformat()
     for sym, qty, cost in [("aapl", 10, 150), ("MSFT", 5, 300)]:
         r = client.post("/holdings", json={"account_id": acc, "symbol": sym, "quantity": qty, "avg_cost": cost, "opened_at": opened}, headers=A)
         assert r.status_code == 201
@@ -113,7 +116,7 @@ def test_worker_creates_deduped_alerts(client, alice_account):
 
 
 def test_ai_settings_masked_and_preserved(client):
-    cfg = {"providers": [{"provider": "openai", "model": "gpt-4o-mini", "apiKeys": ["sk-test-1234567890abcd"]}], "ollamaUrl": ""}
+    cfg: JSONDict = {"providers": [{"provider": "openai", "model": "gpt-4o-mini", "apiKeys": ["sk-test-1234567890abcd"]}], "ollamaUrl": ""}
     r = client.put("/ai/settings", json={"config": cfg, "favorite": "claude"}, headers=A)
     assert r.status_code == 200, r.text
     got = client.get("/ai/settings", headers=A).json()
@@ -137,10 +140,10 @@ def test_ai_settings_masked_and_preserved(client):
 
 
 def test_tier_for_model_names():
-    assert dispatcher.tier_for("claude-opus-4-8") == dispatcher.ModelTier.PREMIUM
-    assert dispatcher.tier_for("claude-sonnet-4-5") == dispatcher.ModelTier.STANDARD
-    assert dispatcher.tier_for("gpt-4o-mini") == dispatcher.ModelTier.CHEAP
-    assert dispatcher.tier_for("gemini-2.5-pro") == dispatcher.ModelTier.STANDARD
+    assert dispatcher.tier_for("claude-opus-4-8") == ModelTier.PREMIUM
+    assert dispatcher.tier_for("claude-sonnet-4-5") == ModelTier.STANDARD
+    assert dispatcher.tier_for("gpt-4o-mini") == ModelTier.CHEAP
+    assert dispatcher.tier_for("gemini-2.5-pro") == ModelTier.STANDARD
 
 
 def test_chat_runs_tools_with_users_own_key(client, alice_account, fake_ai):
@@ -157,7 +160,7 @@ def test_chat_runs_tools_with_users_own_key(client, alice_account, fake_ai):
 
 
 def test_chat_falls_back_across_vendors(client, fake_ai):
-    cfg = {"providers": [{"provider": "anthropic", "model": "claude-haiku-4-5-20251001", "apiKeys": []},
+    cfg: JSONDict = {"providers": [{"provider": "anthropic", "model": "claude-haiku-4-5-20251001", "apiKeys": []},
                          {"provider": "openai", "model": "gpt-4o-mini", "apiKeys": ["sk-test-1234567890abcd"]}], "ollamaUrl": ""}
     client.put("/ai/settings", json={"config": cfg}, headers=A)
     fake_ai.plans["anthropic"] = {"fail_times": 99}
@@ -175,7 +178,7 @@ def test_chat_no_provider_returns_dispatcher_payload(client, fake_ai):
 
 
 def test_chat_external_agent(client, fake_ai):
-    cfg = {"providers": [], "ollamaUrl": ""}
+    cfg: JSONDict = {"providers": [], "ollamaUrl": ""}
     ext = {"base_url": "https://agent.example.com/v1", "model": "my-agent", "api_key": "ext-key-123456789"}
     client.put("/ai/settings", json={"config": cfg, "external": ext}, headers=B)
     fake_ai.plans["external"] = {"scripted": [reply("from my agent")]}

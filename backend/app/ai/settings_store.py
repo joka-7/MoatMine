@@ -10,6 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.crypto import decrypt, encrypt, mask
+from app.jsontypes import JSONDict
 from app.models import AISettings
 
 SUPPORTED = ("anthropic", "openai", "gemini", "groq")  # ModelPicker also offers ollama: browser-only
@@ -21,19 +22,20 @@ def _row(db: Session, user: str) -> AISettings | None:
     return db.scalar(select(AISettings).where(AISettings.user_id == user))
 
 
-def load_ai_settings(db: Session, user: str) -> dict:
+def load_ai_settings(db: Session, user: str) -> JSONDict:
     """Full settings with real keys. Server-side use only."""
     row = _row(db, user)
     if not row:
-        return json.loads(json.dumps(EMPTY))
-    data = json.loads(decrypt(row.encrypted_config))
+        empty: JSONDict = json.loads(json.dumps(EMPTY))
+        return empty
+    data: JSONDict = json.loads(decrypt(row.encrypted_config))
     data["favorite"] = row.favorite
     return data
 
 
-def masked(data: dict) -> dict:
+def masked(data: JSONDict) -> JSONDict:
     """Safe-to-send copy: every key replaced by its mask."""
-    out = json.loads(json.dumps(data))
+    out: JSONDict = json.loads(json.dumps(data))
     for p in out["config"]["providers"]:
         p["apiKeys"] = [mask(k) for k in p.get("apiKeys", [])]
     if out.get("external"):
@@ -41,7 +43,7 @@ def masked(data: dict) -> dict:
     return out
 
 
-def save_ai_settings(db: Session, user: str, config: dict, external: dict | None, favorite: str | None) -> dict:
+def save_ai_settings(db: Session, user: str, config: JSONDict, external: JSONDict | None, favorite: str | None) -> JSONDict:
     current = load_ai_settings(db, user)
     old_keys = {p["provider"]: p.get("apiKeys", []) for p in current["config"]["providers"]}
 

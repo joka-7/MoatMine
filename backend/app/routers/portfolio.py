@@ -1,5 +1,6 @@
 import asyncio
 import time
+from collections.abc import Sequence
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
@@ -7,9 +8,10 @@ from sqlalchemy.orm import Session
 
 from app.auth import current_user
 from app.db import get_db
+from app.errors import InsufficientPaperCashError
+from app.jsontypes import JSONDict
 from app.market import get_provider
 from app.models import Account, Holding
-from app.errors import InsufficientPaperCashError
 from app.portfolio import BookMode, book_mode_of, holdings_in_book, is_paper, pay_for_paper_buy, portfolio_snapshot
 from app.safety.service import check_for
 from app.schemas import AccountIn, AccountOut, HoldingIn, HoldingUpdate
@@ -17,7 +19,7 @@ from app.schemas import AccountIn, AccountOut, HoldingIn, HoldingUpdate
 router = APIRouter(tags=["portfolio"])
 
 
-def _own(db: Session, model, obj_id: int, user: str):
+def _own[Owned: (Account, Holding)](db: Session, model: type[Owned], obj_id: int, user: str) -> Owned:
     obj = db.get(model, obj_id)
     if not obj or obj.user_id != user:
         raise HTTPException(404, f"{model.__name__} not found")
@@ -25,12 +27,12 @@ def _own(db: Session, model, obj_id: int, user: str):
 
 
 @router.get("/accounts", response_model=list[AccountOut])
-def list_accounts(user: str = Depends(current_user), db: Session = Depends(get_db)):
+def list_accounts(user: str = Depends(current_user), db: Session = Depends(get_db)) -> Sequence[Account]:
     return db.scalars(select(Account).where(Account.user_id == user)).all()
 
 
 @router.post("/accounts", response_model=AccountOut, status_code=201)
-def create_account(body: AccountIn, user: str = Depends(current_user), db: Session = Depends(get_db)):
+def create_account(body: AccountIn, user: str = Depends(current_user), db: Session = Depends(get_db)) -> Account:
     acc = Account(user_id=user, **body.model_dump())
     db.add(acc)
     db.commit()
@@ -38,7 +40,7 @@ def create_account(body: AccountIn, user: str = Depends(current_user), db: Sessi
 
 
 @router.put("/accounts/{account_id}", response_model=AccountOut)
-def update_account(account_id: int, body: AccountIn, user: str = Depends(current_user), db: Session = Depends(get_db)):
+def update_account(account_id: int, body: AccountIn, user: str = Depends(current_user), db: Session = Depends(get_db)) -> Account:
     acc = _own(db, Account, account_id, user)
     for k, v in body.model_dump().items():
         setattr(acc, k, v)
@@ -47,13 +49,13 @@ def update_account(account_id: int, body: AccountIn, user: str = Depends(current
 
 
 @router.delete("/accounts/{account_id}", status_code=204)
-def delete_account(account_id: int, user: str = Depends(current_user), db: Session = Depends(get_db)):
+def delete_account(account_id: int, user: str = Depends(current_user), db: Session = Depends(get_db)) -> None:
     db.delete(_own(db, Account, account_id, user))
     db.commit()
 
 
 @router.post("/holdings", status_code=201)
-async def add_holding(body: HoldingIn, user: str = Depends(current_user), db: Session = Depends(get_db)):
+async def add_holding(body: HoldingIn, user: str = Depends(current_user), db: Session = Depends(get_db)) -> JSONDict:
     """Record a position. Always runs the safety check against the user's risk rules.
 
     Paper accounts enforce it (a blocked buy is refused) and pay for the buy from their cash;
@@ -75,7 +77,7 @@ async def add_holding(body: HoldingIn, user: str = Depends(current_user), db: Se
 
 
 @router.patch("/holdings/{holding_id}")
-def update_holding(holding_id: int, body: HoldingUpdate, user: str = Depends(current_user), db: Session = Depends(get_db)):
+def update_holding(holding_id: int, body: HoldingUpdate, user: str = Depends(current_user), db: Session = Depends(get_db)) -> dict[str, int]:
     h = _own(db, Holding, holding_id, user)
     for k, v in body.model_dump(exclude_none=True).items():
         setattr(h, k, v)
@@ -84,13 +86,13 @@ def update_holding(holding_id: int, body: HoldingUpdate, user: str = Depends(cur
 
 
 @router.delete("/holdings/{holding_id}", status_code=204)
-def delete_holding(holding_id: int, user: str = Depends(current_user), db: Session = Depends(get_db)):
+def delete_holding(holding_id: int, user: str = Depends(current_user), db: Session = Depends(get_db)) -> None:
     db.delete(_own(db, Holding, holding_id, user))
     db.commit()
 
 
 @router.get("/portfolio")
-async def get_portfolio(mode: BookMode = "real", user: str = Depends(current_user), db: Session = Depends(get_db)):
+async def get_portfolio(mode: BookMode = "real", user: str = Depends(current_user), db: Session = Depends(get_db)) -> JSONDict:
     return await portfolio_snapshot(db, user, get_provider(), mode)
 
 
@@ -100,7 +102,7 @@ async def portfolio_history(
     mode: BookMode = "real",
     user: str = Depends(current_user),
     db: Session = Depends(get_db),
-):
+) -> list[JSONDict]:
     """Daily market value of one book's current holdings (quantities held constant) — for the value-over-time chart."""
     holdings = holdings_in_book(db, user, mode)
     if not holdings:
@@ -115,7 +117,7 @@ async def portfolio_history(
         qty[h.symbol] = qty.get(h.symbol, 0) + h.quantity
 
     by_day: dict[int, float] = {}
-    for sym, bars in zip(syms, series):
+    for sym, bars in zip(syms, series, strict=True):
         for b in bars:
             day = b["t"] - b["t"] % 86400
             by_day[day] = by_day.get(day, 0) + b["c"] * qty[sym]

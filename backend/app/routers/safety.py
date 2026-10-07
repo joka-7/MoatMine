@@ -1,20 +1,30 @@
 import json
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
+from typing import Self
 
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field, field_validator, model_validator
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.auth import current_user
 from app.db import get_db
+from app.errors import InsufficientPaperCashError
+from app.jsontypes import JSONDict
 from app.market import get_provider
 from app.models import Account, BuyPlan, Holding, StockNote
-from app.errors import InsufficientPaperCashError
 from app.portfolio import BookMode, book_mode_of, pay_for_paper_buy
 from app.safety.profile import LEVELS, QUESTIONS, level_from_answers
 from app.safety.service import (
-    ai_analysis, check_for, get_profile, portfolio_risk_report, profile_dict, save_profile, stock_safety, stress_report,
+    ai_analysis,
+    check_for,
+    get_profile,
+    portfolio_risk_report,
+    profile_dict,
+    save_profile,
+    stock_safety,
+    stress_report,
 )
 
 router = APIRouter(tags=["safety"])
@@ -41,7 +51,7 @@ class ProfileIn(BaseModel):
     cooling_off_hours: int | None = Field(None, ge=0, le=720)
 
     @model_validator(mode="after")
-    def _level_source(self):
+    def _level_source(self) -> Self:
         if self.level is not None and self.level not in LEVELS:
             raise ValueError(f"level must be one of {LEVELS}")
         if self.answers is None and self.level is None:
@@ -50,21 +60,23 @@ class ProfileIn(BaseModel):
 
 
 @router.get("/safety/questions")
-def questions():
+def questions() -> JSONDict:
     return {"questions": QUESTIONS, "levels": LEVELS}
 
 
 @router.get("/safety/profile")
-def read_profile(user: str = Depends(current_user), db: Session = Depends(get_db)):
+def read_profile(user: str = Depends(current_user), db: Session = Depends(get_db)) -> JSONDict:
     return profile_dict(get_profile(db, user))
 
 
 @router.put("/safety/profile")
-def write_profile(body: ProfileIn, user: str = Depends(current_user), db: Session = Depends(get_db)):
+def write_profile(body: ProfileIn, user: str = Depends(current_user), db: Session = Depends(get_db)) -> JSONDict:
     try:
         level = level_from_answers(body.answers) if body.answers is not None else body.level
     except ValueError as e:
         raise HTTPException(422, str(e)) from e
+    if level is None:  # ProfileIn already requires one of them; keep the guarantee local
+        raise HTTPException(422, "send questionnaire answers or a level")
     overrides = body.model_dump(exclude={"answers", "level", "paper_mode"})
     p = save_profile(db, user, level, body.answers or {}, overrides, body.paper_mode)
     return profile_dict(p)
@@ -74,12 +86,12 @@ def write_profile(body: ProfileIn, user: str = Depends(current_user), db: Sessio
 
 
 @router.get("/stocks/{symbol}/safety")
-async def safety(symbol: str):
+async def safety(symbol: str) -> JSONDict:
     return await stock_safety(get_provider(), _sym(symbol))
 
 
-@router.post("/stocks/{symbol}/safety/analyze")
-async def safety_analyze(symbol: str, user: str = Depends(current_user), db: Session = Depends(get_db)):
+@router.post("/stocks/{symbol}/safety/analyze", response_model=None)
+async def safety_analyze(symbol: str, user: str = Depends(current_user), db: Session = Depends(get_db)) -> JSONDict | JSONResponse:
     """AI analyzer: explains each area grade and how the stock fits the user's risk rules."""
     from app.ai.dispatcher import DispatchError
     from app.routers.ai import dispatch_error_response
@@ -102,7 +114,7 @@ class CheckIn(BaseModel):
         return _sym(v)
 
     @model_validator(mode="after")
-    def _one(self):
+    def _one(self) -> Self:
         if (self.amount is None) == (self.quantity is None):
             raise ValueError("send exactly one of amount or quantity")
         return self
@@ -110,12 +122,15 @@ class CheckIn(BaseModel):
 
 async def _amount(body: CheckIn) -> tuple[float, float]:
     price = (await get_provider().quote(body.symbol))["price"]
-    amount = body.amount if body.amount is not None else body.quantity * price
-    return amount, price
+    if body.amount is not None:
+        return body.amount, price
+    if body.quantity is None:  # CheckIn already requires exactly one of them
+        raise HTTPException(422, "send exactly one of amount or quantity")
+    return body.quantity * price, price
 
 
 @router.post("/safety/check")
-async def safety_check(body: CheckIn, user: str = Depends(current_user), db: Session = Depends(get_db)):
+async def safety_check(body: CheckIn, user: str = Depends(current_user), db: Session = Depends(get_db)) -> JSONDict:
     amount, price = await _amount(body)
     out = await check_for(db, user, get_provider(), body.symbol, amount, body.mode)
     out["price"] = price
@@ -123,12 +138,12 @@ async def safety_check(body: CheckIn, user: str = Depends(current_user), db: Ses
 
 
 @router.get("/safety/portfolio")
-async def portfolio_risk(mode: BookMode = "real", user: str = Depends(current_user), db: Session = Depends(get_db)):
+async def portfolio_risk(mode: BookMode = "real", user: str = Depends(current_user), db: Session = Depends(get_db)) -> JSONDict:
     return await portfolio_risk_report(db, user, get_provider(), mode)
 
 
 @router.get("/safety/stress")
-async def stress(mode: BookMode = "real", user: str = Depends(current_user), db: Session = Depends(get_db)):
+async def stress(mode: BookMode = "real", user: str = Depends(current_user), db: Session = Depends(get_db)) -> JSONDict:
     return await stress_report(db, user, get_provider(), mode)
 
 
@@ -147,9 +162,9 @@ class PlanIn(BaseModel):
         return _sym(v)
 
 
-def _plan_out(p: BuyPlan) -> dict:
-    now = datetime.now(timezone.utc)
-    avail = p.available_at if p.available_at.tzinfo else p.available_at.replace(tzinfo=timezone.utc)
+def _plan_out(p: BuyPlan) -> JSONDict:
+    now = datetime.now(UTC)
+    avail = p.available_at if p.available_at.tzinfo else p.available_at.replace(tzinfo=UTC)
     status = p.status
     if status == "cooling_off" and avail <= now:
         status = "ready"
@@ -169,13 +184,13 @@ def _own_plan(db: Session, plan_id: int, user: str) -> BuyPlan:
 
 
 @router.get("/plans")
-def list_plans(user: str = Depends(current_user), db: Session = Depends(get_db)):
+def list_plans(user: str = Depends(current_user), db: Session = Depends(get_db)) -> list[JSONDict]:
     rows = db.scalars(select(BuyPlan).where(BuyPlan.user_id == user).order_by(BuyPlan.created_at.desc()).limit(100)).all()
     return [_plan_out(p) for p in rows]
 
 
 @router.post("/plans", status_code=201)
-async def create_plan(body: PlanIn, user: str = Depends(current_user), db: Session = Depends(get_db)):
+async def create_plan(body: PlanIn, user: str = Depends(current_user), db: Session = Depends(get_db)) -> JSONDict:
     acc = db.get(Account, body.account_id)
     if not acc or acc.user_id != user:
         raise HTTPException(404, "account not found")
@@ -184,7 +199,7 @@ async def create_plan(body: PlanIn, user: str = Depends(current_user), db: Sessi
     if check["requires_note"] and len(body.note.strip()) < 20:
         raise HTTPException(422, {"message": "This buy breaks some of your rules. Write why you still want it (20+ characters).", "check": check})
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     if check["verdict"] == "block":
         status, available = "blocked", now
     elif check["verdict"] == "warn" and check["cooling_off_hours"]:
@@ -200,7 +215,7 @@ async def create_plan(body: PlanIn, user: str = Depends(current_user), db: Sessi
 
 
 @router.post("/plans/{plan_id}/execute")
-async def execute_plan(plan_id: int, user: str = Depends(current_user), db: Session = Depends(get_db)):
+async def execute_plan(plan_id: int, user: str = Depends(current_user), db: Session = Depends(get_db)) -> JSONDict:
     p = _own_plan(db, plan_id, user)
     out = _plan_out(p)
     if out["status"] != "ready":
@@ -230,7 +245,7 @@ async def execute_plan(plan_id: int, user: str = Depends(current_user), db: Sess
 
 
 @router.post("/plans/{plan_id}/cancel")
-def cancel_plan(plan_id: int, user: str = Depends(current_user), db: Session = Depends(get_db)):
+def cancel_plan(plan_id: int, user: str = Depends(current_user), db: Session = Depends(get_db)) -> JSONDict:
     p = _own_plan(db, plan_id, user)
     if p.status == "executed":
         raise HTTPException(409, "already executed")

@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Literal
+from typing import Literal, Self
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -82,7 +82,7 @@ class TargetIn(_Sym):
     risk_max: float | None = None
 
     @model_validator(mode="after")
-    def _min_le_max(self):
+    def _min_le_max(self) -> Self:
         for dim, lo, hi in [
             ("profit", self.profit_min, self.profit_max),
             ("amount", self.amount_min, self.amount_max),

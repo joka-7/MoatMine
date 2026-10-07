@@ -1,6 +1,7 @@
 """Finnhub provider against canned HTTP responses (no network)."""
 
 import asyncio
+from collections.abc import Mapping
 
 import httpx
 import pytest
@@ -8,10 +9,10 @@ import pytest
 from app.market.finnhub import FinnhubProvider
 from app.market.sources import MOCK_FALLBACK, source_label, track_sources
 
-OK_CANDLES = {"s": "ok", "t": [1_700_000_000, 1_700_086_400], "o": [1, 2], "h": [2, 3], "l": [0.5, 1.5], "c": [1.5, 2.5], "v": [10, 20]}
+OK_CANDLES: dict[str, object] = {"s": "ok", "t": [1_700_000_000, 1_700_086_400], "o": [1, 2], "h": [2, 3], "l": [0.5, 1.5], "c": [1.5, 2.5], "v": [10, 20]}
 
 
-def provider(routes: dict[str, httpx.Response | dict]) -> FinnhubProvider:
+def provider(routes: Mapping[str, httpx.Response | Mapping[str, object]]) -> FinnhubProvider:
     """Finnhub whose HTTP calls are answered from `routes` (path -> response or JSON body); symbol FAIL gets 403."""
 
     def handler(request: httpx.Request) -> httpx.Response:

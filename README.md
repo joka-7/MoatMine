@@ -74,7 +74,8 @@ cp .env.example .env    # set FERNET_KEY (command is in the file); add an AI key
 alembic upgrade head    # create/upgrade the schema
 python -m app.seed      # demo data for user "dev"
 uvicorn app.main:app --reload
-pytest                  # 62 tests
+pytest                  # tests
+ruff check . && mypy    # lint + strict type check (config in pyproject.toml)
 
 # Web
 cd web

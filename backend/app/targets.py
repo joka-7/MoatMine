@@ -2,9 +2,10 @@
 
 import logging
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from app.analytics import annual_volatility_pct
+from app.jsontypes import JSONDict
 from app.market.base import MarketProvider
 from app.market.sources import MOCK_FALLBACK, track_sources
 from app.models import Target
@@ -14,7 +15,7 @@ logger = logging.getLogger(__name__)
 INTENTS = ["growth", "income", "speculation", "hedge", "retirement", "custom"]
 
 
-def check_bound(value: float | None, target: float | None, lo: float | None, hi: float | None) -> dict:
+def check_bound(value: float | None, target: float | None, lo: float | None, hi: float | None) -> JSONDict:
     if value is None:
         status = "no_data"
     elif lo is not None and value < lo:
@@ -53,11 +54,11 @@ def _days_since(iso_dates: list[str]) -> int | None:
         return None
     first = min(datetime.fromisoformat(d) for d in iso_dates)
     if first.tzinfo is None:
-        first = first.replace(tzinfo=timezone.utc)
-    return (datetime.now(timezone.utc) - first).days
+        first = first.replace(tzinfo=UTC)
+    return (datetime.now(UTC) - first).days
 
 
-def evaluate(t: Target, snapshot: dict, risks: dict[str, float | None]) -> dict:
+def evaluate(t: Target, snapshot: JSONDict, risks: dict[str, float | None]) -> JSONDict:
     holdings = snapshot["holdings"]
     if t.symbol:
         rows = [h for h in holdings if h["symbol"] == t.symbol]
@@ -87,7 +88,7 @@ def evaluate(t: Target, snapshot: dict, risks: dict[str, float | None]) -> dict:
     return {"target_id": t.id, "name": t.name, "symbol": t.symbol, "checks": checks, "breaches": breaches}
 
 
-def breach_messages(result: dict) -> list[tuple[str, str]]:
+def breach_messages(result: JSONDict) -> list[tuple[str, str]]:
     """(dedupe_key, message) for each breached dimension."""
     scope = result["symbol"] or "portfolio"
     out = []

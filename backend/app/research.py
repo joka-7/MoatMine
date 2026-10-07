@@ -10,6 +10,7 @@ import time
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.jsontypes import JSONDict
 from app.market import describe_error
 from app.market.base import MarketProvider
 from app.models import Holding, WatchItem
@@ -18,7 +19,7 @@ from app.valuation import Assumptions, estimate
 logger = logging.getLogger(__name__)
 
 
-async def valuation(provider: MarketProvider, symbol: str, a: Assumptions) -> dict:
+async def valuation(provider: MarketProvider, symbol: str, a: Assumptions) -> JSONDict:
     q, f = await asyncio.gather(provider.quote(symbol), provider.fundamentals(symbol))
     out = estimate(q["price"], f, a)
     out["symbol"] = symbol
@@ -26,15 +27,16 @@ async def valuation(provider: MarketProvider, symbol: str, a: Assumptions) -> di
     return out
 
 
-async def news_feed(db: Session, user: str, provider: MarketProvider, days: int = 7, limit: int = 60) -> list[dict]:
+async def news_feed(db: Session, user: str, provider: MarketProvider, days: int = 7, limit: int = 60) -> list[JSONDict]:
     """Merged, de-duplicated news for everything the user holds or watches, newest first."""
     held = set(db.scalars(select(Holding.symbol).where(Holding.user_id == user)).all())
     watched = set(db.scalars(select(WatchItem.symbol).where(WatchItem.user_id == user)).all())
     syms = sorted(held | watched)[:25]  # stay inside provider rate limits
     results = await asyncio.gather(*(provider.news(s, days) for s in syms), return_exceptions=True)
-    seen, out = set(), []
-    for sym, items in zip(syms, results):
-        if isinstance(items, Exception):  # one symbol's news missing shouldn't empty the feed
+    seen: set[str] = set()
+    out: list[JSONDict] = []
+    for sym, items in zip(syms, results, strict=True):
+        if isinstance(items, BaseException):  # one symbol's news missing shouldn't empty the feed
             logger.warning("news failed", extra={"symbol": sym, **describe_error(items)})
             continue
         for n in items:
@@ -52,11 +54,11 @@ _SUMMARY_SYSTEM = (
     '"points": ["up to 4 short key points"], "watch": "one thing to watch next"}. '
     "Base it only on the headlines given; say so if they are thin or irrelevant."
 )
-_cache: dict[str, tuple[float, dict]] = {}
+_cache: dict[str, tuple[float, JSONDict]] = {}
 _TTL = 3600
 
 
-def _parse_json(text: str) -> dict:
+def _parse_json(text: str) -> JSONDict:
     m = re.search(r"\{.*\}", text, re.S)
     try:
         d = json.loads(m.group(0) if m else text)
@@ -73,7 +75,7 @@ def _parse_json(text: str) -> dict:
     }
 
 
-async def news_summary(db: Session, user: str, provider: MarketProvider, symbol: str, days: int = 7) -> dict:
+async def news_summary(db: Session, user: str, provider: MarketProvider, symbol: str, days: int = 7) -> JSONDict:
     items = (await provider.news(symbol, days))[:20]
     if not items:
         return {"symbol": symbol, "summary": "No news in this window.", "sentiment": "neutral", "points": [], "watch": "", "count": 0}

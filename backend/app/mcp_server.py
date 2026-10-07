@@ -5,6 +5,8 @@ Create a token in Settings → AI → "MCP access", then point your client at
   https://<render-app>/mcp/   with header  Authorization: Bearer <token>
 """
 
+from collections.abc import Mapping
+
 from mcp.server.mcpserver import Context, MCPServer
 from mcp.server.transport_security import TransportSecuritySettings
 from sqlalchemy import select
@@ -23,7 +25,7 @@ mcp = MCPServer(
 )
 
 
-def _token_from(headers) -> str | None:
+def _token_from(headers: Mapping[str, str] | None) -> str | None:
     auth = (headers or {}).get("authorization", "")
     return auth[7:].strip() if auth.lower().startswith("bearer ") else None
 
@@ -36,7 +38,7 @@ def _user_for_token(token: str | None) -> str | None:
         return row.user_id if row else None
 
 
-async def _call(ctx: Context, name: str, **args) -> str:
+async def _call(ctx: Context, name: str, **args: object) -> str:
     user = _user_for_token(_token_from(ctx.headers))
     if not user:
         return '{"error": "unauthorized"}'

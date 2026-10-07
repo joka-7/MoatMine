@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import re
 from collections.abc import Awaitable, Callable
+from typing import Protocol
 
 from model_dispatcher import (
     CompletionRequest,
@@ -26,8 +27,8 @@ from model_dispatcher import (
     ModelGateway,
     ModelTier,
     ProviderRegistry,
-    RoutingPolicy,
     Role,
+    RoutingPolicy,
     RunResult,
     TenantContext,
     TenantId,
@@ -44,6 +45,7 @@ from sqlalchemy.orm import Session
 from app.ai.settings_store import load_ai_settings
 from app.ai.tools import TOOL_SPECS, run_tool
 from app.config import get_settings
+from app.jsontypes import JSONDict
 
 SYSTEM_PROMPT = (
     "You are MoatMine's investment assistant. The app's purpose is safe, risk-aware investing. "
@@ -56,7 +58,13 @@ SYSTEM_PROMPT = (
 )
 
 # vendor id -> (adapter, settings attribute holding the server key, server default model)
-VENDORS: dict[str, tuple[type[ModelProvider], str, str]] = {
+class _VendorAdapter(Protocol):
+    """How a vendor adapter class is built (model_dispatcher's base class doesn't declare it)."""
+
+    def __call__(self, *, model: str, api_key: str | None, tier: ModelTier) -> ModelProvider: ...
+
+
+VENDORS: dict[str, tuple[_VendorAdapter, str, str]] = {
     "anthropic": (AnthropicProvider, "anthropic_api_key", "claude-sonnet-4-5"),
     "openai": (OpenAIProvider, "openai_api_key", "gpt-4o-mini"),
     "gemini": (GeminiProvider, "gemini_api_key", "gemini-2.0-flash"),
@@ -70,7 +78,7 @@ _QUOTA_STORE = InMemoryQuotaStore()  # per process; shared across requests so pe
 class DispatchError(Exception):
     """A gateway failure carrying the HTTP status and JSON body to send to the client."""
 
-    def __init__(self, status: int, payload: dict):
+    def __init__(self, status: int, payload: JSONDict):
         super().__init__(str(payload.get("detail") or payload.get("error") or payload))
         self.status = status
         self.payload = payload
@@ -159,8 +167,8 @@ def _tenant(user: str, metadata: dict[str, str]) -> TenantContext:
 def _tools(db: Session, user: str, used: list[str]) -> ToolRegistry:
     reg = ToolRegistry()
 
-    def handler(name: str) -> Callable[[dict], Awaitable[str]]:
-        async def run(args: dict) -> str:
+    def handler(name: str) -> Callable[[JSONDict], Awaitable[str]]:
+        async def run(args: JSONDict) -> str:
             used.append(name)
             return await run_tool(name, dict(args), db, user)
 
@@ -197,7 +205,7 @@ async def _run(db: Session, user: str, messages: list[Message], requested: str,
 _ROLES = {"user": Role.USER, "assistant": Role.ASSISTANT, "system": Role.SYSTEM}
 
 
-async def chat(db: Session, user: str, messages: list[dict], requested: str = "auto", context: str = "") -> dict:
+async def chat(db: Session, user: str, messages: list[JSONDict], requested: str = "auto", context: str = "") -> JSONDict:
     convo = [Message(role=Role.SYSTEM, content=SYSTEM_PROMPT + (f"\n{context}" if context else ""))]
     convo += [Message(role=_ROLES[m["role"]], content=m["content"]) for m in messages]
     used: list[str] = []
@@ -205,14 +213,14 @@ async def chat(db: Session, user: str, messages: list[dict], requested: str = "a
     return {"model": model, "content": content, "tools_used": used}
 
 
-async def complete(db: Session, user: str, prompt: str, system: str = "") -> dict:
+async def complete(db: Session, user: str, prompt: str, system: str = "") -> JSONDict:
     """One tool-free completion (news digests, the safety analyzer). Routed like chat."""
     convo = ([Message(role=Role.SYSTEM, content=system)] if system else []) + [Message(role=Role.USER, content=prompt)]
     content, model = await _run(db, user, convo, "auto", None)
     return {"model": model, "content": content}
 
 
-def available(db: Session, user: str) -> dict:
+def available(db: Session, user: str) -> JSONDict:
     """Which vendors can serve this user right now, and from whose key."""
     s = get_settings()
     cfg = load_ai_settings(db, user)

@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
@@ -65,7 +65,7 @@ def hist(revs, gms, oi_margin=0.2, equity=500, debt=100, cash=100):
     """Annual rows newest first, built from oldest-first lists."""
     rows = [{"year": 2020 + i, "revenue": r, "gross_profit": r * g, "operating_income": r * oi_margin,
              "net_income": r * oi_margin * 0.8, "equity": equity, "debt": debt, "cash": cash}
-            for i, (r, g) in enumerate(zip(revs, gms))]
+            for i, (r, g) in enumerate(zip(revs, gms, strict=True))]
     return list(reversed(rows))
 
 
@@ -77,6 +77,7 @@ def test_roic_formula():
 
 def test_moat_metrics_hand_checked():
     m = moat_metrics(hist([1000, 1100, 1210, 1331, 1464.1], [0.40, 0.41, 0.40, 0.39, 0.40]))
+    assert m is not None
     assert m["years"] == 5 and m["revenue_cagr_pct"] == pytest.approx(10.0)
     assert m["growth_consistency"] == 1.0 and m["gross_margin_std_pp"] == pytest.approx(0.63, abs=0.01)
     # operating income 20% of revenue, invested capital fixed at 500 → ROIC rises with revenue
@@ -186,7 +187,7 @@ def test_beta_and_correlation_of_scaled_series():
 
 
 def test_portfolio_risk_concentration_and_cash():
-    closes = {"A": [100 + i for i in range(30)], "B": [50 + (i % 3) for i in range(30)]}
+    closes: dict[str, list[float]] = {"A": [100 + i for i in range(30)], "B": [50 + (i % 3) for i in range(30)]}
     r = risk.portfolio_risk({"A": 750, "B": 250}, 1000, closes, None, {"A": "Tech", "B": "Energy"})
     assert r["total_value"] == 2000 and r["cash_pct"] == 50
     assert r["top_position_pct"] == 37.5
@@ -249,7 +250,7 @@ def test_plans_flow(client):
     risky = client.post("/plans", json={"account_id": acc, "symbol": "MSFT", "quantity": 1,
                                         "note": "Long-term hold, accepting higher volatility here."}, headers=D).json()
     assert risky["status"] == "cooling_off"
-    assert datetime.fromisoformat(risky["available_at"]) > datetime.now(timezone.utc) + timedelta(hours=23)
+    assert datetime.fromisoformat(risky["available_at"]) > datetime.now(UTC) + timedelta(hours=23)
     assert client.post(f"/plans/{risky['id']}/execute", headers=D).status_code == 409
     assert client.post(f"/plans/{risky['id']}/cancel", headers=D).json()["status"] == "cancelled"
 

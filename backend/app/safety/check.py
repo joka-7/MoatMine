@@ -7,6 +7,8 @@ portfolio. Each rule yields pass / warn / fail; any fail blocks, any warn marks 
 
 from dataclasses import dataclass
 
+from app.jsontypes import JSONDict
+
 
 @dataclass(frozen=True)
 class Rules:
@@ -29,7 +31,7 @@ class Candidate:
     fair_value: float | None
     market_cap_m: float | None
     volatility_pct: float | None
-    safety: dict  # output of safety_score()
+    safety: JSONDict  # output of safety_score()
 
 
 @dataclass(frozen=True)
@@ -40,11 +42,11 @@ class Book:
     cash: float = 0.0  # part of total_value; a buy is paid from it first
 
 
-def _r(rule: str, status: str, message: str) -> dict:
+def _r(rule: str, status: str, message: str) -> JSONDict:
     return {"rule": rule, "status": status, "message": message}
 
 
-def check_buy(rules: Rules, c: Candidate, book: Book) -> dict:
+def check_buy(rules: Rules, c: Candidate, book: Book) -> JSONDict:
     results = []
     s = c.safety
     flag_codes = {f["code"] for f in s.get("flags", [])}

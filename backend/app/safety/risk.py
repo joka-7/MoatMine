@@ -1,14 +1,17 @@
 """Portfolio risk maths and stress scenarios. Pure functions over aligned close series."""
 
 import math
+from itertools import pairwise
 from statistics import mean, pstdev
+
+from app.jsontypes import JSONDict
 
 TRADING_DAYS = 252
 Z95 = 1.645
 
 
 def daily_returns(closes: list[float]) -> list[float]:
-    return [b / a - 1 for a, b in zip(closes, closes[1:]) if a]
+    return [b / a - 1 for a, b in pairwise(closes) if a]
 
 
 def align(series: dict[str, list[tuple[int, float]]]) -> tuple[list[int], dict[str, list[float]]]:
@@ -27,7 +30,7 @@ def beta(asset: list[float], bench: list[float]) -> float | None:
     var_b = sum((b - mb) ** 2 for b in bench)
     if not var_b:
         return None
-    return sum((a - ma) * (b - mb) for a, b in zip(asset, bench)) / var_b
+    return sum((a - ma) * (b - mb) for a, b in zip(asset, bench, strict=True)) / var_b
 
 
 def correlation(x: list[float], y: list[float]) -> float | None:
@@ -37,7 +40,7 @@ def correlation(x: list[float], y: list[float]) -> float | None:
     if not sx or not sy:
         return None
     mx, my = mean(x), mean(y)
-    return sum((a - mx) * (b - my) for a, b in zip(x, y)) / len(x) / (sx * sy)
+    return sum((a - mx) * (b - my) for a, b in zip(x, y, strict=True)) / len(x) / (sx * sy)
 
 
 def max_drawdown(index: list[float]) -> float | None:
@@ -51,7 +54,7 @@ def max_drawdown(index: list[float]) -> float | None:
 
 
 def portfolio_risk(values: dict[str, float], cash: float, closes: dict[str, list[float]],
-                   bench: list[float] | None, sectors: dict[str, str | None]) -> dict:
+                   bench: list[float] | None, sectors: dict[str, str | None]) -> JSONDict:
     """Risk of the current holdings, as if held through the price history given.
 
     `closes` must already be aligned (same days, same order) including the benchmark if given.
@@ -78,10 +81,10 @@ def portfolio_risk(values: dict[str, float], cash: float, closes: dict[str, list
         key = sectors.get(s) or "Unknown"
         sector_pct[key] = sector_pct.get(key, 0) + (v / total * 100 if total else 0)
 
-    top = sorted(values, key=values.get, reverse=True)[:10]
+    top = sorted(values, key=lambda s: values[s], reverse=True)[:10]
     corr = [[(round(c, 2) if (c := correlation(rets[a], rets[b])) is not None else None) if a in rets and b in rets else None
              for b in top] for a in top]
-    off_diag = [corr[i][j] for i in range(len(top)) for j in range(len(top)) if i < j and corr[i][j] is not None]
+    off_diag = [c for i, row in enumerate(corr) for j, c in enumerate(row) if i < j and c is not None]
 
     return {
         "total_value": round(total, 2),
@@ -102,10 +105,15 @@ def portfolio_risk(values: dict[str, float], cash: float, closes: dict[str, list
     }
 
 
+def _beta_or_market(b: float | None) -> float:
+    """A holding with no beta (too little history) is assumed to move with the market."""
+    return b if b is not None else 1.0
+
+
 def stress_scenarios(values: dict[str, float], cash: float, betas: dict[str, float | None],
                      crisis_drawdowns: dict[str, dict[str, float | None]],
                      benchmark_crisis: dict[str, float | None], crises: list[tuple[str, str]],
-                     shocks: tuple[float, ...] = (-10.0, -20.0, -35.0)) -> list[dict]:
+                     shocks: tuple[float, ...] = (-10.0, -20.0, -35.0)) -> list[JSONDict]:
     """Loss of today's portfolio under each scenario.
 
     Historical crises use each holding's own fall in that crisis; if it wasn't listed yet, its beta
@@ -114,8 +122,8 @@ def stress_scenarios(values: dict[str, float], cash: float, betas: dict[str, flo
     """
     total = sum(values.values()) + cash
 
-    def run(key: str, name: str, kind: str, per_symbol: dict[str, tuple[float, str]]) -> dict:
-        contribs = []
+    def run(key: str, name: str, kind: str, per_symbol: dict[str, tuple[float, str]]) -> JSONDict:
+        contribs: list[JSONDict] = []
         for s, v in values.items():
             pct, basis = per_symbol[s]
             pct = max(-100.0, pct)
@@ -138,10 +146,9 @@ def stress_scenarios(values: dict[str, float], cash: float, betas: dict[str, flo
             if own is not None:
                 per[s] = (own, "actual fall")
             else:
-                b = betas.get(s)
-                per[s] = ((b if b is not None else 1.0) * (bench_dd or 0.0), "estimated from beta")
+                per[s] = (_beta_or_market(betas.get(s)) * (bench_dd or 0.0), "estimated from beta")
         out.append(run(key, name, "historical", per))
     for shock in shocks:
-        per = {s: ((betas.get(s) if betas.get(s) is not None else 1.0) * shock, "beta × market") for s in values}
+        per = {s: (_beta_or_market(betas.get(s)) * shock, "beta × market") for s in values}
         out.append(run(f"market{int(shock)}", f"Market falls {abs(shock):g}%", "hypothetical", per))
     return out

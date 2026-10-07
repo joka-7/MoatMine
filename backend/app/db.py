@@ -1,32 +1,37 @@
 from collections.abc import Iterator
 from pathlib import Path
+from typing import TYPE_CHECKING
 
-from sqlalchemy import create_engine, text
+from sqlalchemy import Engine, create_engine, text
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 from app.config import get_settings
+
+if TYPE_CHECKING:
+    from alembic.config import Config
 
 
 class Base(DeclarativeBase):
     pass
 
 
-def _make_engine(url: str):
+def _make_engine(url: str) -> Engine:
     # Render gives postgres:// URLs; SQLAlchemy + psycopg3 wants postgresql+psycopg://
     if url.startswith("postgres://"):
         url = "postgresql+psycopg://" + url[len("postgres://"):]
     elif url.startswith("postgresql://"):
         url = "postgresql+psycopg://" + url[len("postgresql://"):]
-    kwargs = {"connect_args": {"check_same_thread": False}} if url.startswith("sqlite") else {"pool_pre_ping": True}
-    return create_engine(url, **kwargs)
+    if url.startswith("sqlite"):
+        return create_engine(url, connect_args={"check_same_thread": False})
+    return create_engine(url, pool_pre_ping=True)
 
 
 engine = _make_engine(get_settings().database_url)
 SessionLocal = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
 
 
-def _alembic_config():  # -> alembic.config.Config (alembic is imported lazily, off the request path)
-    from alembic.config import Config
+def _alembic_config() -> "Config":
+    from alembic.config import Config  # lazy: keeps alembic off the request path
 
     cfg = Config(str(Path(__file__).resolve().parent.parent / "alembic.ini"))
     cfg.attributes["configure_logger"] = False

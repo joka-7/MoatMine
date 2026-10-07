@@ -5,14 +5,18 @@ Field names follow FMP's documented schema; every read is defensive (.get) so a 
 field degrades to "—" in the UI instead of an error. Verify against your plan before relying on it.
 """
 
+from typing import Any
+
 import httpx
+
+from app.jsontypes import JSONDict
 
 BASE = "https://financialmodelingprep.com/stable"
 M = 1_000_000  # FMP returns raw currency units; the app works in millions
 
 
-def _mil(v):
-    return round(v / M, 1) if isinstance(v, (int, float)) else None
+def _mil(v: object) -> float | None:
+    return round(v / M, 1) if isinstance(v, int | float) else None
 
 
 class FMPProvider:
@@ -21,19 +25,19 @@ class FMPProvider:
     def __init__(self, api_key: str, transport: httpx.AsyncBaseTransport | None = None):
         self._client = httpx.AsyncClient(base_url=BASE, timeout=15, params={"apikey": api_key}, transport=transport)
 
-    async def _get(self, path: str, **params):
+    async def _get(self, path: str, **params: str | int) -> Any:  # raw JSON, mapped by each caller
         r = await self._client.get(path, params=params)
         r.raise_for_status()
         return r.json()
 
-    async def company(self, symbol: str) -> dict:
+    async def company(self, symbol: str) -> JSONDict:
         rows = await self._get("/profile", symbol=symbol)
         p = rows[0] if rows else {}
         emp = p.get("fullTimeEmployees")
         return {
             "description": p.get("description", ""),
             "website": p.get("website", ""),
-            "employees": int(emp) if str(emp or "").isdigit() else None,
+            "employees": int(str(emp)) if str(emp or "").isdigit() else None,
             "ceo": p.get("ceo", ""),
             "country": p.get("country", ""),
             "ipo": p.get("ipoDate", ""),
@@ -42,7 +46,7 @@ class FMPProvider:
             "logo": p.get("image", ""),
         }
 
-    async def price_target(self, symbol: str) -> dict | None:
+    async def price_target(self, symbol: str) -> JSONDict | None:
         rows = await self._get("/price-target-consensus", symbol=symbol)
         d = rows[0] if isinstance(rows, list) and rows else rows if isinstance(rows, dict) else {}
         if not d or d.get("targetConsensus") is None:
@@ -52,22 +56,22 @@ class FMPProvider:
             "median": d.get("targetMedian"), "updated": "",
         }
 
-    async def dividends(self, symbol: str) -> list[dict]:
+    async def dividends(self, symbol: str) -> list[JSONDict]:
         rows = await self._get("/dividends", symbol=symbol)
         return [{"date": r.get("date", ""), "amount": r.get("dividend") or r.get("adjDividend")} for r in rows[:40]]
 
-    async def splits(self, symbol: str) -> list[dict]:
+    async def splits(self, symbol: str) -> list[JSONDict]:
         rows = await self._get("/splits", symbol=symbol)
         return [{"date": r.get("date", ""), "ratio": f"{r.get('numerator', '?')}:{r.get('denominator', '?')}"} for r in rows]
 
-    async def fundamentals(self, symbol: str) -> dict:
+    async def fundamentals(self, symbol: str) -> JSONDict:
         inc = await self._get("/income-statement", symbol=symbol, limit=2)
         bal = await self._get("/balance-sheet-statement", symbol=symbol, limit=2)
         cf = await self._get("/cash-flow-statement", symbol=symbol, limit=2)
         if not (inc and bal and cf):
             return {"statements": None}
 
-        def stmt(i: int) -> dict | None:
+        def stmt(i: int) -> JSONDict | None:
             if len(inc) <= i or len(bal) <= i or len(cf) <= i:
                 return None
             a, b, c = inc[i], bal[i], cf[i]
@@ -88,7 +92,9 @@ class FMPProvider:
 
         a, b, c = inc[0], bal[0], cf[0]
         shares = a.get("weightedAverageShsOutDil") or a.get("weightedAverageShsOut")
-        per_share = lambda v: round(v / shares, 4) if isinstance(v, (int, float)) and shares else None  # noqa: E731
+        def per_share(v: object) -> float | None:
+            return round(v / shares, 4) if isinstance(v, int | float) and shares else None
+
         divs = c.get("commonDividendsPaid") or c.get("dividendsPaid")
         return {
             "eps": a.get("epsDiluted") or a.get("eps"),
@@ -103,7 +109,7 @@ class FMPProvider:
             "statements": {"current": stmt(0), "prior": stmt(1)},
         }
 
-    async def history(self, symbol: str) -> list[dict]:
+    async def history(self, symbol: str) -> list[JSONDict]:
         inc = await self._get("/income-statement", symbol=symbol, limit=10)
         bal = await self._get("/balance-sheet-statement", symbol=symbol, limit=10)
         by_year = {str(b.get("fiscalYear") or b.get("calendarYear") or b.get("date", "")[:4]): b for b in bal}

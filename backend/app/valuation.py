@@ -8,6 +8,9 @@ Outputs are model estimates, not advice.
 import math
 from dataclasses import asdict, dataclass
 from statistics import median
+from typing import TypeGuard
+
+from app.jsontypes import JSONDict
 
 
 @dataclass
@@ -22,7 +25,7 @@ class Assumptions:
     ev_ebitda_multiple: float = 12.0  # fair EV/EBITDA
     dividend_growth: float = 4.0  # % for the dividend discount model
 
-    def resolved_growth(self, f: dict) -> tuple[float, str]:
+    def resolved_growth(self, f: JSONDict) -> tuple[float, str]:
         if self.growth_rate is not None:
             return self.growth_rate, "user"
         g = f.get("eps_growth_5y")
@@ -31,11 +34,12 @@ class Assumptions:
         return max(0.0, min(20.0, g)), "5y EPS growth (clamped 0–20%)"
 
 
-def _pos(*vals) -> bool:
-    return all(isinstance(v, (int, float)) and v > 0 for v in vals)
+def _pos(v: object) -> TypeGuard[float]:
+    """A usable positive number (lets mypy treat it as a float where this is true)."""
+    return isinstance(v, int | float) and v > 0
 
 
-def _model(key: str, name: str, value: float | None, formula: str, skipped: str | None = None) -> dict:
+def _model(key: str, name: str, value: float | None, formula: str, skipped: str | None = None) -> JSONDict:
     v = round(value, 2) if value is not None and math.isfinite(value) and value > 0 else None
     if value is not None and v is None and not skipped:
         skipped = "model gives a non-positive value"
@@ -91,7 +95,7 @@ def ev_ebitda_value(ebitda: float, multiple: float, net_debt: float, shares: flo
 # ---------------- quality scores ----------------
 
 
-def piotroski(cur: dict | None, prior: dict | None) -> dict:
+def piotroski(cur: JSONDict | None, prior: JSONDict | None) -> JSONDict:
     """Piotroski F-score (0–9). Needs two years of statements."""
     if not cur or not prior:
         return {"score": None, "checks": [], "skipped": "needs two years of financial statements"}
@@ -124,7 +128,7 @@ def piotroski(cur: dict | None, prior: dict | None) -> dict:
     return {"score": score, "band": band, "checks": [{"name": n, "pass": bool(ok)} for n, ok in checks], "skipped": None}
 
 
-def altman_z(cur: dict | None, market_cap: float | None) -> dict:
+def altman_z(cur: JSONDict | None, market_cap: float | None) -> JSONDict:
     """Altman Z-score (original public-company version). market_cap in millions."""
     if not cur or not market_cap:
         return {"score": None, "zone": None, "skipped": "needs financial statements and market cap"}
@@ -146,8 +150,11 @@ def altman_z(cur: dict | None, market_cap: float | None) -> dict:
 # ---------------- assemble ----------------
 
 
-def estimate(price: float, f: dict, a: Assumptions) -> dict:
-    eps, bvps, fcf, dps = f.get("eps"), f.get("bvps"), f.get("fcf_per_share"), f.get("dividend_per_share") or 0.0
+def estimate(price: float, f: JSONDict, a: Assumptions) -> JSONDict:
+    eps: float | None = f.get("eps")
+    bvps: float | None = f.get("bvps")
+    fcf: float | None = f.get("fcf_per_share")
+    dps: float = f.get("dividend_per_share") or 0.0
     g, g_src = a.resolved_growth(f)
     r = a.discount_rate
     dy = dps / price * 100 if price else 0.0
@@ -165,11 +172,11 @@ def estimate(price: float, f: dict, a: Assumptions) -> dict:
                              f"{basis} {base:.2f}, {a.years}y at {g:.1f}%, then {a.terminal_growth}% at {r}% discount"))
 
     models.append(_model("graham_number", "Graham number",
-                         graham_number(eps, bvps) if _pos(eps, bvps) else None,
-                         "√(22.5 × EPS × BVPS)", None if _pos(eps, bvps) else "needs positive EPS and book value"))
+                         graham_number(eps, bvps) if _pos(eps) and _pos(bvps) else None,
+                         "√(22.5 × EPS × BVPS)", None if _pos(eps) and _pos(bvps) else "needs positive EPS and book value"))
 
     models.append(_model("graham_formula", "Graham formula",
-                         graham_formula(eps, min(g, 20), a.bond_yield) if _pos(eps, a.bond_yield) else None,
+                         graham_formula(eps, min(g, 20), a.bond_yield) if _pos(eps) and _pos(a.bond_yield) else None,
                          f"EPS × (8.5 + 2×{min(g, 20):.1f}) × 4.4 / {a.bond_yield}", None if _pos(eps) else "needs positive EPS"))
 
     models.append(_model("lynch", "Peter Lynch fair value",
@@ -191,10 +198,12 @@ def estimate(price: float, f: dict, a: Assumptions) -> dict:
                          eps * a.pe_multiple if _pos(eps) else None, f"EPS × {a.pe_multiple:g}",
                          None if _pos(eps) else "needs positive EPS"))
 
-    ebitda, nd, sh = f.get("ebitda"), f.get("net_debt"), f.get("shares_outstanding")
-    ok = _pos(ebitda, sh) and nd is not None
+    ebitda: float | None = f.get("ebitda")
+    nd: float | None = f.get("net_debt")
+    sh: float | None = f.get("shares_outstanding")
+    ok = _pos(ebitda) and _pos(sh) and nd is not None
     models.append(_model("ev_ebitda", f"EV/EBITDA multiple ({a.ev_ebitda_multiple:g}×)",
-                         ev_ebitda_value(ebitda, a.ev_ebitda_multiple, nd, sh) if ok else None,
+                         ev_ebitda_value(ebitda, a.ev_ebitda_multiple, nd, sh) if _pos(ebitda) and _pos(sh) and nd is not None else None,
                          f"(EBITDA × {a.ev_ebitda_multiple:g} − net debt) / shares", None if ok else "needs EBITDA, net debt and shares"))
 
     for m in models:
@@ -205,7 +214,7 @@ def estimate(price: float, f: dict, a: Assumptions) -> dict:
     buy_below = round(fair * (1 - a.margin_of_safety / 100), 2) if fair else None
     if not fair or not price:
         verdict = "insufficient data"
-    elif price <= buy_below:
+    elif buy_below is not None and price <= buy_below:
         verdict = "below buy price"
     elif price <= fair:
         verdict = "below fair value"

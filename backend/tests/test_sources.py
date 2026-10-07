@@ -31,4 +31,5 @@ def test_results_are_labelled_with_the_candles_they_used(provider, label):
 
 def test_risk_by_symbol_ignores_sample_candles():
     assert asyncio.run(risk_by_symbol(_CandlesFallBack(), {"AAPL"})) == {"AAPL": None}
-    assert asyncio.run(risk_by_symbol(MockProvider(), {"AAPL"}))["AAPL"] > 0
+    vol = asyncio.run(risk_by_symbol(MockProvider(), {"AAPL"}))["AAPL"]
+    assert vol is not None and vol > 0

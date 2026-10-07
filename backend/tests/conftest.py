@@ -25,14 +25,15 @@ def client():
         yield c
 
 
-def auth(user: str) -> dict:
+def auth(user: str) -> dict[str, str]:
     return {"Authorization": f"Bearer {user}"}
 
 
 # ---------- ModelDispatcher test doubles ----------
 
-from model_dispatcher import Message, Role, ToolCall  # noqa: E402
+from model_dispatcher import Message, ModelTier, Role, ToolCall  # noqa: E402
 from model_dispatcher.providers import MockProvider  # noqa: E402
+from model_dispatcher.types import JSONValue  # noqa: E402
 
 from app.ai import dispatcher  # noqa: E402
 
@@ -53,14 +54,14 @@ def reply(text: str) -> Message:
     return Message(role=Role.ASSISTANT, content=text)
 
 
-def tool_call(name: str, args: dict | None = None, call_id: str = "c1") -> Message:
+def tool_call(name: str, args: dict[str, JSONValue] | None = None, call_id: str = "c1") -> Message:
     return Message(role=Role.ASSISTANT, tool_calls=(ToolCall(id=call_id, name=name, arguments=args or {}),))
 
 
 @pytest.fixture
 def fake_ai(monkeypatch):
     """Swap real vendor adapters for scripted mocks: fake_ai["openai"] = dict(scripted=[...], fail_times=n)."""
-    plans: dict[str, dict] = {}
+    plans: dict[str, dict[str, object]] = {}
     built: dict[str, RecordingMock] = {}
 
     def factory(vendor, model, api_key, tier):
@@ -69,7 +70,7 @@ def fake_ai(monkeypatch):
         return mock
 
     def ext_factory(base_url, model):
-        mock = RecordingMock(f"external:{model or 'default'}", tier=dispatcher.ModelTier.STANDARD, **plans.get("external", {}))
+        mock = RecordingMock(f"external:{model or 'default'}", tier=ModelTier.STANDARD, **plans.get("external", {}))
         built["external"] = mock
         return mock
 

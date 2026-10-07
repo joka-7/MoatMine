@@ -13,8 +13,9 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.errors import InsufficientPaperCashError
+from app.jsontypes import JSONDict
 from app.market import describe_error
-from app.market.base import MarketProvider
+from app.market.base import MarketProvider, Quote
 from app.models import Account, Holding
 
 logger = logging.getLogger(__name__)
@@ -58,22 +59,22 @@ def holdings_in_book(db: Session, user_id: str, mode: BookMode) -> list[Holding]
     return list(db.scalars(select(Holding).where(Holding.user_id == user_id, Holding.account_id.in_(ids))).all())
 
 
-async def quotes_for(provider: MarketProvider, symbols: set[str]) -> dict[str, dict]:
+async def quotes_for(provider: MarketProvider, symbols: set[str]) -> dict[str, Quote]:
     syms = sorted(symbols)
     results = await asyncio.gather(*(provider.quote(s) for s in syms), return_exceptions=True)
-    for s, q in zip(syms, results):
-        if isinstance(q, Exception):  # the holding is then marked stale and priced at cost
+    for s, q in zip(syms, results, strict=True):
+        if isinstance(q, BaseException):  # the holding is then marked stale and priced at cost
             logger.warning("quote failed", extra={"symbol": s, **describe_error(q)})
-    return {s: q for s, q in zip(syms, results) if not isinstance(q, Exception)}
+    return {s: q for s, q in zip(syms, results, strict=True) if not isinstance(q, BaseException)}
 
 
-async def portfolio_snapshot(db: Session, user_id: str, provider: MarketProvider, mode: BookMode = "real") -> dict:
+async def portfolio_snapshot(db: Session, user_id: str, provider: MarketProvider, mode: BookMode = "real") -> JSONDict:
     """Accounts, priced holdings and totals for one book (real money by default, or paper)."""
     accounts = accounts_in_book(db, user_id, mode)
     holdings = holdings_in_book(db, user_id, mode)
     quotes = await quotes_for(provider, {h.symbol for h in holdings})
 
-    rows = []
+    rows: list[JSONDict] = []
     total_cost = total_value = day_change = 0.0
     for h in holdings:
         q = quotes.get(h.symbol)

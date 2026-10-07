@@ -1,19 +1,24 @@
 """Demo data for local dev:  python -m app.seed [user_id]   (default user: dev)"""
 
+import logging
 import sys
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
+from app.config import get_settings
 from app.db import SessionLocal, migrate_to_head
+from app.log_config import configure_logging
 from app.models import Account, Holding, StockNote, Target, WatchItem
+
+logger = logging.getLogger(__name__)
 
 
 def seed(user: str = "dev") -> None:
     migrate_to_head()
     with SessionLocal() as db:
         if db.query(Account).filter_by(user_id=user).first():
-            print(f"user {user!r} already has data; skipping")
+            logger.info(f"user {user!r} already has data; skipping")
             return
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         acc = Account(user_id=user, name="Brokerage", broker="manual", cash=4200)
         db.add_all([acc, Account(user_id=user, name="Paper", broker="paper", cash=50_000)])
         db.flush()
@@ -30,8 +35,9 @@ def seed(user: str = "dev") -> None:
             StockNote(user_id=user, symbol="NVDA", kind="thesis", title="AI capex cycle", body="Exit if hyperscaler capex guidance turns down."),
         ])
         db.commit()
-        print(f"seeded demo data for {user!r}")
+        logger.info(f"seeded demo data for {user!r}")
 
 
 if __name__ == "__main__":
+    configure_logging(get_settings().log_level, get_settings().log_format)
     seed(sys.argv[1] if len(sys.argv) > 1 else "dev")

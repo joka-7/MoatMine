@@ -6,23 +6,25 @@ No tool places trades.
 
 import json
 import time
+from dataclasses import replace
 
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.analytics import price_stats
+from app.crises import bad_times
+from app.jsontypes import JSONDict
 from app.market import get_provider
 from app.models import StockNote, Target, WatchItem
 from app.portfolio import BookMode, portfolio_snapshot, quotes_for
-from app.crises import bad_times
-from app.safety.service import check_for, get_profile, portfolio_risk_report, profile_dict, stock_safety, stress_report
 from app.research import news_feed, valuation
-from app.valuation import Assumptions
+from app.safety.service import check_for, get_profile, portfolio_risk_report, profile_dict, stock_safety, stress_report
 from app.targets import evaluate, risk_by_symbol
+from app.valuation import Assumptions
 
 
-def _sym_param(desc: str = "Ticker symbol, e.g. AAPL") -> dict:
+def _sym_param(desc: str = "Ticker symbol, e.g. AAPL") -> JSONDict:
     return {"type": "object", "properties": {"symbol": {"type": "string", "description": desc}}, "required": ["symbol"]}
 
 
@@ -35,15 +37,31 @@ _MODE_PROP = {
 }
 
 
-def _mode_param() -> dict:
+def _mode_param() -> JSONDict:
     return {"type": "object", "properties": dict(_MODE_PROP)}
 
 
-def _mode(args: dict) -> BookMode:
+def _assumptions(args: JSONDict) -> Assumptions:
+    """Valuation defaults, with any of the four rates the model chose to override (in percent)."""
+    d = Assumptions()
+
+    def rate(key: str, default: float) -> float:
+        return float(args[key]) if args.get(key) is not None else default
+
+    return replace(
+        d,
+        discount_rate=rate("discount_rate", d.discount_rate),
+        growth_rate=float(args["growth_rate"]) if args.get("growth_rate") is not None else d.growth_rate,
+        terminal_growth=rate("terminal_growth", d.terminal_growth),
+        margin_of_safety=rate("margin_of_safety", d.margin_of_safety),
+    )
+
+
+def _mode(args: JSONDict) -> BookMode:
     return "paper" if args.get("mode") == "paper" else "real"
 
 
-TOOL_SPECS = [
+TOOL_SPECS: list[JSONDict] = [
     {"name": "get_portfolio", "description": "User's accounts, holdings with P/L and weights, and totals for the real-money or the paper book.", "parameters": _mode_param()},
     {"name": "get_quote", "description": "Latest quote for a symbol.", "parameters": _sym_param()},
     {"name": "get_ratios", "description": "Fundamental ratios (P/E, ROE, margins…) and 1-year price/risk stats (volatility, drawdown, Sharpe, RSI).", "parameters": _sym_param()},
@@ -107,13 +125,14 @@ TOOL_SPECS = [
 ]
 
 
-def openai_tools() -> list[dict]:
+def openai_tools() -> list[JSONDict]:
     return [{"type": "function", "function": spec} for spec in TOOL_SPECS]
 
 
-async def run_tool(name: str, args: dict, db: Session, user: str) -> str:
+async def run_tool(name: str, args: JSONDict, db: Session, user: str) -> str:
     p = get_provider()
     sym = (args.get("symbol") or "").strip().upper()
+    out: object  # any JSON-serialisable result
     match name:
         case "get_portfolio":
             out = await portfolio_snapshot(db, user, p, _mode(args))
@@ -134,8 +153,7 @@ async def run_tool(name: str, args: dict, db: Session, user: str) -> str:
         case "get_dividends":
             out = {"dividends": (await p.dividends(sym))[:12], "splits": await p.splits(sym)}
         case "get_valuation":
-            overrides = {k: float(args[k]) for k in ("discount_rate", "growth_rate", "terminal_growth", "margin_of_safety") if args.get(k) is not None}
-            v = await valuation(p, sym, Assumptions(**overrides))
+            v = await valuation(p, sym, _assumptions(args))
             out = {k: v[k] for k in ("price", "assumptions", "models", "summary", "indicators", "quality", "disclaimer")}
         case "get_bad_times":
             out = await bad_times(p, sym)

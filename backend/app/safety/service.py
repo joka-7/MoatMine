@@ -4,7 +4,7 @@ import asyncio
 import json
 import logging
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 from app.analytics import annual_volatility_pct
 from app.cache import ttl_cache
 from app.crises import CRISES, HISTORY_START, _ts, bad_times, crisis_stats
+from app.jsontypes import JSONDict
 from app.market.base import MarketProvider
 from app.market.sources import source_label, track_sources
 from app.models import RiskProfile, Target
@@ -33,20 +34,24 @@ AUTO_TARGET = "Risk profile (auto)"
 
 
 @ttl_cache(600)
-async def stock_safety(provider: MarketProvider, symbol: str) -> dict:
+async def stock_safety(provider: MarketProvider, symbol: str) -> JSONDict:
     now = int(time.time())
     with track_sources() as used:
-        quote, fund, daily, weekly5y, company, profile, earnings, hist, annual = await asyncio.gather(
+        # two typed groups (gather's overloads stop at six), still all in flight at once
+        prices = asyncio.gather(
             provider.quote(symbol),
-            provider.fundamentals(symbol),
             provider.candles(symbol, "D", now - 365 * 86400, now),
             provider.candles(symbol, "W", now - 5 * 365 * 86400, now),
+            bad_times(provider, symbol, BENCHMARK),
+        )
+        company_data = asyncio.gather(
+            provider.fundamentals(symbol),
             provider.company(symbol),
             provider.profile(symbol),
             provider.earnings(symbol),
-            bad_times(provider, symbol, BENCHMARK),
             provider.history(symbol),
         )
+        (quote, daily, weekly5y, hist), (fund, company, profile, earnings, annual) = await asyncio.gather(prices, company_data)
     moat = moat_metrics(annual)
     price = quote["price"]
     val = estimate(price, fund, Assumptions())
@@ -95,7 +100,7 @@ def get_profile(db: Session, user: str) -> RiskProfile | None:
     return db.scalar(select(RiskProfile).where(RiskProfile.user_id == user))
 
 
-def profile_dict(p: RiskProfile | None) -> dict:
+def profile_dict(p: RiskProfile | None) -> JSONDict:
     if p is None:
         return {"saved": False, "level": "moderate", "answers": {}, "paper_mode": True, **DEFAULT_RULES["moderate"]}
     return {
@@ -109,7 +114,7 @@ def rules_for(db: Session, user: str) -> Rules:
     return Rules(**{k: d[k] for k in RULE_KEYS})
 
 
-def save_profile(db: Session, user: str, level: str, answers: dict, overrides: dict, paper_mode: bool) -> RiskProfile:
+def save_profile(db: Session, user: str, level: str, answers: JSONDict, overrides: JSONDict, paper_mode: bool) -> RiskProfile:
     p = get_profile(db, user) or RiskProfile(user_id=user)
     rules = {**DEFAULT_RULES[level], **{k: v for k, v in overrides.items() if v is not None}}
     p.level, p.answers, p.paper_mode = level, json.dumps(answers), paper_mode
@@ -138,13 +143,13 @@ def _sync_auto_target(db: Session, user: str, p: RiskProfile) -> None:
 
 async def book_for(
     db: Session, user: str, provider: MarketProvider, mode: BookMode = "real"
-) -> tuple[dict, Book, dict[str, str | None]]:
+) -> tuple[JSONDict, Book, dict[str, str | None]]:
     snap = await portfolio_snapshot(db, user, provider, mode)
     syms = sorted({h["symbol"] for h in snap["holdings"]})
     reports = await asyncio.gather(*(sector_of(provider, s) for s in syms), return_exceptions=True)
     sectors: dict[str, str | None] = {}
-    for sym, rep in zip(syms, reports):
-        if isinstance(rep, Exception):
+    for sym, rep in zip(syms, reports, strict=True):
+        if isinstance(rep, BaseException):
             # an unknown sector only skips that holding's sector rule; it must not sink the whole check
             logger.warning("sector lookup failed; counting it as Unknown", extra={"symbol": sym, "error": type(rep).__name__})
             sectors[sym] = None
@@ -168,7 +173,7 @@ async def sector_of(provider: MarketProvider, symbol: str) -> str | None:
 
 async def check_for(
     db: Session, user: str, provider: MarketProvider, symbol: str, amount: float, mode: BookMode = "real"
-) -> dict:
+) -> JSONDict:
     """Safety check for buying `amount` of `symbol`, sized against the book the money would go into."""
     report, (_, book, _) = await asyncio.gather(stock_safety(provider, symbol), book_for(db, user, provider, mode))
     f = report["facts"]
@@ -185,7 +190,7 @@ async def check_for(
 # ---------------- portfolio risk & stress ----------------
 
 
-async def portfolio_risk_report(db: Session, user: str, provider: MarketProvider, mode: BookMode = "real") -> dict:
+async def portfolio_risk_report(db: Session, user: str, provider: MarketProvider, mode: BookMode = "real") -> JSONDict:
     snap, book, sectors = await book_for(db, user, provider, mode)
     values = book.by_symbol
     rules = rules_for(db, user)
@@ -193,7 +198,7 @@ async def portfolio_risk_report(db: Session, user: str, provider: MarketProvider
     syms = sorted(values)
     with track_sources() as used:
         bars = await asyncio.gather(*(provider.candles(s, "D", now - 365 * 86400, now) for s in [*syms, BENCHMARK]))
-    series = {s: [(b["t"], b["c"]) for b in bs] for s, bs in zip([*syms, BENCHMARK], bars)}
+    series = {s: [(b["t"], b["c"]) for b in bs] for s, bs in zip([*syms, BENCHMARK], bars, strict=True)}
     _, closes = align(series)
     bench = closes.pop(BENCHMARK, None)
     out = portfolio_risk(values, snap["totals"]["cash"], closes, bench, sectors)
@@ -214,7 +219,7 @@ async def portfolio_risk_report(db: Session, user: str, provider: MarketProvider
     return out
 
 
-async def stress_report(db: Session, user: str, provider: MarketProvider, mode: BookMode = "real") -> dict:
+async def stress_report(db: Session, user: str, provider: MarketProvider, mode: BookMode = "real") -> JSONDict:
     snap, book, _ = await book_for(db, user, provider, mode)
     values = book.by_symbol
     now = int(time.time())
@@ -223,8 +228,8 @@ async def stress_report(db: Session, user: str, provider: MarketProvider, mode: 
     with track_sources() as used:
         weekly = await asyncio.gather(*(provider.candles(s, "W", start, now) for s in [*syms, BENCHMARK]))
         daily = await asyncio.gather(*(provider.candles(s, "D", now - 365 * 86400, now) for s in [*syms, BENCHMARK]))
-    wk = dict(zip([*syms, BENCHMARK], weekly))
-    _, aligned = align({s: [(b["t"], b["c"]) for b in bs] for s, bs in zip([*syms, BENCHMARK], daily)})
+    wk = dict(zip([*syms, BENCHMARK], weekly, strict=True))
+    _, aligned = align({s: [(b["t"], b["c"]) for b in bs] for s, bs in zip([*syms, BENCHMARK], daily, strict=True)})
     bench_r = daily_returns(aligned.get(BENCHMARK, []))
     betas = {s: beta(daily_returns(aligned[s]), bench_r) if s in aligned else None for s in syms}
 
@@ -250,7 +255,7 @@ async def stress_report(db: Session, user: str, provider: MarketProvider, mode: 
         "data_source": source_label(provider.name, used),
         "mode": mode,
         "note": "Replays past crises on today's holdings. Past falls don't predict future ones.",
-        "as_of": datetime.now(timezone.utc).date().isoformat(),
+        "as_of": datetime.now(UTC).date().isoformat(),
     }
 
 
@@ -266,7 +271,7 @@ _ANALYZER_SYSTEM = (
 )
 
 
-async def ai_analysis(db: Session, user: str, provider: MarketProvider, symbol: str) -> dict:
+async def ai_analysis(db: Session, user: str, provider: MarketProvider, symbol: str) -> JSONDict:
     from app.ai.dispatcher import complete  # lazy: dispatcher -> tools -> safety service
 
     report = await stock_safety(provider, symbol)

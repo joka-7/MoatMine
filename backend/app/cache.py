@@ -5,26 +5,26 @@ Per process only (each Render instance has its own); swap for Redis if you scale
 
 import asyncio
 import time
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Coroutine
 from functools import wraps
 from typing import ParamSpec, TypeVar
 
 P = ParamSpec("P")
 T = TypeVar("T")
 
-_store: dict[tuple, tuple[float, object]] = {}
+_store: dict[tuple[object, ...], tuple[float, object]] = {}
 _MAX_ENTRIES = 2_000
 
 
-def ttl_cache(seconds: float) -> Callable[[Callable[P, Awaitable[T]]], Callable[P, Awaitable[T]]]:
+def ttl_cache(seconds: float) -> Callable[[Callable[P, Awaitable[T]]], Callable[P, Coroutine[object, object, T]]]:
     """Cache an async function's result by its arguments for `seconds`.
 
     Positional/keyword args must be hashable; the first argument (the provider) is keyed by its
     `name` so a cached value never crosses data sources.
     """
 
-    def deco(fn: Callable[P, Awaitable[T]]) -> Callable[P, Awaitable[T]]:
-        locks: dict[tuple, asyncio.Lock] = {}
+    def deco(fn: Callable[P, Awaitable[T]]) -> Callable[P, Coroutine[object, object, T]]:
+        locks: dict[tuple[object, ...], asyncio.Lock] = {}
 
         @wraps(fn)
         async def wrapper(*args: P.args, **kwargs: P.kwargs) -> T:

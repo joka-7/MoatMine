@@ -8,6 +8,8 @@ re-normalised over the ones that have data, so a missing feed lowers confidence 
 
 from dataclasses import dataclass
 
+from app.jsontypes import JSONDict
+
 GRADES = [(80, "A"), (65, "B"), (50, "C"), (35, "D"), (0, "F")]
 PENNY_PRICE = 5.0
 
@@ -43,11 +45,11 @@ def _tiered(value: float, tiers: list[tuple[float, float]], default: float) -> f
     return default
 
 
-def _component(name: str, weight: float, points: float | None, value: object, note: str) -> dict:
+def _component(name: str, weight: float, points: float | None, value: object, note: str) -> JSONDict:
     return {"name": name, "max": weight, "points": None if points is None else round(points, 1), "value": value, "note": note}
 
 
-def components(f: StockFacts) -> list[dict]:
+def components(f: StockFacts) -> list[JSONDict]:
     zone_pts = {"safe": 20, "grey": 10, "distress": 0}
     out = [
         _component("Financial strength (Altman Z)", 20, zone_pts.get(f.altman_zone) if f.altman_zone else None,
@@ -99,7 +101,7 @@ def components(f: StockFacts) -> list[dict]:
     return out
 
 
-def moat_components(f: StockFacts) -> list[dict]:
+def moat_components(f: StockFacts) -> list[JSONDict]:
     """Return on capital (7), margin stability (4), steady growth (4)."""
     if f.roic_avg_pct is None:
         roic = None
@@ -123,7 +125,7 @@ def moat_components(f: StockFacts) -> list[dict]:
     ]
 
 
-def flags(f: StockFacts) -> list[dict]:
+def flags(f: StockFacts) -> list[JSONDict]:
     out = []
     if f.price is not None and f.price < PENNY_PRICE:
         out.append({"code": "penny", "severity": "high", "message": f"Penny stock (price under ${PENNY_PRICE:.0f})"})
@@ -157,7 +159,7 @@ def grade_for(score: float | None) -> str | None:
     return next(g for limit, g in GRADES if score >= limit) if score is not None else None
 
 
-def area_grades(comps: list[dict]) -> list[dict]:
+def area_grades(comps: list[JSONDict]) -> list[JSONDict]:
     by_name = {c["name"]: c for c in comps}
     out = []
     for key, label, names in AREAS:
@@ -169,7 +171,7 @@ def area_grades(comps: list[dict]) -> list[dict]:
     return out
 
 
-def analyze(areas: list[dict], fl: list[dict], score: int | None, grade: str | None) -> dict:
+def analyze(areas: list[JSONDict], fl: list[JSONDict], score: int | None, grade: str | None) -> JSONDict:
     """Plain-language reading of the grades: strengths, weaknesses, flags, one-line verdict."""
     known = [a for a in areas if a["grade"]]
     strengths = [a["name"] for a in known if a["grade"] in ("A", "B")]
@@ -197,7 +199,7 @@ def analyze(areas: list[dict], fl: list[dict], score: int | None, grade: str | N
     return {"verdict": verdict, "strengths": strengths, "weaknesses": weaknesses, "missing": missing, "summary": " ".join(lines)}
 
 
-def safety_score(f: StockFacts) -> dict:
+def safety_score(f: StockFacts) -> JSONDict:
     comps = components(f)
     scored = [c for c in comps if c["points"] is not None]
     total_max = sum(c["max"] for c in scored)

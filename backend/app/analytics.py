@@ -1,13 +1,14 @@
 """Price-derived ratios computed locally from candles (no provider needed)."""
 
 import math
+from itertools import pairwise
 from statistics import mean, pstdev
 
 TRADING_DAYS = 252
 
 
 def returns(closes: list[float]) -> list[float]:
-    return [b / a - 1 for a, b in zip(closes, closes[1:]) if a]
+    return [b / a - 1 for a, b in pairwise(closes) if a]
 
 
 def annual_volatility_pct(closes: list[float]) -> float | None:
@@ -46,7 +47,7 @@ def sma(closes: list[float], n: int) -> float | None:
 
 
 def rsi(closes: list[float], n: int = 14) -> float | None:
-    r = [b - a for a, b in zip(closes, closes[1:])][-n:]
+    r = [b - a for a, b in pairwise(closes)][-n:]
     if len(r) < n:
         return None
     gain = sum(x for x in r if x > 0) / n
