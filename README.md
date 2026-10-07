@@ -92,24 +92,29 @@ The app runs with **no API keys**: `MARKET_PROVIDER=mock` serves deterministic s
 
 ## Deploy
 
+**Clerk first.** Create a Clerk application. You need three values from it: the publishable key, the JWKS URL (`https://<frontend-api>/.well-known/jwks.json`) and the issuer (`https://<frontend-api>`). The API refuses to start with `AUTH_MODE=dev` on Postgres, and with `AUTH_MODE=clerk` if either Clerk value is missing.
+
 **Render.** New → Blueprint → this repo. Then fill in the prompted secrets:
 - `FINNHUB_API_KEY`
 - `FMP_API_KEY` (optional: company descriptions, financial statements for Piotroski/Altman, price targets, dividends)
 - `FERNET_KEY`
-- Clerk JWKS URL and issuer
+- `CLERK_JWKS_URL` and `CLERK_ISSUER` (the blueprint sets `AUTH_MODE=clerk`)
 - AI keys (optional)
 - `CORS_ORIGINS` = your Vercel URL plus `tauri://localhost,http://tauri.localhost`
 
-**Vercel.** Import the repo with root directory `web`, and set `NEXT_PUBLIC_API_URL=https://<moatmine-api>.onrender.com`.
+**Vercel.** Import the repo with root directory `web`. Set `NEXT_PUBLIC_API_URL=https://<moatmine-api>.onrender.com` and `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`. With the key set, the whole app sits behind Clerk's sign-in, and every API call sends the Clerk session token from `getToken()`.
 
-**Desktop.** Set `NEXT_PUBLIC_API_URL` before `npm run build` so the installer points at Render. Users can also change the URL in Settings. If your API isn't on `*.onrender.com`, add its domain to the CSP `connect-src` in `desktop/src-tauri/tauri.conf.json`.
+**Desktop.** Set `NEXT_PUBLIC_API_URL` and `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` before `npm run build` so the installer points at Render and signs in with Clerk. Users can also change the API URL in Settings. The static export swaps `@clerk/nextjs` for `@clerk/react` (see `web/next.config.ts`), because the Next.js provider needs a server.
+
+The desktop CSP in `desktop/src-tauri/tauri.conf.json` allows Clerk development instances (`*.clerk.accounts.dev`). For production you must add these to `script-src` and `connect-src`:
+- your production Clerk frontend API domain
+- your API domain, if it isn't on `*.onrender.com`
+
+Desktop sign-in has only been built, not exercised against a live Clerk instance. Before shipping desktop builds, check that your Clerk instance accepts the Tauri origins (`tauri://localhost`, `http://tauri.localhost`).
 
 ## Before real users
 
-- **Auth.** `AUTH_MODE=dev` trusts the bearer token as the user id, so use it only on your machine. For production:
-  1. Set `AUTH_MODE=clerk` on Render.
-  2. Add `@clerk/nextjs` to `web/`.
-  3. Return Clerk's `getToken()` from `authToken()` in `web/src/lib/api.ts`.
+- **Auth.** `AUTH_MODE=dev` trusts the bearer token as the user id. It works only against a local SQLite database: the API refuses to start in dev mode on Postgres. Production runs `AUTH_MODE=clerk` (see Deploy).
 - **Schema.** Alembic owns the schema (`backend/migrations/`). Render runs `alembic upgrade head` before each deploy of the API and the worker. After changing `app/models.py`, run `alembic revision --autogenerate -m "..."`, review the file, and commit it with the model change. `tests/test_db.py` fails if the models and migrations drift apart. A database created before migrations is adopted by the baseline revision as-is.
 - **Data coverage.** Free Finnhub gives quotes, news, ratios, earnings, recommendations and splits. Company descriptions, statements (Piotroski, Altman), price targets and dividend history need `FMP_API_KEY` or a paid Finnhub plan; without them those sections say so instead of breaking. The FMP mapping follows FMP's documented `/stable` fields but hasn't been run against a live key yet.
 - **Market data licensing.** Finnhub's free plan is for personal use. Check the terms before showing its data to other users. `/stock/candle` may need a paid Finnhub plan; until then, charts fall back to sample data and say so.

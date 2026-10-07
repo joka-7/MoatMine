@@ -17,8 +17,12 @@ def _jwks_client(url: str) -> jwt.PyJWKClient:
 def current_user(creds: HTTPAuthorizationCredentials | None = Depends(_bearer)) -> str:
     """Return the user id.
 
-    dev mode: the bearer token *is* the user id (default "dev" when absent).
-    clerk mode: verify the Clerk session JWT and return its `sub`.
+    dev mode (local SQLite only, enforced by Settings): the bearer token *is* the user id
+    (default "dev" when absent).
+    clerk mode: verify the Clerk session JWT's signature, expiry and issuer, and return its `sub`.
+
+    Raises:
+        HTTPException: 401 in clerk mode when the token is missing or fails verification.
     """
     s = get_settings()
     if s.auth_mode == "dev":
@@ -32,9 +36,10 @@ def current_user(creds: HTTPAuthorizationCredentials | None = Depends(_bearer)) 
             creds.credentials,
             key,
             algorithms=["RS256"],
-            issuer=s.clerk_issuer or None,
-            options={"verify_aud": False},
+            issuer=s.clerk_issuer,
+            options={"verify_aud": False, "require": ["exp", "iss", "sub"]},
         )
     except jwt.PyJWTError as e:
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, f"invalid token: {e}") from e
-    return claims["sub"]
+        # the reason stays server-side; callers only learn that the token was rejected
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "invalid token") from e
+    return str(claims["sub"])

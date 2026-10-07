@@ -29,6 +29,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .navlink:hover { background: var(--panel); color: var(--text); }
 .navlink.active { background: var(--panel-2); color: var(--text); box-shadow: inset 2px 0 0 var(--accent); }
 .side .grow { flex: 1; }
+.signin { min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; padding: 16px; }
 
 main { padding: 24px 28px 60px; max-width: 1400px; width: 100%; }
 .topbar { display: flex; align-items: center; gap: 12px; justify-content: space-between; margin-bottom: 22px; }

@@ -1,9 +1,13 @@
 "use client";
 
+import { getToken } from "@clerk/nextjs";
 import type { AgentConfig, ExternalChatProviderId } from "modeldispatcher-browser-agent";
 
 // One client for web (Vercel) and desktop (Tauri): both call the Render API.
 const DEFAULT_API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+
+// Set → sign in with Clerk (backend AUTH_MODE=clerk). Unset → local dev mode (backend AUTH_MODE=dev).
+export const CLERK_PUBLISHABLE_KEY = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY || "";
 
 function ls(key: string): string | null {
   try {
@@ -17,9 +21,17 @@ export function apiBase(): string {
   return (ls("moatmine.api") || DEFAULT_API).replace(/\/$/, "");
 }
 
-// Swap this for Clerk's getToken() when AUTH_MODE=clerk on the backend.
-export function authToken(): string {
+/** Local dev mode only: the backend trusts this string as the user id. */
+export function devToken(): string {
   return ls("moatmine.token") || "dev";
+}
+
+/** Bearer token for the API: the Clerk session JWT when Clerk is configured, else the dev user id. */
+export async function authToken(): Promise<string> {
+  if (!CLERK_PUBLISHABLE_KEY) return devToken();
+  const token = await getToken();
+  if (!token) throw new ApiError(401, "Sign in to continue.");
+  return token;
 }
 
 export class ApiError extends Error {
@@ -40,7 +52,7 @@ export async function apiWithHeaders<T = unknown>(
   const res = await fetch(apiBase() + path, {
     ...rest,
     headers: {
-      Authorization: `Bearer ${authToken()}`,
+      Authorization: `Bearer ${await authToken()}`,
       ...(json !== undefined ? { "Content-Type": "application/json" } : {}),
       ...headers,
     },

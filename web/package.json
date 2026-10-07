@@ -10,12 +10,14 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@clerk/nextjs": "7.9.11",
+    "@clerk/react": "6.17.6",
     "lightweight-charts": "^5.2.1",
     "modeldispatcher-browser-agent": "^0.6.7",
     "modeldispatcher-react-ui": "^0.6.7",
     "next": "15.5.27",
-    "react": "19.1.0",
-    "react-dom": "19.1.0",
+    "react": "19.1.9",
+    "react-dom": "19.1.9",
     "recharts": "^2.15.4"
   },
   "devDependencies": {

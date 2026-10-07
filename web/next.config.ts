@@ -5,7 +5,19 @@ import type { NextConfig } from "next";
 const isExport = process.env.NEXT_OUTPUT === "export";
 
 const nextConfig: NextConfig = {
-  ...(isExport ? { output: "export", images: { unoptimized: true }, trailingSlash: true } : {}),
+  ...(isExport
+    ? {
+        output: "export",
+        images: { unoptimized: true },
+        trailingSlash: true,
+        // @clerk/nextjs's App Router provider carries a Server Action, which a static export can't
+        // ship. The export gets @clerk/react (what @clerk/nextjs wraps) with the same client API.
+        webpack: (config) => {
+          config.resolve.alias = { ...config.resolve.alias, "@clerk/nextjs$": "@clerk/react" };
+          return config;
+        },
+      }
+    : {}),
 };
 
 export default nextConfig;
