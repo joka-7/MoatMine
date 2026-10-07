@@ -1,4 +1,6 @@
-# Safe Algo
+# Moatrics
+
+*Know how safe your investments are.*
 
 Risk-aware investing app: every stock gets a graded safety score, every buy is checked against the user's own risk rules, and the portfolio is stress-tested against past crises. One UI for **web (Vercel)** and **desktop (Tauri)**, backed by one **FastAPI service on Render**.
 
@@ -96,7 +98,7 @@ The app runs with **no API keys**: `MARKET_PROVIDER=mock` serves deterministic s
 - AI keys (optional)
 - `CORS_ORIGINS` = your Vercel URL plus `tauri://localhost,http://tauri.localhost`
 
-**Vercel.** Import the repo with root directory `web`, and set `NEXT_PUBLIC_API_URL=https://<folio-api>.onrender.com`.
+**Vercel.** Import the repo with root directory `web`, and set `NEXT_PUBLIC_API_URL=https://<moatrics-api>.onrender.com`.
 
 **Desktop.** Set `NEXT_PUBLIC_API_URL` before `npm run build` so the installer points at Render. Users can also change the URL in Settings. If your API isn't on `*.onrender.com`, add its domain to the CSP `connect-src` in `desktop/src-tauri/tauri.conf.json`.
 

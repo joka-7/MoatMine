@@ -4,8 +4,8 @@ import "modeldispatcher-react-ui/styles.css";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Safe Algo",
-  description: "Risk-aware investing: safety scores, your own risk rules, stress tests and an AI analyst",
+  title: "Moatrics",
+  description: "Moatrics: know how safe your investments are. Graded safety scores, your own risk rules, stress tests and an AI analyst.",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

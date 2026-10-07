@@ -18,7 +18,7 @@ export default function Nav() {
   const cls = (href: string) => `navlink${path === href ? " active" : ""}`;
   return (
     <nav className="side">
-      <div className="brand"><i /> Safe Algo</div>
+      <div className="brand"><i /> Moatrics</div>
       {LINKS.map(([href, label]) => (
         <Link key={href} href={href} className={cls(href)}>{label}</Link>
       ))}

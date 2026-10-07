@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Safe Algo",
+  "productName": "Moatrics",
   "version": "0.1.0",
-  "identifier": "app.safealgo.desktop",
+  "identifier": "app.moatrics.desktop",
   "build": {
     "beforeDevCommand": "npm --prefix ../web run dev",
     "devUrl": "http://localhost:3000",
@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "Safe Algo",
+        "title": "Moatrics",
         "width": 1400,
         "height": 900,
         "minWidth": 960,

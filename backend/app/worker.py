@@ -20,7 +20,7 @@ from app.portfolio import portfolio_snapshot, quotes_for
 from app.safety.service import book_for, rules_for
 from app.targets import breach_messages, evaluate, risk_by_symbol
 
-log = logging.getLogger("safe_algo.worker")
+log = logging.getLogger("moatrics.worker")
 
 
 def _emit(db: Session, user: str, source: str, ref_id: int, symbol: str | None, key: str, msg: str) -> bool:

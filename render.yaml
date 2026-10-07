@@ -1,13 +1,13 @@
 # Render Blueprint: API + background worker + Postgres.
 # New → Blueprint → pick this repo. Secrets marked sync:false are prompted on first deploy.
 databases:
-  - name: safe-algo-db
+  - name: moatrics-db
     plan: basic-256mb
-    databaseName: safealgo
-    user: safealgo
+    databaseName: moatrics
+    user: moatrics
 
 envVarGroups:
-  - name: safe-algo-shared
+  - name: moatrics-shared
     envVars:
       - key: MARKET_PROVIDER
         value: finnhub
@@ -34,7 +34,7 @@ envVarGroups:
 
 services:
   - type: web
-    name: safe-algo-api
+    name: moatrics-api
     runtime: python
     rootDir: backend
     plan: starter # free plan sleeps when idle
@@ -42,24 +42,24 @@ services:
     startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT --proxy-headers
     healthCheckPath: /health
     envVars:
-      - fromGroup: safe-algo-shared
+      - fromGroup: moatrics-shared
       - key: PYTHON_VERSION
         value: 3.12.7
       - key: DATABASE_URL
-        fromDatabase: { name: safe-algo-db, property: connectionString }
+        fromDatabase: { name: moatrics-db, property: connectionString }
       - key: CORS_ORIGINS
-        sync: false # e.g. https://safe-algo.vercel.app,tauri://localhost,http://tauri.localhost
+        sync: false # e.g. https://moatrics.vercel.app,tauri://localhost,http://tauri.localhost
 
   - type: worker
-    name: safe-algo-worker
+    name: moatrics-worker
     runtime: python
     rootDir: backend
     plan: starter
     buildCommand: pip install -r requirements.txt
     startCommand: python -m app.worker
     envVars:
-      - fromGroup: safe-algo-shared
+      - fromGroup: moatrics-shared
       - key: PYTHON_VERSION
         value: 3.12.7
       - key: DATABASE_URL
-        fromDatabase: { name: safe-algo-db, property: connectionString }
+        fromDatabase: { name: moatrics-db, property: connectionString }

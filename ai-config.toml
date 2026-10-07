@@ -2,7 +2,7 @@
 # .ai is the ogen-ai submodule (https://github.com/joka-7/ogen-ai). See .ai/README.md.
 
 [project]
-name = "Safe Algo"
+name = "Moatrics"
 
 [stack]
 # FastAPI backend (Python) + Next.js/React web app (TypeScript) + Tauri desktop shell

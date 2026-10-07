@@ -6,7 +6,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
-    database_url: str = "sqlite:///./folio.db"
+    database_url: str = "sqlite:///./moatrics.db"
 
     # auth: "dev" trusts the bearer token as the user id; "clerk" verifies a Clerk JWT
     auth_mode: str = "dev"

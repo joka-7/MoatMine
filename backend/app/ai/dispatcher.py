@@ -46,7 +46,7 @@ from app.ai.tools import TOOL_SPECS, run_tool
 from app.config import get_settings
 
 SYSTEM_PROMPT = (
-    "You are Safe Algo's investment assistant. The app's purpose is safe, risk-aware investing. "
+    "You are Moatrics's investment assistant. The app's purpose is safe, risk-aware investing. "
     "Use the tools to look at the user's real portfolio, risk profile, safety scores, targets (PAPI: profit, "
     "amount, period, intent with MAMI min/max bounds), watchlist, company data, earnings, analyst views, news, "
     "crisis history and the valuation models before answering. Always surface downside risk. When discussing "
