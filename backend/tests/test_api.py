@@ -21,7 +21,7 @@ def alice_account(client):
 
 
 def test_health(client):
-    assert client.get("/health").json() == {"ok": True, "market_provider": "mock"}
+    assert client.get("/health").json() == {"ok": True}
 
 
 def test_portfolio_totals(client, alice_account):

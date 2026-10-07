@@ -27,7 +27,8 @@ function Connection() {
   const save = async () => {
     localStorage.setItem("moatmine.api", url);
     if (!CLERK_PUBLISHABLE_KEY) localStorage.setItem("moatmine.token", token);
-    try { const h = await api<{ market_provider: string }>("/health"); setStatus(`Connected · market data: ${h.market_provider}`); }
+    // an authenticated call, so a wrong token fails here too, not just a wrong URL
+    try { await api("/safety/profile"); setStatus("Connected and signed in"); }
     catch (e) { setStatus(`Failed: ${(e as Error).message}`); }
   };
   return (

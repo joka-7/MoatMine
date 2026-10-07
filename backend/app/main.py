@@ -1,12 +1,16 @@
+import logging
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Response
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy.exc import SQLAlchemyError
 
 from app.config import get_settings
-from app.market import get_provider
+from app.db import schema_is_current
 from app.mcp_server import build_mcp_app, mcp
 from app.routers import ai, portfolio, safety, stocks, targets, watchlist
+
+logger = logging.getLogger(__name__)
 
 mcp_app = build_mcp_app()
 
@@ -37,5 +41,21 @@ app.mount("/mcp", mcp_app)
 
 
 @app.get("/health")
-def health():
-    return {"ok": True, "market_provider": get_provider().name}
+def health() -> dict[str, bool]:
+    """Liveness: the process is up. Says nothing about its dependencies."""
+    return {"ok": True}
+
+
+@app.get("/health/ready")
+def ready(response: Response) -> dict[str, object]:
+    """Readiness (Render's deploy health check): the database answers and has the newest migration."""
+    try:
+        current = schema_is_current()
+    except SQLAlchemyError:
+        logger.exception("readiness: database unreachable")
+        response.status_code = 503
+        return {"ok": False, "database": "unreachable"}
+    if not current:
+        response.status_code = 503
+        return {"ok": False, "database": "schema behind the code; run alembic upgrade head"}
+    return {"ok": True, "database": "ok"}
