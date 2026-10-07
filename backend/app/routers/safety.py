@@ -12,7 +12,7 @@ from app.market import get_provider
 from app.models import Account, BuyPlan, Holding, StockNote
 from app.safety.profile import LEVELS, QUESTIONS, level_from_answers
 from app.safety.service import (
-    check_for, get_profile, portfolio_risk_report, profile_dict, save_profile, stock_safety, stress_report,
+    ai_analysis, check_for, get_profile, portfolio_risk_report, profile_dict, save_profile, stock_safety, stress_report,
 )
 
 router = APIRouter(tags=["safety"])
@@ -74,6 +74,17 @@ def write_profile(body: ProfileIn, user: str = Depends(current_user), db: Sessio
 @router.get("/stocks/{symbol}/safety")
 async def safety(symbol: str):
     return await stock_safety(get_provider(), _sym(symbol))
+
+
+@router.post("/stocks/{symbol}/safety/analyze")
+async def safety_analyze(symbol: str, user: str = Depends(current_user), db: Session = Depends(get_db)):
+    """AI analyzer: explains each area grade and how the stock fits the user's risk rules."""
+    from app.ai.dispatcher import DispatchError
+
+    try:
+        return await ai_analysis(db, user, get_provider(), _sym(symbol))
+    except DispatchError as e:
+        raise HTTPException(502, str(e)) from e
 
 
 class CheckIn(BaseModel):

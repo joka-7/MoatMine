@@ -109,6 +109,61 @@ def flags(f: StockFacts) -> list[dict]:
     return out
 
 
+# Areas group the components; each gets its own 0–100 score and letter grade.
+AREAS = [
+    ("financial_health", "Financial health", ["Financial strength (Altman Z)", "Debt (net debt / EBITDA)"]),
+    ("quality", "Quality & earnings", ["Quality (Piotroski F)", "Earnings stability"]),
+    ("price_risk", "Price risk", ["Price volatility", "Worst fall"]),
+    ("resilience", "Crisis resilience", ["Crisis resilience"]),
+    ("size", "Size", ["Company size"]),
+    ("valuation", "Valuation", ["Valuation"]),
+]
+
+
+def grade_for(score: float | None) -> str | None:
+    return next(g for limit, g in GRADES if score >= limit) if score is not None else None
+
+
+def area_grades(comps: list[dict]) -> list[dict]:
+    by_name = {c["name"]: c for c in comps}
+    out = []
+    for key, label, names in AREAS:
+        parts = [by_name[n] for n in names if by_name[n]["points"] is not None]
+        mx = sum(c["max"] for c in parts)
+        score = round(sum(c["points"] for c in parts) / mx * 100) if mx else None
+        out.append({"key": key, "name": label, "score": score, "grade": grade_for(score),
+                    "weight": sum(by_name[n]["max"] for n in names)})
+    return out
+
+
+def analyze(areas: list[dict], fl: list[dict], score: int | None, grade: str | None) -> dict:
+    """Plain-language reading of the grades: strengths, weaknesses, flags, one-line verdict."""
+    known = [a for a in areas if a["grade"]]
+    strengths = [a["name"] for a in known if a["grade"] in ("A", "B")]
+    weaknesses = [a["name"] for a in known if a["grade"] in ("D", "F")]
+    missing = [a["name"] for a in areas if not a["grade"]]
+    if score is None:
+        verdict = "Not enough data to judge this stock's safety."
+    elif any(f["severity"] == "high" for f in fl):
+        verdict = "Red flag: " + "; ".join(f["message"] for f in fl if f["severity"] == "high") + "."
+    elif grade == "A":
+        verdict = "Strong safety profile across the board."
+    elif grade == "B":
+        verdict = "Solid overall, with a few areas to watch."
+    elif grade == "C":
+        verdict = "Mixed: real weaknesses sit alongside the strengths."
+    else:
+        verdict = "Weak safety profile: higher risk than most investors should hold in size."
+    lines = []
+    if strengths:
+        lines.append("Strong on " + ", ".join(s.lower() for s in strengths) + ".")
+    if weaknesses:
+        lines.append("Weak on " + ", ".join(w.lower() for w in weaknesses) + ".")
+    if missing:
+        lines.append("No data for " + ", ".join(m.lower() for m in missing) + ", so the score covers less.")
+    return {"verdict": verdict, "strengths": strengths, "weaknesses": weaknesses, "missing": missing, "summary": " ".join(lines)}
+
+
 def safety_score(f: StockFacts) -> dict:
     comps = components(f)
     scored = [c for c in comps if c["points"] is not None]
@@ -118,10 +173,13 @@ def safety_score(f: StockFacts) -> dict:
     # A high-severity flag caps the score: a distressed or penny stock can't look "safe" on averages.
     if score is not None and any(x["severity"] == "high" for x in fl):
         score = min(score, 34)
-    grade = next(g for limit, g in GRADES if score >= limit) if score is not None else None
+    grade = grade_for(score)
+    areas = area_grades(comps)
     return {
         "score": score,
         "grade": grade,
+        "areas": areas,
+        "analysis": analyze(areas, fl, score, grade),
         "coverage_pct": round(total_max),  # weights sum to 100, so this is % of the model with data
         "components": comps,
         "flags": fl,

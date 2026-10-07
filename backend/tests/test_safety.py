@@ -25,6 +25,17 @@ def test_score_best_case_is_100_and_grade_a():
     assert r["score"] == 100 and r["grade"] == "A" and r["coverage_pct"] == 100 and r["flags"] == []
 
 
+def test_area_grades_and_analysis():
+    r = safety_score(StockFacts(price=100, altman_zone="safe", net_debt_to_ebitda=0.5, volatility_pct=70,
+                                max_drawdown_pct=-70, market_cap_m=500_000))
+    areas = {a["key"]: a for a in r["areas"]}
+    assert areas["financial_health"]["grade"] == "A" and areas["price_risk"]["grade"] == "F"
+    assert areas["valuation"]["grade"] is None and areas["financial_health"]["weight"] == 30
+    a = r["analysis"]
+    assert a["strengths"] == ["Financial health", "Size"] and a["weaknesses"] == ["Price risk"]
+    assert "Valuation" in a["missing"] and a["summary"].startswith("Strong on financial health, size.")
+
+
 def test_score_renormalises_missing_components():
     r = safety_score(StockFacts(price=100, volatility_pct=15, market_cap_m=500_000))
     assert r["coverage_pct"] == 25 and r["score"] == 100  # only volatility (15) + size (10) known, both full marks
@@ -203,3 +214,24 @@ def test_portfolio_risk_and_stress_endpoints(client):
     s = client.get("/safety/stress", headers=D).json()
     assert len(s["scenarios"]) == 9 and all("breaches_limit" in x for x in s["scenarios"])
     assert s["loss_limit_pct"] < 0
+
+
+def test_ai_analyzer(client, monkeypatch):
+    from types import SimpleNamespace
+
+    from app.ai import dispatcher
+
+    seen = {}
+
+    async def fake(**kw):
+        seen.update(kw)
+        return SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content=(
+            '{"overview": "Solid balance sheet.", "areas": [{"name": "Price risk", "comment": "Swings a lot."}], '
+            '"fit": "Fits your balanced rules.", "improve": "Lower volatility."}')))])
+
+    monkeypatch.setattr(dispatcher, "_completion", fake)
+    r = client.post("/stocks/AAPL/safety/analyze", headers=D)
+    assert r.status_code == 200, r.text
+    d = r.json()
+    assert d["overview"] == "Solid balance sheet." and d["areas"][0]["name"] == "Price risk" and d["fit"]
+    assert '"user_rules"' in seen["messages"][-1]["content"] and "not advice" in seen["messages"][0]["content"]

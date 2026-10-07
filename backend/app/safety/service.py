@@ -225,3 +225,43 @@ async def stress_report(db: Session, user: str, provider: MarketProvider) -> dic
         "note": "Replays past crises on today's holdings. Past falls don't predict future ones.",
         "as_of": datetime.now(timezone.utc).date().isoformat(),
     }
+
+
+# ---------------- AI analyzer ----------------
+
+_ANALYZER_SYSTEM = (
+    "You are a cautious stock-safety analyst. You get a stock's safety grades by area, red flags, the facts "
+    "behind them and the user's own risk rules. Reply with JSON only: "
+    '{"overview": "2-3 sentences", "areas": [{"name": "area name", "comment": "one sentence on why it got that grade"}], '
+    '"fit": "one or two sentences on whether it fits the user\'s rules and why", '
+    '"improve": "what would have to change for the grade to improve"}. '
+    "Use only the data given. Never promise returns or call any investment safe; this is risk information, not advice."
+)
+
+
+async def ai_analysis(db: Session, user: str, provider: MarketProvider, symbol: str) -> dict:
+    from app.ai.dispatcher import complete  # lazy: dispatcher -> tools -> safety service
+
+    report = await stock_safety(provider, symbol)
+    payload = {
+        "symbol": symbol,
+        "score": report["score"], "grade": report["grade"], "coverage_pct": report["coverage_pct"],
+        "areas": report["areas"], "flags": report["flags"], "facts": report["facts"], "sector": report["sector"],
+        "user_rules": profile_dict(get_profile(db, user)),
+    }
+    r = await complete(db, user, json.dumps(payload, default=str), system=_ANALYZER_SYSTEM)
+    text = r["content"]
+    start, end = text.find("{"), text.rfind("}")
+    try:
+        parsed = json.loads(text[start:end + 1]) if start != -1 else {}
+    except json.JSONDecodeError:
+        parsed = {}
+    return {
+        "symbol": symbol,
+        "overview": str(parsed.get("overview") or text.strip())[:1500],
+        "areas": [{"name": str(a.get("name", ""))[:80], "comment": str(a.get("comment", ""))[:400]}
+                  for a in (parsed.get("areas") or []) if isinstance(a, dict)][:8],
+        "fit": str(parsed.get("fit", ""))[:600],
+        "improve": str(parsed.get("improve", ""))[:600],
+        "model": r["model"],
+    }
