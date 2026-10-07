@@ -63,17 +63,19 @@ export function EarningsPanel({ symbol }: { symbol: string }) {
               </BarChart>
             </ResponsiveContainer>
           </div>
-          <table>
-            <thead><tr><th>Quarter</th><th className="n">Estimate</th><th className="n">Actual</th><th className="n">Surprise</th></tr></thead>
-            <tbody>
-              {data!.map((e) => (
-                <tr key={e.period}>
-                  <td>{e.period}</td><td className="n">{num(e.estimate)}</td><td className="n">{num(e.actual)}</td>
-                  <td className={`n ${tone(e.surprise_pct)}`}>{pct(e.surprise_pct)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <div className="scroll-x">
+            <table>
+              <thead><tr><th>Quarter</th><th className="n">Estimate</th><th className="n">Actual</th><th className="n">Surprise</th></tr></thead>
+              <tbody>
+                {data!.map((e) => (
+                  <tr key={e.period}>
+                    <td>{e.period}</td><td className="n">{num(e.estimate)}</td><td className="n">{num(e.actual)}</td>
+                    <td className={`n ${tone(e.surprise_pct)}`}>{pct(e.surprise_pct)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </>
       )}
     </div>
@@ -199,7 +201,7 @@ export function NewsPanel({ symbol }: { symbol: string }) {
       <div className="card span2 news">
         <div className="row" style={{ justifyContent: "space-between" }}>
           <h2 style={{ margin: 0 }}>News</h2>
-          <select value={days} onChange={(e) => { setDays(+e.target.value); setSum(null); }} style={{ flex: 0, minWidth: 90 }}>
+          <select value={days} onChange={(e) => { setDays(+e.target.value); setSum(null); }} style={{ flex: "0 1 auto", minWidth: 90 }}>
             {[1, 3, 7, 14, 30, 90].map((d) => <option key={d} value={d}>{d}d</option>)}
           </select>
         </div>

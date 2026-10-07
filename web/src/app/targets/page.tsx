@@ -70,26 +70,28 @@ export default function TargetsPage() {
               <SymbolSearch placeholder="Leave empty for portfolio" onPick={(s) => setForm({ ...form, symbol: s })} />
             </label>
           </div>
-          <table>
-            <thead><tr><th>PAPI</th><th>Measured as</th><th className="n">Target</th><th className="n">Min</th><th className="n">Max</th></tr></thead>
-            <tbody>
-              {DIMS.map((d) => (
-                <tr key={d.key}>
-                  <td><b>{d.label}</b>{d.key === "intent" && (
-                    <select value={form.intent} onChange={(e) => setForm({ ...form, intent: e.target.value })} style={{ marginTop: 6 }}>
-                      {INTENTS.map((i) => <option key={i} value={i}>{i}</option>)}
-                    </select>
-                  )}</td>
-                  <td className="sub">{d.unit}</td>
-                  {d.fields.map((k) => (
-                    <td key={k} style={{ width: 150 }}>
-                      <input type="number" step="any" value={form[k]} onChange={(e) => setForm({ ...form, [k]: e.target.value })} style={{ textAlign: "right" }} />
-                    </td>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <div className="scroll-x">
+            <table>
+              <thead><tr><th>PAPI</th><th>Measured as</th><th className="n">Target</th><th className="n">Min</th><th className="n">Max</th></tr></thead>
+              <tbody>
+                {DIMS.map((d) => (
+                  <tr key={d.key}>
+                    <td><b>{d.label}</b>{d.key === "intent" && (
+                      <select value={form.intent} onChange={(e) => setForm({ ...form, intent: e.target.value })} style={{ marginTop: 6 }}>
+                        {INTENTS.map((i) => <option key={i} value={i}>{i}</option>)}
+                      </select>
+                    )}</td>
+                    <td className="sub">{d.unit}</td>
+                    {d.fields.map((k) => (
+                      <td key={k} style={{ width: 150 }}>
+                        <input type="number" step="any" value={form[k]} onChange={(e) => setForm({ ...form, [k]: e.target.value })} style={{ textAlign: "right" }} />
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
           <label className="f">Intent note<input value={form.intent_note} onChange={(e) => setForm({ ...form, intent_note: e.target.value })} placeholder="why this position exists" /></label>
           <div className="row" style={{ justifyContent: "flex-end" }}>
             {editing && <button type="button" className="btn" onClick={() => { setEditing(null); setForm(blank()); }}>Cancel</button>}
@@ -108,7 +110,7 @@ export default function TargetsPage() {
                   <b>{e.name}</b> <span className="sub">{e.symbol ?? "portfolio"} · {e.checks.intent.intent}</span>
                   {e.checks.intent.note && <div className="sub" style={{ fontSize: 12 }}>{e.checks.intent.note}</div>}
                 </div>
-                <div className="seg" style={{ flex: 0 }}>
+                <div className="seg" style={{ flex: "0 1 auto" }}>
                   <button className="btn sm" onClick={() => { if (t) { setForm(fromTarget(t)); setEditing(t.id); window.scrollTo({ top: 0, behavior: "smooth" }); } }}>Edit</button>
                   <button className="btn sm" onClick={async () => { await api(`/targets/${e.target_id}`, { method: "DELETE" }); reload(); }}>Delete</button>
                 </div>

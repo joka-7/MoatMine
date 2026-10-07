@@ -33,19 +33,21 @@ export default function PortfolioPage() {
       <div className="grid g2" style={{ marginBottom: 16 }}>
         <div className="card">
           <h2>Accounts</h2>
-          <table>
-            <thead><tr><th>Name</th><th>Broker</th><th className="n">Cash</th><th /></tr></thead>
-            <tbody>
-              {accounts?.map((a) => (
-                <tr key={a.id}>
-                  <td>{a.name}</td><td className="sub">{a.broker}</td><td className="n">{money(a.cash, a.currency)}</td>
-                  <td style={{ textAlign: "right" }}>
-                    <button className="btn sm" onClick={() => confirm(`Delete ${a.name} and its holdings?`) && run(() => api(`/accounts/${a.id}`, { method: "DELETE" }))}>Delete</button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <div className="scroll-x">
+            <table>
+              <thead><tr><th>Name</th><th>Broker</th><th className="n">Cash</th><th /></tr></thead>
+              <tbody>
+                {accounts?.map((a) => (
+                  <tr key={a.id}>
+                    <td>{a.name}</td><td className="sub">{a.broker}</td><td className="n">{money(a.cash, a.currency)}</td>
+                    <td style={{ textAlign: "right" }}>
+                      <button className="btn sm" onClick={() => confirm(`Delete ${a.name} and its holdings?`) && run(() => api(`/accounts/${a.id}`, { method: "DELETE" }))}>Delete</button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
           <form className="row" style={{ marginTop: 12 }} onSubmit={(e) => { e.preventDefault(); run(async () => { await api("/accounts", { method: "POST", json: { ...acc, cash: +acc.cash || 0 } }); setAcc({ ...acc, name: "", cash: "" }); }); }}>
             <label className="f">Name<input required value={acc.name} onChange={(e) => setAcc({ ...acc, name: e.target.value })} placeholder="e.g. IBKR" /></label>
             <label className="f">Type
@@ -106,26 +108,28 @@ export default function PortfolioPage() {
           <h2 style={{ margin: 0 }}>Positions</h2>
           <BookToggle mode={mode} onChange={setMode} />
         </div>
-        <table>
-          <thead>
-            <tr><th>Symbol</th><th>Account</th><th className="n">Qty</th><th className="n">Avg cost</th><th className="n">Price</th><th className="n">Value</th><th className="n">P/L</th><th>Opened</th><th /></tr>
-          </thead>
-          <tbody>
-            {p?.holdings.map((r) => (
-              <tr key={r.id}>
-                <td><Link className="sym" href={`/stock?s=${r.symbol}`}>{r.symbol}</Link></td>
-                <td className="sub">{accounts?.find((a) => a.id === r.account_id)?.name}</td>
-                <td className="n">{r.quantity}</td>
-                <td className="n">{money(r.avg_cost)}</td>
-                <td className="n">{money(r.price)}</td>
-                <td className="n">{money(r.value)}</td>
-                <td className={`n ${tone(r.pnl)}`}>{money(r.pnl)} <span className="sub">{pct(r.pnl_pct)}</span></td>
-                <td className="sub">{date(r.opened_at)}</td>
-                <td style={{ textAlign: "right" }}><button className="btn sm" onClick={() => run(() => api(`/holdings/${r.id}`, { method: "DELETE" }))}>Remove</button></td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <div className="scroll-x">
+          <table>
+            <thead>
+              <tr><th>Symbol</th><th>Account</th><th className="n">Qty</th><th className="n">Avg cost</th><th className="n">Price</th><th className="n">Value</th><th className="n">P/L</th><th>Opened</th><th /></tr>
+            </thead>
+            <tbody>
+              {p?.holdings.map((r) => (
+                <tr key={r.id}>
+                  <td><Link className="sym" href={`/stock?s=${r.symbol}`}>{r.symbol}</Link></td>
+                  <td className="sub">{accounts?.find((a) => a.id === r.account_id)?.name}</td>
+                  <td className="n">{r.quantity}</td>
+                  <td className="n">{money(r.avg_cost)}</td>
+                  <td className="n">{money(r.price)}</td>
+                  <td className="n">{money(r.value)}</td>
+                  <td className={`n ${tone(r.pnl)}`}>{money(r.pnl)} <span className="sub">{pct(r.pnl_pct)}</span></td>
+                  <td className="sub">{date(r.opened_at)}</td>
+                  <td style={{ textAlign: "right" }}><button className="btn sm" onClick={() => run(() => api(`/holdings/${r.id}`, { method: "DELETE" }))}>Remove</button></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
         {p && !p.holdings.length && <div className="empty">No positions.</div>}
       </div>
     </>

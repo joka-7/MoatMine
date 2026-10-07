@@ -38,7 +38,7 @@ export default function RatiosPanel({ symbol }: { symbol: string }) {
     <div className="card">
       <div className="row" style={{ justifyContent: "space-between", marginBottom: 6 }}>
         <h2 style={{ margin: 0 }}>Ratios</h2>
-        <div className="seg" style={{ flex: 0 }}>
+        <div className="seg" style={{ flex: "0 1 auto" }}>
           {LOOKBACK.map((d) => (
             <button key={d} className={`btn sm ${d === lb ? "on" : ""}`} onClick={() => setLb(d)}>{d < 365 ? `${d / 30}M` : `${d / 365}Y`}</button>
           ))}

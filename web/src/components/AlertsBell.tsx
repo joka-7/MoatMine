@@ -18,7 +18,7 @@ export default function AlertsBell() {
         <div className="card pop">
           <div className="row" style={{ justifyContent: "space-between", marginBottom: 8 }}>
             <h2 style={{ margin: 0 }}>Alerts</h2>
-            <button className="btn sm" style={{ flex: 0 }} onClick={async () => { await api("/alerts/read-all", { method: "POST" }); reload(); }}>
+            <button className="btn sm" style={{ flex: "0 1 auto" }} onClick={async () => { await api("/alerts/read-all", { method: "POST" }); reload(); }}>
               Mark all read
             </button>
           </div>

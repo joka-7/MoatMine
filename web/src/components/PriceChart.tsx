@@ -68,6 +68,8 @@ export default function PriceChart({ symbol }: { symbol: string }) {
     const chart = createChart(el.current, {
       autoSize: true,
       height: 420,
+      // fixed locale: the default (navigator.language) can be "en-US@posix" on Linux/C locales, which Intl rejects
+      localization: { locale: "en-US" },
       layout: { background: { type: ColorType.Solid, color: "transparent" }, textColor: C.text, fontFamily: "ui-monospace, Menlo, monospace" },
       grid: { vertLines: { color: C.grid }, horzLines: { color: C.grid } },
       crosshair: { mode: CrosshairMode.Normal },

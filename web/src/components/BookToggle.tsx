@@ -9,7 +9,7 @@ const OPTIONS: readonly { mode: BookMode; label: string }[] = [
 
 export default function BookToggle({ mode, onChange }: { mode: BookMode; onChange: (mode: BookMode) => void }) {
   return (
-    <div className="seg" role="group" aria-label="Which accounts to show" style={{ flex: 0 }}>
+    <div className="seg" role="group" aria-label="Which accounts to show" style={{ flex: "0 1 auto" }}>
       {OPTIONS.map((o) => (
         <button key={o.mode} type="button" className={`btn sm ${o.mode === mode ? "on" : ""}`} aria-pressed={o.mode === mode} onClick={() => onChange(o.mode)}>
           {o.label}

@@ -23,7 +23,7 @@ export default function Dashboard() {
     <>
       <div className="topbar">
         <h1>Dashboard</h1>
-        <div className="row" style={{ flex: 0 }}>
+        <div className="row" style={{ flex: "0 1 auto" }}>
           <BookToggle mode={mode} onChange={setMode} />
           <SymbolSearch />
           <AlertsBell />
@@ -63,23 +63,25 @@ export default function Dashboard() {
           {p && !p.holdings.length ? (
             <div className="empty">No holdings yet. <Link href="/portfolio" style={{ color: "var(--accent)" }}>Add one →</Link></div>
           ) : (
-            <table>
-              <thead>
-                <tr><th>Symbol</th><th className="n">Price</th><th className="n">Day</th><th className="n">Value</th><th className="n">P/L</th><th className="n">Weight</th></tr>
-              </thead>
-              <tbody>
-                {p?.holdings.map((h) => (
-                  <tr key={h.id}>
-                    <td><Link href={`/stock?s=${h.symbol}`} className="sym">{h.symbol}</Link></td>
-                    <td className="n">{money(h.price)}</td>
-                    <td className={`n ${tone(h.day_change_pct)}`}>{pct(h.day_change_pct)}</td>
-                    <td className="n">{money(h.value)}</td>
-                    <td className={`n ${tone(h.pnl)}`}>{money(h.pnl)} <span className="sub">{pct(h.pnl_pct)}</span></td>
-                    <td className="n">{h.weight_pct.toFixed(1)}%</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <div className="scroll-x">
+              <table>
+                <thead>
+                  <tr><th>Symbol</th><th className="n">Price</th><th className="n">Day</th><th className="n">Value</th><th className="n">P/L</th><th className="n">Weight</th></tr>
+                </thead>
+                <tbody>
+                  {p?.holdings.map((h) => (
+                    <tr key={h.id}>
+                      <td><Link href={`/stock?s=${h.symbol}`} className="sym">{h.symbol}</Link></td>
+                      <td className="n">{money(h.price)}</td>
+                      <td className={`n ${tone(h.day_change_pct)}`}>{pct(h.day_change_pct)}</td>
+                      <td className="n">{money(h.value)}</td>
+                      <td className={`n ${tone(h.pnl)}`}>{money(h.pnl)} <span className="sub">{pct(h.pnl_pct)}</span></td>
+                      <td className="n">{h.weight_pct.toFixed(1)}%</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
         </div>
         <div className="card">

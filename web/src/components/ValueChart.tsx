@@ -15,7 +15,11 @@ export default function ValueChart({ mode }: { mode: BookMode }) {
   const [points, setPoints] = useState<{ t: number; value: number }[] | null>(null);
 
   useEffect(() => {
-    api<{ t: number; value: number }[]>(`/portfolio/history?days=${days}&mode=${mode}`).then(setPoints).catch(() => setPoints([]));
+    let current = true; // drop the response if days/mode changed before it arrived
+    api<{ t: number; value: number }[]>(`/portfolio/history?days=${days}&mode=${mode}`)
+      .then((p) => { if (current) setPoints(p); })
+      .catch(() => { if (current) setPoints([]); });
+    return () => { current = false; };
   }, [days, mode]);
 
   useEffect(() => {
@@ -23,6 +27,8 @@ export default function ValueChart({ mode }: { mode: BookMode }) {
     const chart = createChart(el.current, {
       autoSize: true,
       height: 260,
+      // fixed locale: the default (navigator.language) can be "en-US@posix" on Linux/C locales, which Intl rejects
+      localization: { locale: "en-US" },
       layout: { background: { type: ColorType.Solid, color: "transparent" }, textColor: "#8b909a" },
       grid: { vertLines: { visible: false }, horzLines: { color: "#1d2128" } },
       rightPriceScale: { borderVisible: false },
@@ -42,7 +48,7 @@ export default function ValueChart({ mode }: { mode: BookMode }) {
     <div className="card">
       <div className="row" style={{ justifyContent: "space-between", marginBottom: 8 }}>
         <h2 style={{ margin: 0 }}>Holdings value</h2>
-        <div className="seg" style={{ flex: 0 }}>
+        <div className="seg" style={{ flex: "0 1 auto" }}>
           {SPANS.map((d) => (
             <button key={d} className={`btn sm ${d === days ? "on" : ""}`} onClick={() => setDays(d)}>{LABEL[d]}</button>
           ))}

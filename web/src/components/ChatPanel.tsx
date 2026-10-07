@@ -60,7 +60,7 @@ export default function ChatPanel({ symbol, height = 520, suggestions = [] }: { 
     <div className="card chat">
       <div className="row" style={{ justifyContent: "space-between" }}>
         <h2 style={{ margin: 0 }}>{symbol ? `Ask about ${symbol}` : "AI analyst"}</h2>
-        <select value={model} onChange={(e) => setModel(e.target.value)} style={{ maxWidth: 280, flex: 0 }} aria-label="Model">
+        <select value={model} onChange={(e) => setModel(e.target.value)} style={{ maxWidth: 280, flex: "0 1 auto" }} aria-label="Model">
           {models?.map((m) => (
             <option key={m.id} value={m.id} disabled={!m.available}>{m.label}{!m.available ? " (not set up)" : ""}</option>
           ))}

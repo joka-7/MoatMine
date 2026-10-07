@@ -74,45 +74,49 @@ export default function BadTimesPanel({ symbol }: { symbol: string }) {
             </ResponsiveContainer>
           </div>
         )}
-        <table style={{ marginTop: 8 }}>
-          <thead>
-            <tr><th>Crisis</th><th>Period</th><th className="n">{symbol} fall</th><th className="n">{bench} fall</th><th className="n">Back to pre-crisis price</th></tr>
-          </thead>
-          <tbody>
-            {d?.crises.map((c) => (
-              <tr key={c.key}>
-                <td><div>{c.name}</div><div className="sub" style={{ fontSize: 12 }}>{c.description}</div></td>
-                <td className="sub" style={{ whiteSpace: "nowrap" }}>{c.start.slice(0, 7)} → {c.end.slice(0, 7)}</td>
-                {c.stock ? (
-                  <>
-                    <td className="n down">{pct(c.stock.drawdown_pct)}</td>
-                    <td className="n sub">{pct(c.benchmark?.drawdown_pct)}</td>
-                    <td className="n">{c.stock.recovered ? span(c.stock.recovery_days) : <span className="down">not yet ({pct(c.stock.still_below_pct)})</span>}</td>
-                  </>
-                ) : (
-                  <td colSpan={3} className="sub" style={{ textAlign: "right" }}>not listed yet</td>
-                )}
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <div className="scroll-x">
+          <table style={{ marginTop: 8 }}>
+            <thead>
+              <tr><th>Crisis</th><th>Period</th><th className="n">{symbol} fall</th><th className="n">{bench} fall</th><th className="n">Back to pre-crisis price</th></tr>
+            </thead>
+            <tbody>
+              {d?.crises.map((c) => (
+                <tr key={c.key}>
+                  <td><div>{c.name}</div><div className="sub" style={{ fontSize: 12 }}>{c.description}</div></td>
+                  <td className="sub" style={{ whiteSpace: "nowrap" }}>{c.start.slice(0, 7)} → {c.end.slice(0, 7)}</td>
+                  {c.stock ? (
+                    <>
+                      <td className="n down">{pct(c.stock.drawdown_pct)}</td>
+                      <td className="n sub">{pct(c.benchmark?.drawdown_pct)}</td>
+                      <td className="n">{c.stock.recovered ? span(c.stock.recovery_days) : <span className="down">not yet ({pct(c.stock.still_below_pct)})</span>}</td>
+                    </>
+                  ) : (
+                    <td colSpan={3} className="sub" style={{ textAlign: "right" }}>not listed yet</td>
+                  )}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       <div className="card">
         <h2>{symbol}&apos;s own worst falls</h2>
-        <table>
-          <thead><tr><th>Peak</th><th>Bottom</th><th className="n">Fall</th><th className="n">Time falling</th><th className="n">Time to recover</th></tr></thead>
-          <tbody>
-            {d?.worst_drawdowns.map((w) => (
-              <tr key={w.peak_date}>
-                <td>{date(w.peak_date)}</td><td>{date(w.trough_date)}</td>
-                <td className="n down">{pct(w.depth_pct)}</td>
-                <td className="n">{span(w.fall_days)}</td>
-                <td className="n">{w.recovered ? span(w.recovery_days) : <span className="down">still below peak</span>}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <div className="scroll-x">
+          <table>
+            <thead><tr><th>Peak</th><th>Bottom</th><th className="n">Fall</th><th className="n">Time falling</th><th className="n">Time to recover</th></tr></thead>
+            <tbody>
+              {d?.worst_drawdowns.map((w) => (
+                <tr key={w.peak_date}>
+                  <td>{date(w.peak_date)}</td><td>{date(w.trough_date)}</td>
+                  <td className="n down">{pct(w.depth_pct)}</td>
+                  <td className="n">{span(w.fall_days)}</td>
+                  <td className="n">{w.recovered ? span(w.recovery_days) : <span className="down">still below peak</span>}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
         {d && !d.worst_drawdowns.length && <div className="empty">No falls deeper than 10% in the available history.</div>}
       </div>
       {d && (

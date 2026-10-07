@@ -125,18 +125,20 @@ export default function RiskPage() {
                 </BarChart>
               </ResponsiveContainer>
             </div>
-            <table>
-              <thead><tr><th>Scenario</th><th className="n">Portfolio change</th><th>Biggest hits</th></tr></thead>
-              <tbody>
-                {s.scenarios.map((x) => (
-                  <tr key={x.key}>
-                    <td>{x.name} <span className="sub" style={{ fontSize: 11 }}>{x.kind}</span></td>
-                    <td className={`n ${x.breaches_limit ? "down" : ""}`}>{money(x.change)} ({pct(x.change_pct)}){x.breaches_limit && " ⚠"}</td>
-                    <td className="sub" style={{ fontSize: 12 }}>{x.worst.map((w) => `${w.symbol} ${pct(w.change_pct)}${w.basis !== "actual fall" ? "*" : ""}`).join(" · ")}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <div className="scroll-x">
+              <table>
+                <thead><tr><th>Scenario</th><th className="n">Portfolio change</th><th>Biggest hits</th></tr></thead>
+                <tbody>
+                  {s.scenarios.map((x) => (
+                    <tr key={x.key}>
+                      <td>{x.name} <span className="sub" style={{ fontSize: 11 }}>{x.kind}</span></td>
+                      <td className={`n ${x.breaches_limit ? "down" : ""}`}>{money(x.change)} ({pct(x.change_pct)}){x.breaches_limit && " ⚠"}</td>
+                      <td className="sub" style={{ fontSize: 12 }}>{x.worst.map((w) => `${w.symbol} ${pct(w.change_pct)}${w.basis !== "actual fall" ? "*" : ""}`).join(" · ")}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
             <div className="sub" style={{ fontSize: 12, marginTop: 6 }}>* estimated from the stock&apos;s beta (not listed then, or a hypothetical fall). {s.note}{s.data_source.startsWith("mock") ? " Sample data." : ""}</div>
           </>
         )}

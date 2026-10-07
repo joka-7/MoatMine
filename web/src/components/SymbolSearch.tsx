@@ -25,7 +25,7 @@ export default function SymbolSearch({ onPick, placeholder = "Search symbol…" 
   };
 
   return (
-    <div style={{ position: "relative", minWidth: 220 }}>
+    <div style={{ position: "relative", minWidth: "min(220px, 100%)" }}>
       <input
         value={q}
         placeholder={placeholder}

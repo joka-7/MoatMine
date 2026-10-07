@@ -39,25 +39,27 @@ export default function WatchlistPage() {
       </div>
 
       <div className="card">
-        <table>
-          <thead><tr><th>Symbol</th><th className="n">Price</th><th className="n">Day</th><th className="n">Above</th><th className="n">Below</th><th>Note</th><th /></tr></thead>
-          <tbody>
-            {data?.map((w) => {
-              const hit = w.quote && ((w.alert_above != null && w.quote.price >= w.alert_above) || (w.alert_below != null && w.quote.price <= w.alert_below));
-              return (
-                <tr key={w.id}>
-                  <td><Link className="sym" href={`/stock?s=${w.symbol}`}>{w.symbol}</Link> {hit && <span className="chip above_max">triggered</span>}</td>
-                  <td className="n">{money(w.quote?.price)}</td>
-                  <td className={`n ${tone(w.quote?.change_pct)}`}>{pct(w.quote?.change_pct)}</td>
-                  <td className="n">{w.alert_above ?? "—"}</td>
-                  <td className="n">{w.alert_below ?? "—"}</td>
-                  <td className="sub">{w.note}</td>
-                  <td style={{ textAlign: "right" }}><button className="btn sm" onClick={() => run(() => api(`/watchlist/${w.id}`, { method: "DELETE" }))}>Remove</button></td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+        <div className="scroll-x">
+          <table>
+            <thead><tr><th>Symbol</th><th className="n">Price</th><th className="n">Day</th><th className="n">Above</th><th className="n">Below</th><th>Note</th><th /></tr></thead>
+            <tbody>
+              {data?.map((w) => {
+                const hit = w.quote && ((w.alert_above != null && w.quote.price >= w.alert_above) || (w.alert_below != null && w.quote.price <= w.alert_below));
+                return (
+                  <tr key={w.id}>
+                    <td><Link className="sym" href={`/stock?s=${w.symbol}`}>{w.symbol}</Link> {hit && <span className="chip above_max">triggered</span>}</td>
+                    <td className="n">{money(w.quote?.price)}</td>
+                    <td className={`n ${tone(w.quote?.change_pct)}`}>{pct(w.quote?.change_pct)}</td>
+                    <td className="n">{w.alert_above ?? "—"}</td>
+                    <td className="n">{w.alert_below ?? "—"}</td>
+                    <td className="sub">{w.note}</td>
+                    <td style={{ textAlign: "right" }}><button className="btn sm" onClick={() => run(() => api(`/watchlist/${w.id}`, { method: "DELETE" }))}>Remove</button></td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
         {data && !data.length && <div className="empty">Nothing watched yet.</div>}
       </div>
     </>

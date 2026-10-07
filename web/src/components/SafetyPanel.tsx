@@ -96,19 +96,21 @@ export default function SafetyPanel({ symbol }: { symbol: string }) {
 
       <div className="card">
         <h2>How the score is built</h2>
-        <table>
-          <thead><tr><th>Component</th><th className="n">Value</th><th className="n">Points</th><th>Scale</th></tr></thead>
-          <tbody>
-            {r?.components.map((c) => (
-              <tr key={c.name} style={{ opacity: c.points == null ? 0.5 : 1 }}>
-                <td>{c.name}</td>
-                <td className="n">{fmtFact(c.value)}</td>
-                <td className="n">{c.points == null ? "no data" : `${c.points}/${c.max}`}</td>
-                <td className="sub" style={{ fontSize: 12 }}>{c.note}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <div className="scroll-x">
+          <table>
+            <thead><tr><th>Component</th><th className="n">Value</th><th className="n">Points</th><th>Scale</th></tr></thead>
+            <tbody>
+              {r?.components.map((c) => (
+                <tr key={c.name} style={{ opacity: c.points == null ? 0.5 : 1 }}>
+                  <td>{c.name}</td>
+                  <td className="n">{fmtFact(c.value)}</td>
+                  <td className="n">{c.points == null ? "no data" : `${c.points}/${c.max}`}</td>
+                  <td className="sub" style={{ fontSize: 12 }}>{c.note}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );

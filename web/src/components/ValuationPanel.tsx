@@ -82,19 +82,21 @@ export default function ValuationPanel({ symbol }: { symbol: string }) {
               </ResponsiveContainer>
             </div>
           )}
-          <table style={{ marginTop: 8 }}>
-            <thead><tr><th>Model</th><th className="n">Value</th><th className="n">vs price</th><th>How</th></tr></thead>
-            <tbody>
-              {v?.models.map((m) => (
-                <tr key={m.key} style={{ opacity: m.value ? 1 : 0.55 }}>
-                  <td>{m.name}</td>
-                  <td className="n">{money(m.value)}</td>
-                  <td className={`n ${tone(m.upside_pct)}`}>{pct(m.upside_pct)}</td>
-                  <td className="sub" style={{ fontSize: 12 }}>{m.skipped ?? m.formula}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <div className="scroll-x">
+            <table style={{ marginTop: 8 }}>
+              <thead><tr><th>Model</th><th className="n">Value</th><th className="n">vs price</th><th>How</th></tr></thead>
+              <tbody>
+                {v?.models.map((m) => (
+                  <tr key={m.key} style={{ opacity: m.value ? 1 : 0.55 }}>
+                    <td>{m.name}</td>
+                    <td className="n">{money(m.value)}</td>
+                    <td className={`n ${tone(m.upside_pct)}`}>{pct(m.upside_pct)}</td>
+                    <td className="sub" style={{ fontSize: 12 }}>{m.skipped ?? m.formula}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
 
         <div className="card">
