@@ -12,6 +12,7 @@ from app.market import get_provider
 from app.market.base import RESOLUTION_SECONDS
 from app.models import StockNote
 from app.ai.dispatcher import DispatchError
+from app.crises import bad_times
 from app.research import news_feed, news_summary, valuation
 from app.schemas import NoteIn, NoteOut
 from app.valuation import Assumptions
@@ -150,6 +151,12 @@ async def stock_valuation(
     a = Assumptions(discount_rate, growth_rate, terminal_growth, years, margin_of_safety, bond_yield,
                     pe_multiple, ev_ebitda_multiple, dividend_growth)
     return await valuation(get_provider(), _sym(symbol), a)
+
+
+@router.get("/{symbol}/crises")
+async def crises(symbol: str, benchmark: str = Query("SPY", min_length=1, max_length=16)):
+    """How the stock behaved in past market crises vs a benchmark, plus its own worst drawdowns."""
+    return await bad_times(get_provider(), _sym(symbol), _sym(benchmark))
 
 
 @router.get("/{symbol}/news/summary")

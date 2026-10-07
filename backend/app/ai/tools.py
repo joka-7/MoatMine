@@ -15,6 +15,7 @@ from app.analytics import price_stats
 from app.market import get_provider
 from app.models import StockNote, Target, WatchItem
 from app.portfolio import portfolio_snapshot, quotes_for
+from app.crises import bad_times
 from app.research import news_feed, valuation
 from app.valuation import Assumptions
 from app.targets import evaluate, risk_by_symbol
@@ -47,6 +48,12 @@ TOOL_SPECS = [
             },
             "required": ["symbol"],
         },
+    },
+    {
+        "name": "get_bad_times",
+        "description": "How the stock behaved in past market crises (dot-com, 2008, 2011, Q4 2018, COVID, 2022) vs SPY: "
+        "drawdown, recovery time, downside capture, plus its own worst drawdowns. Use for any safety/risk question.",
+        "parameters": _sym_param(),
     },
     {"name": "get_news_feed", "description": "Recent news across all holdings and watchlist symbols.", "parameters": {"type": "object", "properties": {}}},
     {"name": "get_targets_status", "description": "User's PAPI targets (profit, amount, period, intent) evaluated against their min/max bounds.", "parameters": {"type": "object", "properties": {}}},
@@ -99,6 +106,8 @@ async def run_tool(name: str, args: dict, db: Session, user: str) -> str:
             overrides = {k: float(args[k]) for k in ("discount_rate", "growth_rate", "terminal_growth", "margin_of_safety") if args.get(k) is not None}
             v = await valuation(p, sym, Assumptions(**overrides))
             out = {k: v[k] for k in ("price", "assumptions", "models", "summary", "indicators", "quality", "disclaimer")}
+        case "get_bad_times":
+            out = await bad_times(p, sym)
         case "get_news_feed":
             out = [{k: n[k] for k in ("symbol", "headline", "source", "datetime")} for n in (await news_feed(db, user, p, 7, 25))]
         case "get_targets_status":

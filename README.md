@@ -22,6 +22,7 @@ render.yaml Render blueprint (API, worker, Postgres)
 | Analysts | Recommendation trend (strong buy … strong sell) and consensus price target vs current price |
 | **Value estimator** | Eight fair-value models side by side: 2-stage DCF, Graham number, Graham formula, Peter Lynch, dividend discount, earnings power value, P/E multiple and EV/EBITDA multiple. Summary shows the median fair value, low–high range, a margin-of-safety "buy below" price and a verdict. Every assumption is editable (discount rate, growth, terminal growth, years, MOS, bond yield, fair multiples). |
 | Valuation indicators | PEG, earnings yield, FCF yield, P/FCF, P/B, dividend yield, payout ratio, EV/EBITDA, net debt/EBITDA |
+| Bad times | How the stock did in the dot-com crash, 2008, 2011, Q4 2018, COVID and 2022 vs SPY (or any benchmark): fall, time to recover, downside capture, and its own worst drawdowns |
 | Quality scores | Piotroski F-score with all 9 checks, and Altman Z-score with its zone |
 | News | Per-stock news by date window, an AI digest with sentiment (fast model, cached 1h), and a dashboard feed across holdings and watchlist |
 | My info | Your own notes, thesis, news and links per stock |
@@ -50,7 +51,7 @@ pip install -r requirements-dev.txt
 cp .env.example .env    # set FERNET_KEY (command is in the file); add an AI key to try the agent
 python -m app.seed      # demo data for user "dev"
 uvicorn app.main:app --reload
-pytest                  # 28 tests
+pytest                  # 32 tests
 
 # Web
 cd web

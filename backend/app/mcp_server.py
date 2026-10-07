@@ -92,6 +92,11 @@ async def get_valuation(
                        terminal_growth=terminal_growth, margin_of_safety=margin_of_safety)
 
 
+@mcp.tool(description="Stock behaviour in past market crises vs SPY (drawdown, recovery) and its worst drawdowns.")
+async def get_bad_times(symbol: str, ctx: Context) -> str:
+    return await _call(ctx, "get_bad_times", symbol=symbol)
+
+
 @mcp.tool(description="Recent news across the user's holdings and watchlist.")
 async def get_news_feed(ctx: Context) -> str:
     return await _call(ctx, "get_news_feed")

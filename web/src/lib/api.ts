@@ -122,3 +122,14 @@ export type Valuation = {
 };
 export type NewsSummary = { symbol: string; summary: string; sentiment: "bullish" | "neutral" | "bearish" | "mixed" | "unknown"; points: string[]; watch: string; model?: string; count: number; cached?: boolean };
 export type FeedItem = NewsItem & { symbol: string; held: boolean };
+
+export type CrisisStats = {
+  start_price: number; drawdown_pct: number; trough_date: string; window_return_pct: number;
+  recovered: boolean; recovery_date: string | null; recovery_days: number | null; still_below_pct: number | null;
+};
+export type BadTimes = {
+  symbol: string; benchmark: string; history_from: string | null; data_source: string; note: string;
+  crises: { key: string; name: string; start: string; end: string; description: string; stock: CrisisStats | null; benchmark: CrisisStats | null }[];
+  resilience: { downside_capture_pct: number | null; label: string; crises_covered: number; recovered_count?: number; avg_drawdown_pct?: number; avg_benchmark_drawdown_pct?: number };
+  worst_drawdowns: { peak_date: string; trough_date: string; depth_pct: number; fall_days: number; recovery_date: string | null; recovery_days: number | null; recovered: boolean }[];
+};
