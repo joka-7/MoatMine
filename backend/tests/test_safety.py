@@ -216,22 +216,15 @@ def test_portfolio_risk_and_stress_endpoints(client):
     assert s["loss_limit_pct"] < 0
 
 
-def test_ai_analyzer(client, monkeypatch):
-    from types import SimpleNamespace
+def test_ai_analyzer(client, fake_ai):
+    from tests.conftest import reply
 
-    from app.ai import dispatcher
-
-    seen = {}
-
-    async def fake(**kw):
-        seen.update(kw)
-        return SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content=(
-            '{"overview": "Solid balance sheet.", "areas": [{"name": "Price risk", "comment": "Swings a lot."}], '
-            '"fit": "Fits your balanced rules.", "improve": "Lower volatility."}')))])
-
-    monkeypatch.setattr(dispatcher, "_completion", fake)
+    fake_ai.plans["anthropic"] = {"scripted": [reply(
+        '{"overview": "Solid balance sheet.", "areas": [{"name": "Price risk", "comment": "Swings a lot."}], '
+        '"fit": "Fits your balanced rules.", "improve": "Lower volatility."}')]}
     r = client.post("/stocks/AAPL/safety/analyze", headers=D)
     assert r.status_code == 200, r.text
     d = r.json()
     assert d["overview"] == "Solid balance sheet." and d["areas"][0]["name"] == "Price risk" and d["fit"]
-    assert '"user_rules"' in seen["messages"][-1]["content"] and "not advice" in seen["messages"][0]["content"]
+    req = fake_ai.built["anthropic"].requests[0]
+    assert '"user_rules"' in req.messages[-1].content and "not advice" in req.messages[0].content

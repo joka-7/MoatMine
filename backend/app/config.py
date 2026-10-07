@@ -26,23 +26,22 @@ class Settings(BaseSettings):
     # encrypts user-supplied AI keys at rest (Fernet key; generate with app.crypto.new_key())
     fernet_key: str = ""
 
-    # model dispatcher
-    default_model: str = "anthropic/claude-sonnet-5-5"
-    fast_model: str = "anthropic/claude-haiku-4-5-20251001"
-    fallback_models: str = "openai/gpt-4o-mini"
+    # AI via ModelDispatcher: optional server keys (users can bring their own instead)
     anthropic_api_key: str = ""
     openai_api_key: str = ""
     gemini_api_key: str = ""
+    groq_api_key: str = ""
+    # per-user limits, enforced by ModelDispatcher's quota manager
+    ai_requests_per_min: int = 20
+    ai_tokens_per_min: int = 60_000
+    ai_tokens_per_day: int = 1_000_000
+    ai_timeout_seconds: float = 90.0
 
     worker_interval_seconds: int = 300
 
     @property
     def cors_list(self) -> list[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
-
-    @property
-    def fallback_list(self) -> list[str]:
-        return [m.strip() for m in self.fallback_models.split(",") if m.strip()]
 
 
 @lru_cache

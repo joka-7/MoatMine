@@ -1,154 +1,225 @@
-"""Model dispatcher.
+"""AI calls through ModelDispatcher (https://github.com/joka-7/ModelDispatcher).
 
-- model="auto": short/simple questions -> FAST_MODEL, analysis -> DEFAULT_MODEL
-- explicit LiteLLM id (e.g. "openai/gpt-4o", "gemini/gemini-2.0-flash"): used as-is
-- model="external": forwards to the user's own agent (any OpenAI-compatible /chat/completions URL)
+Per request we build a provider registry from:
+  - the user's own AI settings (vendors in their chosen fallback order, chosen model, pooled keys),
+  - vendors the server has a key for (env), and
+  - optionally the user's external agent (any OpenAI-compatible base URL).
+ModelDispatcher then does triage + cheapest-first routing, cross-vendor and same-vendor key
+fallback, the tool-calling loop, per-user quotas and the key-wizard handoff when the shared
+server key runs out.
 
-Key resolution per provider: the user's own (BYO) key first, then the server's env key.
-On failure the dispatcher walks FALLBACK_MODELS.
+model="auto" lets the gateway route; a vendor id ("anthropic", "openai", "gemini", "groq") pins
+that vendor; "external" uses only the user's external agent.
 """
 
-import json
-import re
+from __future__ import annotations
 
-import httpx
-from sqlalchemy import select
+import re
+from collections.abc import Awaitable, Callable
+
+from model_dispatcher import (
+    CompletionRequest,
+    GatewaySettings,
+    InMemoryQuotaStore,
+    Message,
+    ModelDispatcherError,
+    ModelGateway,
+    ModelTier,
+    ProviderRegistry,
+    RoutingPolicy,
+    Role,
+    RunResult,
+    TenantContext,
+    TenantId,
+    TenantQuota,
+    Tool,
+    ToolRegistry,
+    ToolSpec,
+)
+from model_dispatcher.byok import adispatch_with_timeout, credential_metadata
+from model_dispatcher.providers import AnthropicProvider, GeminiProvider, GroqProvider, OpenAIProvider
+from model_dispatcher.providers.base import ModelProvider
 from sqlalchemy.orm import Session
 
-from app.ai.tools import openai_tools, run_tool
+from app.ai.settings_store import load_ai_settings
+from app.ai.tools import TOOL_SPECS, run_tool
 from app.config import get_settings
-from app.crypto import decrypt
-from app.models import AIKey
-
-MAX_TOOL_ROUNDS = 6
 
 SYSTEM_PROMPT = (
-    "You are Safe Algo's investment assistant. Use the tools to look at the user's real portfolio, "
-    "targets (PAPI: profit, amount, period, intent with MAMI min/max bounds), watchlist, company data, "
-    "earnings, analyst views, news, crisis history (get_bad_times) and the valuation models before answering. The app's purpose is safe, risk-aware investing: always surface downside risk. When discussing value, "
-    "show the spread between models and the assumptions behind them rather than one number. Be concise and numeric. You provide information and analysis, not personalised "
-    "financial advice; never claim certainty about future prices. You cannot place trades."
+    "You are Safe Algo's investment assistant. The app's purpose is safe, risk-aware investing. "
+    "Use the tools to look at the user's real portfolio, risk profile, safety scores, targets (PAPI: profit, "
+    "amount, period, intent with MAMI min/max bounds), watchlist, company data, earnings, analyst views, news, "
+    "crisis history and the valuation models before answering. Always surface downside risk. When discussing "
+    "value, show the spread between models and the assumptions behind them rather than one number. Be concise "
+    "and numeric. You provide information and analysis, not personalised financial advice; never claim "
+    "certainty about future prices and never call an investment safe. You cannot place trades."
 )
 
-_ANALYSIS_HINTS = re.compile(
-    r"\b(analy[sz]e|compare|why|should|rebalance|risk|strategy|explain|forecast|valuation|portfolio|targets?)\b", re.I
-)
+# vendor id -> (adapter, settings attribute holding the server key, server default model)
+VENDORS: dict[str, tuple[type[ModelProvider], str, str]] = {
+    "anthropic": (AnthropicProvider, "anthropic_api_key", "claude-sonnet-4-5"),
+    "openai": (OpenAIProvider, "openai_api_key", "gpt-4o-mini"),
+    "gemini": (GeminiProvider, "gemini_api_key", "gemini-2.0-flash"),
+    "groq": (GroqProvider, "groq_api_key", "llama-3.3-70b-versatile"),
+}
+EXTERNAL = "external"
+
+_QUOTA_STORE = InMemoryQuotaStore()  # per process; shared across requests so per-user limits accumulate
 
 
-class DispatchError(RuntimeError):
-    pass
+class DispatchError(Exception):
+    """A gateway failure carrying the HTTP status and JSON body to send to the client."""
+
+    def __init__(self, status: int, payload: dict):
+        super().__init__(str(payload.get("detail") or payload.get("error") or payload))
+        self.status = status
+        self.payload = payload
 
 
-def pick_model(requested: str, last_user_msg: str) -> str:
+def tier_for(model: str) -> ModelTier:
+    """Cost tier from the model name, so triage sends simple questions to cheap models first."""
+    m = model.lower()
+    if "opus" in m:
+        return ModelTier.PREMIUM
+    is_mini = re.search(r"(^|[-_.])mini($|[-_.])", m) is not None  # "gpt-4o-mini", not "gemini"
+    if any(k in m for k in ("sonnet", "gpt-4o", "gpt-4.1", "pro", "70b", "120b")) and not is_mini:
+        return ModelTier.STANDARD
+    return ModelTier.CHEAP
+
+
+def provider_factory(vendor: str, model: str, api_key: str | None, tier: ModelTier) -> ModelProvider:
+    """Construct one vendor adapter. Tests replace this with a MockProvider factory."""
+    cls = VENDORS[vendor][0]
+    return cls(model=model, api_key=api_key, tier=tier)
+
+
+def external_factory(base_url: str, model: str) -> ModelProvider:
+    """The user's own agent, reached as an OpenAI-compatible endpoint."""
+    return OpenAIProvider(model=model or "default", base_url=base_url, name=f"{EXTERNAL}:{model or 'default'}",
+                          tier=ModelTier.STANDARD)
+
+
+def _registry(db: Session, user: str, requested: str) -> tuple[ProviderRegistry, dict[str, str]]:
     s = get_settings()
-    if requested != "auto":
-        return requested
-    if len(last_user_msg) < 160 and not _ANALYSIS_HINTS.search(last_user_msg):
-        return s.fast_model
-    return s.default_model
+    cfg = load_ai_settings(db, user)
+    chosen = [p for p in cfg["config"]["providers"] if p["provider"] in VENDORS]
+    user_keys = {p["provider"]: list(p.get("apiKeys") or []) for p in chosen}
+    user_models = {p["provider"]: p.get("model") for p in chosen}
+    order = [p["provider"] for p in chosen] + [v for v in VENDORS if v not in user_models]
+
+    registry = ProviderRegistry()
+    if requested != EXTERNAL:
+        for vendor in order:
+            if requested not in ("auto", vendor):
+                continue
+            server_key = getattr(s, VENDORS[vendor][1]) or None
+            if not server_key and not user_keys.get(vendor):
+                continue  # a keyless vendor in the registry would hard-fail the request
+            model = user_models.get(vendor) or VENDORS[vendor][2]
+            registry.register(provider_factory(vendor, model, server_key, tier_for(model)))
+
+    metadata = credential_metadata({v: k for v, k in user_keys.items() if k})
+    ext = cfg.get("external")
+    if requested == EXTERNAL:
+        if not ext:
+            raise DispatchError(400, {"error": "no_external_agent", "detail": "No external agent set. Add one in Settings → AI."})
+        registry.register(external_factory(ext["base_url"], ext.get("model", "")))
+        metadata[f"user_key:{EXTERNAL}"] = ext["api_key"]
+
+    if not len(registry):
+        raise DispatchError(503, {
+            "error": "no_provider_available",
+            "detail": "No AI provider available. Add your own key in Settings → AI, or ask the server owner to set one.",
+            "action": "open_ai_settings",
+        })
+    return registry, metadata
 
 
-def _provider_of(model: str) -> str:
-    return model.split("/", 1)[0] if "/" in model else "openai"
+def _gateway(registry: ProviderRegistry) -> ModelGateway:
+    # Cap each complexity's tier floor at the best tier available, so a user with only cheap
+    # models still gets answers to complex questions instead of "no candidates".
+    best = max(p.tier for p in registry.at_or_above(ModelTier.FREE))
+    floors = {c: min(t, best) for c, t in RoutingPolicy().complexity_floor.items()}
+    settings = GatewaySettings(routing=RoutingPolicy(complexity_floor=floors, max_candidates=6))
+    return ModelGateway.create(registry, settings=settings, quota_store=_QUOTA_STORE)
 
 
-def _user_key(db: Session, user: str, provider: str) -> AIKey | None:
-    return db.scalar(select(AIKey).where(AIKey.user_id == user, AIKey.provider == provider))
-
-
-def resolve_key(db: Session, user: str, model: str) -> str | None:
-    provider = _provider_of(model)
-    row = _user_key(db, user, provider)
-    if row:
-        return decrypt(row.encrypted_key)
+def _tenant(user: str, metadata: dict[str, str]) -> TenantContext:
     s = get_settings()
-    return {"anthropic": s.anthropic_api_key, "openai": s.openai_api_key, "gemini": s.gemini_api_key}.get(provider) or None
+    return TenantContext(
+        tenant_id=TenantId(user),
+        quota=TenantQuota(requests_per_min=s.ai_requests_per_min, tokens_per_min=s.ai_tokens_per_min,
+                          tokens_per_day=s.ai_tokens_per_day),
+        # lets vendors the user has no key for ride the server key; the user's own keys still win
+        is_zero_setup=True,
+        metadata=metadata,
+    )
 
 
-async def _completion(**kwargs):
-    import litellm  # imported lazily: heavy, and tests patch this function
+def _tools(db: Session, user: str, used: list[str]) -> ToolRegistry:
+    reg = ToolRegistry()
 
-    return await litellm.acompletion(**kwargs)
+    def handler(name: str) -> Callable[[dict], Awaitable[str]]:
+        async def run(args: dict) -> str:
+            used.append(name)
+            return await run_tool(name, dict(args), db, user)
 
+        return run
 
-async def _run_with_tools(model: str, api_key: str | None, messages: list[dict], db: Session, user: str) -> tuple[str, list[str]]:
-    used_tools: list[str] = []
-    for _ in range(MAX_TOOL_ROUNDS):
-        resp = await _completion(model=model, messages=messages, tools=openai_tools(), api_key=api_key)
-        msg = resp.choices[0].message
-        calls = getattr(msg, "tool_calls", None) or []
-        if not calls:
-            return msg.content or "", used_tools
-        messages.append({"role": "assistant", "content": msg.content or "", "tool_calls": [c.model_dump() if hasattr(c, "model_dump") else c for c in calls]})
-        for c in calls:
-            fn = c.function
-            args = json.loads(fn.arguments or "{}")
-            used_tools.append(fn.name)
-            result = await run_tool(fn.name, args, db, user)
-            messages.append({"role": "tool", "tool_call_id": c.id, "content": result})
-    return "I hit the tool-call limit before finishing. Try a narrower question.", used_tools
+    for spec in TOOL_SPECS:
+        reg.register(Tool(spec=ToolSpec(spec["name"], spec["description"], spec["parameters"]),
+                          ahandler=handler(spec["name"])))
+    return reg
 
 
-async def _external(db: Session, user: str, messages: list[dict]) -> tuple[str, str]:
-    row = _user_key(db, user, "external")
-    if not row or not row.base_url:
-        raise DispatchError("No external agent configured. Add one under Settings → AI (provider: external).")
-    async with httpx.AsyncClient(timeout=120) as client:
-        r = await client.post(
-            row.base_url,
-            headers={"Authorization": f"Bearer {decrypt(row.encrypted_key)}"},
-            json={"model": row.model or "default", "messages": messages},
-        )
-        r.raise_for_status()
-        data = r.json()
+def _served_by(result: RunResult) -> str:
+    for step in reversed(result.steps):
+        for attempt in reversed(step.attempts):
+            if attempt.error_class is None:
+                return attempt.provider_name
+    return "unknown"
+
+
+async def _run(db: Session, user: str, messages: list[Message], requested: str,
+               tools: ToolRegistry | None) -> tuple[str, str]:
+    registry, metadata = _registry(db, user, requested)
+    request = CompletionRequest(messages=tuple(messages), tenant=TenantId(user))
     try:
-        return data["choices"][0]["message"]["content"], f"external:{row.model or 'default'}"
-    except (KeyError, IndexError, TypeError):
-        raise DispatchError("External agent response was not OpenAI-compatible") from None
+        result = await adispatch_with_timeout(
+            _gateway(registry), request, _tenant(user, metadata),
+            timeout_seconds=get_settings().ai_timeout_seconds, tools=tools,
+        )
+    except ModelDispatcherError as e:
+        raise DispatchError(e.http_status, e.to_payload()) from e
+    return result.final_message.content or "", _served_by(result)
 
 
-async def complete(db: Session, user: str, prompt: str, system: str = "", fast: bool = True) -> dict:
-    """Single tool-free completion through the same key resolution + fallback chain.
-    Used for background-style jobs like news summaries."""
-    s = get_settings()
-    primary = s.fast_model if fast else s.default_model
-    chain = [primary] + [m for m in s.fallback_list if m != primary]
-    msgs = ([{"role": "system", "content": system}] if system else []) + [{"role": "user", "content": prompt}]
-    errors = []
-    for model in chain:
-        key = resolve_key(db, user, model)
-        if not key:
-            errors.append(f"{model}: no API key")
-            continue
-        try:
-            resp = await _completion(model=model, messages=msgs, api_key=key)
-            return {"model": model, "content": resp.choices[0].message.content or ""}
-        except Exception as e:
-            errors.append(f"{model}: {type(e).__name__}: {e}"[:300])
-    raise DispatchError("All models failed — " + " | ".join(errors))
+_ROLES = {"user": Role.USER, "assistant": Role.ASSISTANT, "system": Role.SYSTEM}
 
 
 async def chat(db: Session, user: str, messages: list[dict], requested: str = "auto", context: str = "") -> dict:
-    system = SYSTEM_PROMPT + (f"\n{context}" if context else "")
-    convo = [{"role": "system", "content": system}, *messages]
+    convo = [Message(role=Role.SYSTEM, content=SYSTEM_PROMPT + (f"\n{context}" if context else ""))]
+    convo += [Message(role=_ROLES[m["role"]], content=m["content"]) for m in messages]
+    used: list[str] = []
+    content, model = await _run(db, user, convo, requested, _tools(db, user, used))
+    return {"model": model, "content": content, "tools_used": used}
 
-    if requested == "external":
-        content, model = await _external(db, user, convo)
-        return {"model": model, "content": content, "tools_used": []}
 
-    last = next((m["content"] for m in reversed(messages) if m["role"] == "user"), "")
-    primary = pick_model(requested, last)
-    chain = [primary] + [m for m in get_settings().fallback_list if m != primary]
+async def complete(db: Session, user: str, prompt: str, system: str = "") -> dict:
+    """One tool-free completion (news digests, the safety analyzer). Routed like chat."""
+    convo = ([Message(role=Role.SYSTEM, content=system)] if system else []) + [Message(role=Role.USER, content=prompt)]
+    content, model = await _run(db, user, convo, "auto", None)
+    return {"model": model, "content": content}
 
-    errors = []
-    for model in chain:
-        key = resolve_key(db, user, model)
-        if not key:
-            errors.append(f"{model}: no API key")
-            continue
-        try:
-            content, tools_used = await _run_with_tools(model, key, list(convo), db, user)
-            return {"model": model, "content": content, "tools_used": tools_used}
-        except Exception as e:  # provider errors: try the next model
-            errors.append(f"{model}: {type(e).__name__}: {e}"[:300])
-    raise DispatchError("All models failed — " + " | ".join(errors))
+
+def available(db: Session, user: str) -> dict:
+    """Which vendors can serve this user right now, and from whose key."""
+    s = get_settings()
+    cfg = load_ai_settings(db, user)
+    mine = {p["provider"]: p for p in cfg["config"]["providers"] if p["provider"] in VENDORS and p.get("apiKeys")}
+    out = []
+    for vendor, (_, key_attr, default_model) in VENDORS.items():
+        if vendor in mine or getattr(s, key_attr):
+            out.append({"id": vendor, "model": (mine.get(vendor) or {}).get("model") or default_model,
+                        "source": "yours" if vendor in mine else "server"})
+    return {"vendors": out, "external": bool(cfg.get("external"))}

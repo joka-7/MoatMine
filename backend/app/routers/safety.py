@@ -80,11 +80,12 @@ async def safety(symbol: str):
 async def safety_analyze(symbol: str, user: str = Depends(current_user), db: Session = Depends(get_db)):
     """AI analyzer: explains each area grade and how the stock fits the user's risk rules."""
     from app.ai.dispatcher import DispatchError
+    from app.routers.ai import dispatch_error_response
 
     try:
         return await ai_analysis(db, user, get_provider(), _sym(symbol))
     except DispatchError as e:
-        raise HTTPException(502, str(e)) from e
+        return dispatch_error_response(e)
 
 
 class CheckIn(BaseModel):

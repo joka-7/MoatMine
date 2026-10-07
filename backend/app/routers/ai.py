@@ -1,17 +1,26 @@
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import JSONResponse
+from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.ai.dispatcher import DispatchError, chat
+from app.ai.dispatcher import VENDORS, DispatchError, available, chat
+from app.ai.settings_store import SUPPORTED, load_ai_settings, masked, save_ai_settings
 from app.auth import current_user
-from app.config import get_settings
-from app.crypto import decrypt, encrypt, mask, new_mcp_token
+from app.crypto import new_mcp_token
 from app.db import get_db
-from app.models import AIKey, MCPToken
+from app.models import MCPToken
 from app.safety.service import get_profile, profile_dict
-from app.schemas import AIKeyIn, AIKeyOut, ChatIn
+from app.schemas import ChatIn
 
 router = APIRouter(prefix="/ai", tags=["ai"])
+
+VENDOR_LABELS = {"anthropic": "Anthropic Claude", "openai": "OpenAI", "gemini": "Google Gemini", "groq": "Groq"}
+
+
+def dispatch_error_response(e: DispatchError) -> JSONResponse:
+    """ModelDispatcher errors carry their own status + body (e.g. the trigger_key_wizard handoff)."""
+    return JSONResponse(status_code=e.status, content={"detail": e.payload})
 
 
 def agent_context(db: Session, user: str, symbol: str | None) -> str:
@@ -28,76 +37,54 @@ def agent_context(db: Session, user: str, symbol: str | None) -> str:
     )
     return rules + (f" The user is currently viewing {symbol}." if symbol else "")
 
-MODEL_CHOICES = [
-    {"id": "auto", "label": "Auto (dispatcher)"},
-    {"id": "anthropic/claude-sonnet-5-5", "label": "Claude Sonnet 5.5"},
-    {"id": "anthropic/claude-haiku-4-5-20251001", "label": "Claude Haiku 4.5"},
-    {"id": "openai/gpt-4o", "label": "GPT-4o"},
-    {"id": "openai/gpt-4o-mini", "label": "GPT-4o mini"},
-    {"id": "gemini/gemini-2.0-flash", "label": "Gemini 2.0 Flash"},
-    {"id": "external", "label": "My external agent"},
-]
-
 
 @router.get("/models")
 def models(user: str = Depends(current_user), db: Session = Depends(get_db)):
-    s = get_settings()
-    user_providers = set(db.scalars(select(AIKey.provider).where(AIKey.user_id == user)).all())
-    server = {p for p, k in [("anthropic", s.anthropic_api_key), ("openai", s.openai_api_key), ("gemini", s.gemini_api_key)] if k}
-    available = user_providers | server
-    out = []
-    for m in MODEL_CHOICES:
-        prov = "auto" if m["id"] == "auto" else m["id"].split("/")[0]
-        ok = bool(available) if prov == "auto" else prov in available
-        out.append({**m, "available": ok})
+    """Choices for the chat's model picker, with whether each can run right now."""
+    av = available(db, user)
+    vendors = {v["id"]: v for v in av["vendors"]}
+    out = [{"id": "auto", "label": "Auto (ModelDispatcher routes)", "available": bool(vendors)}]
+    for vid in VENDORS:
+        v = vendors.get(vid)
+        label = VENDOR_LABELS[vid] + (f" · {v['model']}" + (" (server key)" if v["source"] == "server" else "") if v else "")
+        out.append({"id": vid, "label": label, "available": v is not None})
+    out.append({"id": "external", "label": "My external agent", "available": av["external"]})
     return out
 
 
 @router.post("/chat")
 async def chat_endpoint(body: ChatIn, user: str = Depends(current_user), db: Session = Depends(get_db)):
     try:
-        return await chat(
-            db,
-            user,
-            [m.model_dump() for m in body.messages],
-            requested=body.model,
-            context=agent_context(db, user, body.symbol),
-        )
+        return await chat(db, user, [m.model_dump() for m in body.messages], requested=body.model,
+                          context=agent_context(db, user, body.symbol))
     except DispatchError as e:
-        raise HTTPException(502, str(e)) from e
+        return dispatch_error_response(e)
 
 
-@router.get("/keys", response_model=list[AIKeyOut])
-def list_keys(user: str = Depends(current_user), db: Session = Depends(get_db)):
-    rows = db.scalars(select(AIKey).where(AIKey.user_id == user)).all()
-    return [AIKeyOut(provider=r.provider, masked=mask(decrypt(r.encrypted_key)), base_url=r.base_url, model=r.model) for r in rows]
+# --- AI settings: ModelPicker's AgentConfig + favorite external app + external agent ---
 
 
-@router.put("/keys", response_model=AIKeyOut)
-def put_key(body: AIKeyIn, user: str = Depends(current_user), db: Session = Depends(get_db)):
-    if body.provider == "external" and not body.base_url.startswith("https://"):
-        raise HTTPException(422, "external agent needs an https:// base_url (OpenAI-compatible chat completions)")
+class AISettingsIn(BaseModel):
+    config: dict
+    favorite: str | None = None
+    external: dict | None = None
+
+
+@router.get("/settings")
+def get_ai_settings(user: str = Depends(current_user), db: Session = Depends(get_db)):
+    data = masked(load_ai_settings(db, user))
+    return {**data, "supported": list(SUPPORTED), "server_vendors": [v["id"] for v in available(db, user)["vendors"] if v["source"] == "server"]}
+
+
+@router.put("/settings")
+def put_ai_settings(body: AISettingsIn, user: str = Depends(current_user), db: Session = Depends(get_db)):
     try:
-        enc = encrypt(body.api_key)
-    except RuntimeError as e:
+        data = save_ai_settings(db, user, body.config, body.external, body.favorite)
+    except ValueError as e:
+        raise HTTPException(422, str(e)) from e
+    except RuntimeError as e:  # FERNET_KEY missing
         raise HTTPException(500, str(e)) from e
-    row = db.scalar(select(AIKey).where(AIKey.user_id == user, AIKey.provider == body.provider))
-    if row:
-        row.encrypted_key, row.base_url, row.model = enc, body.base_url, body.model
-    else:
-        row = AIKey(user_id=user, provider=body.provider, encrypted_key=enc, base_url=body.base_url, model=body.model)
-        db.add(row)
-    db.commit()
-    return AIKeyOut(provider=row.provider, masked=mask(body.api_key), base_url=row.base_url, model=row.model)
-
-
-@router.delete("/keys/{provider}", status_code=204)
-def delete_key(provider: str, user: str = Depends(current_user), db: Session = Depends(get_db)):
-    row = db.scalar(select(AIKey).where(AIKey.user_id == user, AIKey.provider == provider))
-    if not row:
-        raise HTTPException(404, "no key for provider")
-    db.delete(row)
-    db.commit()
+    return {**data, "supported": list(SUPPORTED), "server_vendors": [v["id"] for v in available(db, user)["vendors"] if v["source"] == "server"]}
 
 
 # --- tokens that let an external agent (Claude Desktop, Claude Code, etc.) reach /mcp ---

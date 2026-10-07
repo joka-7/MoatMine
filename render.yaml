@@ -23,17 +23,13 @@ envVarGroups:
         sync: false
       - key: CLERK_ISSUER
         sync: false
-      - key: DEFAULT_MODEL
-        value: anthropic/claude-sonnet-5-5
-      - key: FAST_MODEL
-        value: anthropic/claude-haiku-4-5-20251001
-      - key: FALLBACK_MODELS
-        value: openai/gpt-4o-mini
       - key: ANTHROPIC_API_KEY
         sync: false
       - key: OPENAI_API_KEY
         sync: false
       - key: GEMINI_API_KEY
+        sync: false
+      - key: GROQ_API_KEY
         sync: false
 
 services:

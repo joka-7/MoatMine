@@ -12,6 +12,7 @@ from app.market import get_provider
 from app.market.base import RESOLUTION_SECONDS
 from app.models import StockNote
 from app.ai.dispatcher import DispatchError
+from app.routers.ai import dispatch_error_response
 from app.crises import bad_times
 from app.research import news_feed, news_summary, valuation
 from app.schemas import NoteIn, NoteOut
@@ -167,7 +168,7 @@ async def summarize_news(
     try:
         return await news_summary(db, user, get_provider(), _sym(symbol), days)
     except DispatchError as e:
-        raise HTTPException(502, str(e)) from e
+        return dispatch_error_response(e)
 
 
 @feed_router.get("/news/feed")

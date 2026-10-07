@@ -109,20 +109,6 @@ class AlertOut(BaseModel):
     created_at: datetime
 
 
-class AIKeyIn(BaseModel):
-    provider: Literal["anthropic", "openai", "gemini", "external"]
-    api_key: str = Field(min_length=1)
-    base_url: str = ""  # required for "external": an OpenAI-compatible /chat/completions endpoint
-    model: str = ""
-
-
-class AIKeyOut(BaseModel):
-    provider: str
-    masked: str
-    base_url: str
-    model: str
-
-
 class ChatMessage(BaseModel):
     role: Literal["user", "assistant", "system"]
     content: str
@@ -130,7 +116,7 @@ class ChatMessage(BaseModel):
 
 class ChatIn(BaseModel):
     messages: list[ChatMessage] = Field(min_length=1)
-    # "auto" lets the dispatcher pick; or a LiteLLM model id like "anthropic/claude-sonnet-5-5";
-    # or "external" to forward to the user's own agent endpoint
+    # "auto" lets ModelDispatcher route; a vendor id (anthropic|openai|gemini|groq) pins one;
+    # "external" uses only the user's external agent endpoint
     model: str = "auto"
     symbol: str | None = None  # optional page context

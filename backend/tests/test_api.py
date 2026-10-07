@@ -1,10 +1,8 @@
 from datetime import datetime, timedelta, timezone
-from types import SimpleNamespace
-
 import pytest
 
 from app.ai import dispatcher
-from tests.conftest import auth
+from tests.conftest import auth, reply, tool_call
 
 A = auth("alice")
 B = auth("bob")
@@ -114,64 +112,76 @@ def test_worker_creates_deduped_alerts(client, alice_account):
     assert client.get("/alerts?unread_only=true", headers=A).json() == []
 
 
-def test_ai_keys_are_encrypted_and_masked(client):
-    r = client.put("/ai/keys", json={"provider": "openai", "api_key": "sk-test-1234567890abcd"}, headers=A)
-    assert r.status_code == 200 and r.json()["masked"] == "sk-t…abcd"
+def test_ai_settings_masked_and_preserved(client):
+    cfg = {"providers": [{"provider": "openai", "model": "gpt-4o-mini", "apiKeys": ["sk-test-1234567890abcd"]}], "ollamaUrl": ""}
+    r = client.put("/ai/settings", json={"config": cfg, "favorite": "claude"}, headers=A)
+    assert r.status_code == 200, r.text
+    got = client.get("/ai/settings", headers=A).json()
+    assert got["config"]["providers"][0]["apiKeys"] == ["sk-t…abcd"] and got["favorite"] == "claude"
+    assert "anthropic" in got["server_vendors"]
+    # sending the masked key back keeps the real one; a new key is added alongside
+    cfg["providers"][0]["apiKeys"] = ["sk-t…abcd", "sk-second-key-99999999"]
+    client.put("/ai/settings", json={"config": cfg, "favorite": "claude"}, headers=A)
+    from app.ai.settings_store import load_ai_settings
     from app.db import SessionLocal
-    from app.models import AIKey
+    from app.models import AISettings
 
     with SessionLocal() as db:
-        row = db.query(AIKey).filter_by(user_id="alice", provider="openai").one()
-        assert "sk-test" not in row.encrypted_key
-    assert client.put("/ai/keys", json={"provider": "external", "api_key": "k", "base_url": "http://x"}, headers=A).status_code == 422
+        assert load_ai_settings(db, "alice")["config"]["providers"][0]["apiKeys"] == ["sk-test-1234567890abcd", "sk-second-key-99999999"]
+        assert "sk-test" not in db.query(AISettings).filter_by(user_id="alice").one().encrypted_config
+    assert client.put("/ai/settings", json={"config": cfg, "favorite": "bing"}, headers=A).status_code == 422
+    bad_ext = {"base_url": "http://x", "model": "m", "api_key": "k"}
+    assert client.put("/ai/settings", json={"config": cfg, "external": bad_ext}, headers=A).status_code == 422
     models = {m["id"]: m["available"] for m in client.get("/ai/models", headers=A).json()}
-    assert models["openai/gpt-4o"] and models["anthropic/claude-sonnet-5-5"] and not models["gemini/gemini-2.0-flash"]
+    assert models["auto"] and models["openai"] and models["anthropic"] and not models["gemini"] and not models["external"]
 
 
-def test_pick_model():
-    assert dispatcher.pick_model("auto", "price of AAPL?").startswith("anthropic/claude-haiku")
-    assert dispatcher.pick_model("auto", "should I rebalance my portfolio?") == "anthropic/claude-sonnet-5-5"
-    assert dispatcher.pick_model("openai/gpt-4o", "hi") == "openai/gpt-4o"
+def test_tier_for_model_names():
+    assert dispatcher.tier_for("claude-opus-4-8") == dispatcher.ModelTier.PREMIUM
+    assert dispatcher.tier_for("claude-sonnet-4-5") == dispatcher.ModelTier.STANDARD
+    assert dispatcher.tier_for("gpt-4o-mini") == dispatcher.ModelTier.CHEAP
+    assert dispatcher.tier_for("gemini-2.5-pro") == dispatcher.ModelTier.STANDARD
 
 
-def _resp(content=None, calls=None):
-    return SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content=content, tool_calls=calls))])
-
-
-def test_chat_tool_loop_and_byo_key(client, alice_account, monkeypatch):
-    seen = []
-
-    async def fake_completion(**kw):
-        seen.append(kw)
-        if len(seen) == 1:
-            call = SimpleNamespace(id="c1", function=SimpleNamespace(name="get_portfolio", arguments="{}"), model_dump=lambda: {"id": "c1"})
-            return _resp(calls=[call])
-        tool_msg = kw["messages"][-1]
-        assert tool_msg["role"] == "tool" and "AAPL" in tool_msg["content"]
-        return _resp(content="You hold AAPL and MSFT.")
-
-    monkeypatch.setattr(dispatcher, "_completion", fake_completion)
-    r = client.post("/ai/chat", json={"model": "openai/gpt-4o", "messages": [{"role": "user", "content": "what do I hold?"}]}, headers=A)
+def test_chat_runs_tools_with_users_own_key(client, alice_account, fake_ai):
+    fake_ai.plans["openai"] = {"scripted": [tool_call("get_portfolio"), reply("You hold AAPL and MSFT.")]}
+    r = client.post("/ai/chat", json={"model": "openai", "messages": [{"role": "user", "content": "what do I hold?"}]}, headers=A)
     assert r.status_code == 200, r.text
     body = r.json()
-    assert body == {"model": "openai/gpt-4o", "content": "You hold AAPL and MSFT.", "tools_used": ["get_portfolio"]}
-    assert seen[0]["api_key"] == "sk-test-1234567890abcd"  # user's BYO key beats server key
+    assert body == {"model": "openai:gpt-4o-mini", "content": "You hold AAPL and MSFT.", "tools_used": ["get_portfolio"]}
+    mock = fake_ai.built["openai"]
+    assert mock.received_api_keys[0] == "sk-test-1234567890abcd"  # BYO key beats any server key
+    second = mock.requests[1]
+    assert any(m.tool_result and "AAPL" in m.tool_result.content for m in second.messages)
+    assert "risk profile" in second.messages[0].content  # agent is bound to the user's rules
 
 
-def test_chat_falls_back(client, monkeypatch):
-    async def flaky(**kw):
-        if kw["model"].startswith("anthropic"):
-            raise RuntimeError("overloaded")
-        return _resp(content="ok from fallback")
+def test_chat_falls_back_across_vendors(client, fake_ai):
+    cfg = {"providers": [{"provider": "anthropic", "model": "claude-haiku-4-5-20251001", "apiKeys": []},
+                         {"provider": "openai", "model": "gpt-4o-mini", "apiKeys": ["sk-test-1234567890abcd"]}], "ollamaUrl": ""}
+    client.put("/ai/settings", json={"config": cfg}, headers=A)
+    fake_ai.plans["anthropic"] = {"fail_times": 99}
+    fake_ai.plans["openai"] = {"scripted": [reply("ok from fallback")]}
+    r = client.post("/ai/chat", json={"model": "auto", "messages": [{"role": "user", "content": "hi"}]}, headers=A)
+    assert r.status_code == 200, r.text
+    assert r.json()["model"] == "openai:gpt-4o-mini" and r.json()["content"] == "ok from fallback"
+    assert fake_ai.built["anthropic"].received_api_keys  # it was tried first (server key)
 
-    monkeypatch.setattr(dispatcher, "_completion", flaky)
-    r = client.post("/ai/chat", json={"model": "anthropic/claude-sonnet-5-5", "messages": [{"role": "user", "content": "hi"}]}, headers=A)
-    assert r.json()["model"] == "openai/gpt-4o-mini"
+
+def test_chat_no_provider_returns_dispatcher_payload(client, fake_ai):
+    r = client.post("/ai/chat", json={"model": "gemini", "messages": [{"role": "user", "content": "hi"}]}, headers=B)
+    assert r.status_code == 503
+    assert r.json()["detail"]["error"] == "no_provider_available" and r.json()["detail"]["action"] == "open_ai_settings"
 
 
-def test_chat_no_keys_502(client, monkeypatch):
-    r = client.post("/ai/chat", json={"model": "gemini/gemini-2.0-flash", "messages": [{"role": "user", "content": "hi"}]}, headers=B)
-    assert r.status_code == 502 and "no API key" in r.json()["detail"]
+def test_chat_external_agent(client, fake_ai):
+    cfg = {"providers": [], "ollamaUrl": ""}
+    ext = {"base_url": "https://agent.example.com/v1", "model": "my-agent", "api_key": "ext-key-123456789"}
+    client.put("/ai/settings", json={"config": cfg, "external": ext}, headers=B)
+    fake_ai.plans["external"] = {"scripted": [reply("from my agent")]}
+    r = client.post("/ai/chat", json={"model": "external", "messages": [{"role": "user", "content": "hi"}]}, headers=B)
+    assert r.status_code == 200, r.text
+    assert r.json()["model"] == "external:my-agent" and fake_ai.built["external"].received_api_keys == ["ext-key-123456789"]
 
 
 def test_mcp_requires_token_and_serves_tools(client, alice_account):

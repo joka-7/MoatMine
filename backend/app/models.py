@@ -115,18 +115,15 @@ class Alert(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
-class AIKey(Base):
-    """User-supplied (BYO) provider key, Fernet-encrypted."""
+class AISettings(Base):
+    """The user's AI settings (ModelDispatcher AgentConfig shape + external agent), encrypted at rest."""
 
-    __tablename__ = "ai_keys"
-    __table_args__ = (UniqueConstraint("user_id", "provider"),)
+    __tablename__ = "ai_settings"
     id: Mapped[int] = mapped_column(primary_key=True)
-    user_id: Mapped[str] = mapped_column(String(128), index=True)
-    provider: Mapped[str] = mapped_column(String(30))  # anthropic | openai | gemini | external
-    encrypted_key: Mapped[str] = mapped_column(Text)
-    base_url: Mapped[str] = mapped_column(String(500), default="")  # for external agents
-    model: Mapped[str] = mapped_column(String(120), default="")
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    user_id: Mapped[str] = mapped_column(String(128), unique=True, index=True)
+    encrypted_config: Mapped[str] = mapped_column(Text)
+    favorite: Mapped[str | None] = mapped_column(String(30), nullable=True)  # external chat app id
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 
 
 class MCPToken(Base):

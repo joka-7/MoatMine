@@ -1,8 +1,5 @@
-from types import SimpleNamespace
-
 from app import research
-from app.ai import dispatcher
-from tests.conftest import auth
+from tests.conftest import auth, reply
 
 C = auth("carol")
 
@@ -47,24 +44,18 @@ def test_news_feed_covers_holdings_and_watchlist(client):
     assert [n["datetime"] for n in feed] == sorted((n["datetime"] for n in feed), reverse=True)
 
 
-def test_news_summary_parses_and_caches(client, monkeypatch):
-    calls = []
-
-    async def fake(**kw):
-        calls.append(kw)
-        return SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(
-            content='Here you go: {"summary": "Mixed week.", "sentiment": "Bullish", "points": ["a", "b"], "watch": "earnings"}'
-        ))])
-
-    monkeypatch.setattr(dispatcher, "_completion", fake)
+def test_news_summary_parses_and_caches(client, fake_ai):
+    fake_ai.plans["anthropic"] = {"scripted": [reply(
+        'Here you go: {"summary": "Mixed week.", "sentiment": "Bullish", "points": ["a", "b"], "watch": "earnings"}')]}
     research._cache.clear()
     r = client.get("/stocks/TSLA/news/summary?days=7", headers=C)
     assert r.status_code == 200, r.text
     d = r.json()
     assert d["sentiment"] == "bullish" and d["points"] == ["a", "b"] and d["count"] == 5
-    assert calls[0]["model"].startswith("anthropic/claude-haiku") and "tools" not in calls[0]
+    req = fake_ai.built["anthropic"].requests[0]
+    assert not req.tools and "JSON only" in req.messages[0].content  # tool-free, summary prompt
     assert client.get("/stocks/TSLA/news/summary?days=7", headers=C).json()["cached"] is True
-    assert len(calls) == 1
+    assert len(fake_ai.built["anthropic"].requests) == 1
 
 
 def test_parse_json_fallback():
