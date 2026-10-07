@@ -89,6 +89,13 @@ npm run dev     # opens a native window on top of the Next dev server
 npm run build   # static-exports web/ and bundles installers (.msi/.dmg/.deb/.AppImage)
 ```
 
+**CI** (`.github/workflows/ci.yml`) runs on every push to `main` and every PR, in three parallel jobs:
+- backend: `ruff`, `mypy --strict` and `pytest`, on Python 3.12
+- web: `tsc`, `npm run build` and `npm run build:desktop`
+- desktop: `cargo check` for the Tauri shell
+
+It checks out the `.ai` submodule. If that repo isn't readable with the default token, add a `SUBMODULE_TOKEN` secret.
+
 The app runs with **no API keys**: `MARKET_PROVIDER=mock` serves deterministic sample prices, and the UI labels them as sample data.
 
 ## Deploy
