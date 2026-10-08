@@ -143,8 +143,9 @@ MoatMine/
 │   ├── alembic.ini                      # Alembic CLI config; the database URL comes from app settings
 │   ├── pyproject.toml                   # Ruff and mypy (strict) configuration
 │   ├── pytest.ini                       # Pytest paths
-│   ├── requirements-dev.txt             # Runtime plus pytest, ruff and mypy (pinned)
-│   └── requirements.txt                 # Runtime dependencies (installed by Render)
+│   ├── requirements-dev.txt             # The lockfile plus pytest, ruff and mypy (pinned)
+│   ├── requirements.lock                # Exact pinned versions Render and CI install
+│   └── requirements.txt                 # Direct runtime dependencies (ranges); compiled into requirements.lock
 ├── desktop/                             # Tauri v2 shell that loads the static-exported web UI and calls the same API
 │   ├── src-tauri/                       # Rust side of the Tauri app
 │   │   ├── capabilities/
@@ -164,6 +165,7 @@ MoatMine/
 │   │   ├── build.rs                     # Tauri-build hook
 │   │   └── tauri.conf.json              # Window, CSP (API + Clerk hosts) and bundle settings; serves web/out
 │   ├── app-icon.png                     # Source image for `npm run icons`
+│   ├── package-lock.json                # Pinned npm dependencies (Tauri CLI)
 │   └── package.json                     # Tauri CLI scripts: dev (over the Next dev server) and build (static export →…
 ├── docs/                                # Repo map, HLD/LLD design docs and UI screenshots
 │   ├── screenshots/                     # Every page and stock tab at 1400px and 390px, on mock data
