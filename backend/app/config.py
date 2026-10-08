@@ -1,6 +1,7 @@
 from functools import lru_cache
 from typing import Literal, Self
 
+from cryptography.fernet import Fernet
 from pydantic import ValidationError, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -56,6 +57,18 @@ class Settings(BaseSettings):
             )
         if self.auth_mode == "clerk" and not (self.clerk_jwks_url and self.clerk_issuer):
             raise ValueError("AUTH_MODE=clerk needs CLERK_JWKS_URL and CLERK_ISSUER")
+        return self
+
+    @model_validator(mode="after")
+    def _fernet_key_is_usable(self) -> Self:
+        """Production must be able to store user AI keys; a bad key should stop startup, not a save."""
+        if self.auth_mode == "clerk" and not self.fernet_key:
+            raise ValueError("AUTH_MODE=clerk needs FERNET_KEY (encrypts user AI keys); generate one with app.crypto.new_key()")
+        if self.fernet_key:
+            try:
+                Fernet(self.fernet_key.encode())
+            except ValueError as e:
+                raise ValueError("FERNET_KEY is not a valid Fernet key (32 url-safe base64 bytes)") from e
         return self
 
     @property
