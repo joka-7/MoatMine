@@ -6,7 +6,7 @@ name: Release
 #   is all a release takes. Pushes that keep the version do nothing.
 # - Manual run (Actions tab): releases the current version, or re-uploads its assets.
 # - Pull requests that change the release setup: build everything, publish nothing.
-# The installers point at the repository variable API_URL and sign in with CLERK_PUBLISHABLE_KEY.
+# The installers point at the repository variable API_URL and sign in with the FIREBASE_* variables.
 on:
   push:
     branches: [main]
@@ -69,7 +69,10 @@ jobs:
     runs-on: ${{ matrix.platform }}
     env:
       NEXT_PUBLIC_API_URL: ${{ vars.API_URL }}
-      NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${{ vars.CLERK_PUBLISHABLE_KEY }}
+      NEXT_PUBLIC_FIREBASE_API_KEY: ${{ vars.FIREBASE_API_KEY }}
+      NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: ${{ vars.FIREBASE_AUTH_DOMAIN }}
+      NEXT_PUBLIC_FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
+      NEXT_PUBLIC_FIREBASE_APP_ID: ${{ vars.FIREBASE_APP_ID }}
     steps:
       - uses: actions/checkout@v4
 

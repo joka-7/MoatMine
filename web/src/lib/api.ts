@@ -1,14 +1,11 @@
 "use client";
 
-import { getToken } from "@clerk/nextjs";
 import type { AgentConfig, ExternalChatProviderId } from "modeldispatcher-browser-agent";
 import type { components } from "./api-schema";
+import { FIREBASE_CONFIGURED, firebaseAuth } from "./firebase";
 
-// One client for web (Vercel) and desktop (Tauri): both call the Render API.
+// One client for the web app (GitHub Pages) and the desktop and Android apps (Tauri): all call the Render API.
 const DEFAULT_API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-
-// Set → sign in with Clerk (backend AUTH_MODE=clerk). Unset → local dev mode (backend AUTH_MODE=dev).
-export const CLERK_PUBLISHABLE_KEY = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY || "";
 
 function ls(key: string): string | null {
   try {
@@ -27,12 +24,12 @@ export function devToken(): string {
   return ls("moatmine.token") || "dev";
 }
 
-/** Bearer token for the API: the Clerk session JWT when Clerk is configured, else the dev user id. */
+/** Bearer token for the API: the Firebase ID token when Firebase is configured, else the dev user id. */
 export async function authToken(): Promise<string> {
-  if (!CLERK_PUBLISHABLE_KEY) return devToken();
-  const token = await getToken();
-  if (!token) throw new ApiError(401, "Sign in to continue.");
-  return token;
+  if (!FIREBASE_CONFIGURED) return devToken();
+  const user = firebaseAuth().currentUser;
+  if (!user) throw new ApiError(401, "Sign in to continue.");
+  return user.getIdToken(); // refreshed by Firebase shortly before it expires
 }
 
 export class ApiError extends Error {

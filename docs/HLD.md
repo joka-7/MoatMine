@@ -42,8 +42,8 @@ and the logic that isn't obvious, see [`LLD.md`](LLD.md).
   (`app/market/mock.py`), and the UI labels it as sample data.
 - **Honest data provenance.** Results built from fallback candles are labelled `mock-fallback`
   for each request (`app/market/sources.py`).
-- **Fail closed on auth.** The API refuses to start with `AUTH_MODE=dev` on Postgres, or in clerk
-  mode without the JWKS URL and issuer (`app/config.py` `_auth_is_safe`).
+- **Fail closed on auth.** The API refuses to start with `AUTH_MODE=dev` on Postgres, or in firebase
+  mode without a valid `FIREBASE_PROJECT_ID` (`app/config.py` `_auth_is_safe`).
 - **Secrets stay out of logs.** Finnhub's key is sent as a header, and `token=`/`apikey=` values
   are redacted in every log line (`app/log_config.py`).
 - **Per-user AI limits:** requests per minute, tokens per minute and tokens per day
@@ -64,14 +64,14 @@ flowchart LR
     WK[Worker<br/>app/worker.py]
     PG[(Postgres)]
   end
-  CL[Clerk]
+  CL[Firebase Authentication<br/>sign-in only]
   MD[Market data<br/>Finnhub · FMP · mock]
   AI[LLM vendors via<br/>ModelDispatcher]
 
-  W -->|Bearer: Clerk JWT| API
-  D -->|Bearer: Clerk JWT| API
+  W -->|Bearer: Firebase ID token| API
+  D -->|Bearer: Firebase ID token| API
   W & D -->|sign-in| CL
-  API -->|JWKS| CL
+  API -->|Google's public keys| CL
   X -->|Bearer: MCP token| API
   API --> PG
   WK --> PG
@@ -82,7 +82,7 @@ flowchart LR
 
 | Component | Owns | Code |
 |---|---|---|
-| Web UI | All screens; one API client; Clerk sign-in gate | `web/src/app/*`, `web/src/lib/api.ts`, `web/src/components/AuthShell.tsx` |
+| Web UI | All screens; one API client; Firebase sign-in gate (email/password, Google in browsers) | `web/src/app/*`, `web/src/lib/api.ts`, `web/src/components/AuthShell.tsx` |
 | Desktop and Android | Native window over the static export; no logic. Built and published by `.github/workflows/release.yml` and `android.yml` | `desktop/src-tauri/src/lib.rs`, `tauri.conf.json` |
 | API: routers | HTTP surface, auth dependency, request validation | `app/routers/*.py`, `app/auth.py`, `app/schemas.py` |
 | API: domain services | Gathering data for the maths; applying the user's rules | `app/safety/service.py`, `app/portfolio.py`, `app/research.py`, `app/targets.py` |
@@ -185,11 +185,10 @@ sequenceDiagram
   creates the engine at import time. An invalid or unsafe value raises `ConfigError`, which
   carries only the reasons, never the values.
   - Validated: `auth_mode` and `log_format` must be one of their `Literal` values, dev auth is
-    refused on Postgres, and clerk mode must have its JWKS URL and issuer.
-  - Not validated at startup: `FERNET_KEY`. Its absence surfaces on the first encrypt or
-    decrypt as a `RuntimeError`, which `routers/ai.py` maps to HTTP 500.
-- **Web config is baked in at build time:** `NEXT_PUBLIC_API_URL` and
-  `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`. Users can override the API URL in Settings (localStorage).
+    refused on Postgres, firebase mode must have a valid project id, and every `FERNET_KEY` must
+    be a valid key (firebase mode requires one).
+- **Web config is baked in at build time:** `NEXT_PUBLIC_API_URL` and the
+  `NEXT_PUBLIC_FIREBASE_*` web-app settings. Users can override the API URL in Settings (localStorage).
 
 ## Data validation / I/O
 - **Edge validation:**
@@ -221,7 +220,7 @@ sequenceDiagram
   (`settings_store.check_public_https_url`). Checked when saved and again before every request
   (`dispatcher._ExternalAgentProvider`), which also never follows redirects, so a public host
   can't bounce the call to an internal one.
-- **Clerk tokens** must come from an origin in `CLERK_AUTHORIZED_PARTIES` (the `azp` claim) when it is set.
+- **Firebase ID tokens** must be signed by Google and name this project as audience and issuer (`FIREBASE_PROJECT_ID`), so a token from another Firebase project is refused.
 
 ## Integration test strategy
 - **API level:** `backend/tests/` drives the real FastAPI app through `TestClient` (`conftest.py`):
@@ -231,7 +230,7 @@ sequenceDiagram
 - **Boundaries faked only at true I/O:**
   - LLM vendors: ModelDispatcher `MockProvider` doubles (`fake_ai`).
   - Finnhub and FMP: `httpx.MockTransport` (`test_finnhub.py`, `test_fmp.py`).
-  - Clerk's JWKS: a locally generated RSA key (`test_auth.py`).
+  - Google's Firebase signing keys: a locally generated RSA key (`test_auth.py`).
 - **Schema drift:** `test_db.py` compares the models with the migrated database. The baseline
   migration was also run against a real Postgres 16, including two upgrades at once.
 - **UI:** `docs/screenshots/shoot.js` loads every page against a running API and reports console
@@ -241,5 +240,5 @@ sequenceDiagram
   - `tsc` and both web builds;
   - `cargo check` for the desktop shell;
   - the repo-map drift check.
-- **Not covered:** a live Clerk instance, a live Finnhub or FMP key, and end-to-end tests of the
+- **Not covered:** a live Firebase project, a live Finnhub or FMP key, and end-to-end tests of the
   Tauri app.

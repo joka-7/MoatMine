@@ -20,12 +20,8 @@ envVarGroups:
       - key: FERNET_KEY
         sync: false
       - key: AUTH_MODE
-        value: clerk
-      - key: CLERK_JWKS_URL
-        sync: false
-      - key: CLERK_ISSUER
-        sync: false
-      - key: CLERK_AUTHORIZED_PARTIES
+        value: firebase
+      - key: FIREBASE_PROJECT_ID
         sync: false
       - key: ANTHROPIC_API_KEY
         sync: false

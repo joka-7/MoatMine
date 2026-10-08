@@ -90,7 +90,7 @@ cancel:  any status except executed
 ```
 Settings._auth_is_safe:
     dev   and DATABASE_URL starts with "postgres"     → error
-    clerk and (no CLERK_JWKS_URL or no CLERK_ISSUER)  → error
+    firebase and FIREBASE_PROJECT_ID isn't a Firebase project id → error
 get_settings(): ValidationError → ConfigError(reasons only, no values), raised from None
 ```
 
@@ -133,9 +133,8 @@ Read in `app/config.py` `Settings`, through `get_settings()` (cached once per pr
 |---|---|---|
 | `DATABASE_URL` | `sqlite:///./moatmine.db` | `app/db.py` (engine; `postgres://` is rewritten to `postgresql+psycopg://`) |
 | `DB_POOL_SIZE`, `DB_MAX_OVERFLOW`, `DB_POOL_TIMEOUT_SECONDS` | 5 / 5 / 10 | `app/db.py` `_make_engine` (Postgres only) |
-| `AUTH_MODE` | `dev` (`dev`\|`clerk`) | `app/auth.py` |
-| `CLERK_JWKS_URL`, `CLERK_ISSUER` | `""` (required in clerk mode) | `app/auth.py` |
-| `CLERK_AUTHORIZED_PARTIES` | `""` (comma-separated origins; empty = the token's `azp` isn't checked) | `app/auth.py` `current_user` |
+| `AUTH_MODE` | `dev` (`dev`\|`firebase`) | `app/auth.py` |
+| `FIREBASE_PROJECT_ID` | `""` (required in firebase mode) | `app/auth.py` `current_user`: the token's `aud` and `iss` must name it |
 | `CORS_ORIGINS`, `CORS_ORIGIN_REGEX` | localhost:3000 + Tauri origins | `app/main.py` |
 | `MARKET_PROVIDER` | `mock` | `app/market/__init__.py` `get_provider` (finnhub only when `FINNHUB_API_KEY` is set) |
 | `FINNHUB_API_KEY`, `FMP_API_KEY` | `""` | `get_provider` |
@@ -148,7 +147,7 @@ Read in `app/config.py` `Settings`, through `get_settings()` (cached once per pr
 | `RATE_LIMIT_MARKET_PER_MIN`, `RATE_LIMIT_AI_PER_MIN` | 240 / 30 | `app/ratelimit.py`: per user, on `/stocks/*`, `/news/feed`, stock safety (market) and chat or the safety analyzer (AI) |
 | `LOG_LEVEL`, `LOG_FORMAT` | `INFO`, `text` (`json` in `render.yaml`) | `app/log_config.py` via the entry points |
 
-Web: `NEXT_PUBLIC_API_URL` and `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` (`web/src/lib/api.ts`).
+Web: `NEXT_PUBLIC_API_URL` (`web/src/lib/api.ts`) and `NEXT_PUBLIC_FIREBASE_API_KEY`, `_AUTH_DOMAIN`, `_PROJECT_ID`, `_APP_ID` (`web/src/lib/firebase.ts`).
 
 ## DI wiring
 
@@ -193,7 +192,7 @@ mapping lives in one place: the exception handlers in `app/main.py`.
 
 Other errors:
 - **HTTP errors** use FastAPI `HTTPException`:
-  - 401: auth failed. Clerk failures say only `invalid token`.
+  - 401: auth failed. Token failures say only `invalid token`.
   - 404: not found or not owned.
   - 409: state conflict.
   - 422: validation.
@@ -245,7 +244,7 @@ I/O boundaries (HTTP transport, LLM vendor, JWKS).
 | Real/paper books across snapshot, risk, stress, history, check, worker, agent tools; paper cash | `test_portfolio.py` | none (SQLite + mock provider) |
 | Data-source labelling (nested, concurrent) | `test_sources.py`, `test_finnhub.py` | `httpx.MockTransport` |
 | Finnhub/FMP mapping and errors; FMP fallback logging | `test_finnhub.py`, `test_fmp.py` | `httpx.MockTransport` |
-| `current_user` (Clerk JWT: valid, expired, wrong issuer or key, missing claims, HS256) | `test_auth.py` | JWKS client → local RSA key |
+| `current_user` (Firebase ID token: valid, expired, wrong issuer, key or project, missing claims, HS256) | `test_auth.py` | JWKS client → local RSA key |
 | `Settings` safety guard, `ConfigError` without values | `test_config.py` | none |
 | Encryption, masking, token hashing, key rotation | `test_crypto.py`, `test_rotate_keys.py` | none |
 | Migrations match models; readiness | `test_db.py` | `ScriptDirectory.get_heads` / `schema_is_current` |

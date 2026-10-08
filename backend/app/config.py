@@ -1,3 +1,4 @@
+import re
 from functools import lru_cache
 from typing import Literal, Self
 
@@ -17,12 +18,10 @@ class Settings(BaseSettings):
     db_max_overflow: int = 5
     db_pool_timeout_seconds: float = 10.0  # wait for a free connection, then fail the request
 
-    # auth: "dev" trusts the bearer token as the user id (local SQLite only); "clerk" verifies a Clerk JWT
-    auth_mode: Literal["dev", "clerk"] = "dev"
-    clerk_jwks_url: str = ""
-    clerk_issuer: str = ""
-    # comma-separated frontend origins allowed to have issued the session (the JWT's azp); empty = not checked
-    clerk_authorized_parties: str = ""
+    # auth: "dev" trusts the bearer token as the user id (local SQLite only); "firebase" verifies a
+    # Firebase Authentication ID token issued for this project
+    auth_mode: Literal["dev", "firebase"] = "dev"
+    firebase_project_id: str = ""
 
     # CORS: Vercel URL(s) plus the Tauri origins
     cors_origins: str = "http://localhost:3000,tauri://localhost,http://tauri.localhost"
@@ -66,17 +65,17 @@ class Settings(BaseSettings):
         if self.auth_mode == "dev" and self.database_url.startswith("postgres"):
             raise ValueError(
                 "AUTH_MODE=dev trusts any bearer token as the user id and is for a local SQLite database only. "
-                "Set AUTH_MODE=clerk with CLERK_JWKS_URL and CLERK_ISSUER."
+                "Set AUTH_MODE=firebase with FIREBASE_PROJECT_ID."
             )
-        if self.auth_mode == "clerk" and not (self.clerk_jwks_url and self.clerk_issuer):
-            raise ValueError("AUTH_MODE=clerk needs CLERK_JWKS_URL and CLERK_ISSUER")
+        if self.auth_mode == "firebase" and not re.fullmatch(r"[a-z][a-z0-9-]{4,28}[a-z0-9]", self.firebase_project_id):
+            raise ValueError("AUTH_MODE=firebase needs FIREBASE_PROJECT_ID (the Firebase project id, e.g. moatmine-1a2b3)")
         return self
 
     @model_validator(mode="after")
     def _fernet_key_is_usable(self) -> Self:
         """Production must be able to store user AI keys; a bad key should stop startup, not a save."""
-        if self.auth_mode == "clerk" and not self.fernet_key:
-            raise ValueError("AUTH_MODE=clerk needs FERNET_KEY (encrypts user AI keys); generate one with app.crypto.new_key()")
+        if self.auth_mode == "firebase" and not self.fernet_key:
+            raise ValueError("AUTH_MODE=firebase needs FERNET_KEY (encrypts user AI keys); generate one with app.crypto.new_key()")
         for key in self.fernet_keys:
             try:
                 Fernet(key.encode())
@@ -88,10 +87,6 @@ class Settings(BaseSettings):
     def fernet_keys(self) -> list[str]:
         """Newest first; more than one only while rotating."""
         return [k.strip() for k in self.fernet_key.split(",") if k.strip()]
-
-    @property
-    def clerk_parties(self) -> set[str]:
-        return {o.strip().rstrip("/") for o in self.clerk_authorized_parties.split(",") if o.strip()}
 
     @property
     def cors_list(self) -> list[str]:

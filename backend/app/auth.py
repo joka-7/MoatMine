@@ -8,6 +8,9 @@ from app.config import get_settings
 
 _bearer = HTTPBearer(auto_error=False)
 
+# Google's public keys for Firebase Authentication ID tokens (rotated by Google; PyJWKClient caches them)
+FIREBASE_JWKS_URL = "https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com"
+
 
 @lru_cache
 def _jwks_client(url: str) -> jwt.PyJWKClient:
@@ -19,10 +22,12 @@ def current_user(creds: HTTPAuthorizationCredentials | None = Depends(_bearer)) 
 
     dev mode (local SQLite only, enforced by Settings): the bearer token *is* the user id
     (default "dev" when absent).
-    clerk mode: verify the Clerk session JWT's signature, expiry and issuer, and return its `sub`.
+    firebase mode: verify the Firebase ID token's signature, expiry, issuer and audience (both
+    name this project, so a token minted for another Firebase project is refused) and return
+    its `sub`, the Firebase user id.
 
     Raises:
-        HTTPException: 401 in clerk mode when the token is missing or fails verification.
+        HTTPException: 401 in firebase mode when the token is missing or fails verification.
     """
     s = get_settings()
     if s.auth_mode == "dev":
@@ -31,18 +36,18 @@ def current_user(creds: HTTPAuthorizationCredentials | None = Depends(_bearer)) 
     if not creds:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "missing token")
     try:
-        key = _jwks_client(s.clerk_jwks_url).get_signing_key_from_jwt(creds.credentials).key
+        key = _jwks_client(FIREBASE_JWKS_URL).get_signing_key_from_jwt(creds.credentials).key
         claims = jwt.decode(
             creds.credentials,
             key,
             algorithms=["RS256"],
-            issuer=s.clerk_issuer,
-            options={"verify_aud": False, "require": ["exp", "iss", "sub"]},
+            audience=s.firebase_project_id,
+            issuer=f"https://securetoken.google.com/{s.firebase_project_id}",
+            options={"require": ["exp", "iat", "iss", "aud", "sub"]},
         )
     except jwt.PyJWTError as e:
         # the reason stays server-side; callers only learn that the token was rejected
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "invalid token") from e
-    # a valid session minted for some other site on the same Clerk instance must not work here
-    if s.clerk_parties and str(claims.get("azp", "")).rstrip("/") not in s.clerk_parties:
+    if not claims["sub"]:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "invalid token")
     return str(claims["sub"])

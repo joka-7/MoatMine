@@ -97,7 +97,7 @@ order matters:
 
 - **Custody.** Keep it only in the `moatmine-shared` env group (`sync: false`) and a password
   manager or secret store your team controls. It must never be committed or logged. The API
-  refuses to start in clerk mode without a valid key (`app/config.py`).
+  refuses to start in firebase mode without a valid key (`app/config.py`).
 - **Lost key.** The encrypted settings can't be recovered. Set a new key, then ask users to
   re-enter their AI keys in Settings → AI. Accounts, holdings, plans and targets are not
   affected.
@@ -116,6 +116,6 @@ order matters:
 
 | Secret | Where it lives | If it leaks |
 |---|---|---|
-| `CLERK_*` | Clerk dashboard | Nothing secret here: the API holds only the public JWKS URL, issuer and allowed origins, and the web only the publishable key |
+| `FIREBASE_*` | Firebase console | Nothing secret here: the API holds only the project id, and the web the public web-app settings. Protect the Firebase console account itself (two-factor sign-in) |
 | `FINNHUB_API_KEY`, `FMP_API_KEY`, `*_API_KEY` (AI) | The provider's dashboard | Regenerate there, update the env group, redeploy |
 | MCP tokens | `mcp_tokens` (hashes only) | Users revoke them in Settings → AI |

@@ -102,7 +102,7 @@ MoatMine/
 │   │   │   └── service.py                        # Gathers market data for the pure safety maths, and applies the user's risk…
 │   │   ├── __init__.py                           # Package marker
 │   │   ├── analytics.py                          # Price-derived ratios computed locally from candles (no provider needed).
-│   │   ├── auth.py                               # Current_user: dev mode trusts the bearer as user id; clerk mode verifies the…
+│   │   ├── auth.py                               # Current_user: dev mode trusts the bearer as user id; firebase mode verifies…
 │   │   ├── cache.py                              # Tiny in-process TTL cache for expensive, user-independent market computations.
 │   │   ├── clock.py                              # The current time, injected so cooling-off waits and holding ages can be…
 │   │   ├── config.py                             # Settings from env/.env; refuses unsafe auth setups and never echoes secret…
@@ -133,9 +133,9 @@ MoatMine/
 │   │   ├── conftest.py                           # Test app on a throwaway SQLite DB (migrated), mock market data,…
 │   │   ├── test_analytics.py                     # Price-derived ratios with hand-checkable numbers.
 │   │   ├── test_api.py                           # End-to-end API: portfolio, stock data, notes, targets, worker alerts, AI…
-│   │   ├── test_auth.py                          # Clerk JWT verification, with a locally generated key standing in for Clerk's…
+│   │   ├── test_auth.py                          # Firebase ID token verification, with a locally generated key standing in for…
 │   │   ├── test_cache.py                         # The TTL cache: expiry, eviction order, lock pruning and per-key single flight…
-│   │   ├── test_config.py                        # Settings refuse dev auth on Postgres and incomplete Clerk config
+│   │   ├── test_config.py                        # Settings refuse dev auth on Postgres and incomplete Firebase or Fernet config
 │   │   ├── test_crises.py                        # Crisis drawdown/recovery and worst-drawdown maths on hand-built bars
 │   │   ├── test_crypto.py                        # Encryption round trips, tampering, masking, MCP token hashing
 │   │   ├── test_db.py                            # Migrations match the models; readiness check reports DB and schema state
@@ -180,7 +180,7 @@ MoatMine/
 │   │   ├── Cargo.lock                            # Pinned Rust dependencies
 │   │   ├── Cargo.toml                            # Rust crate for the Tauri shell
 │   │   ├── build.rs                              # Tauri-build hook
-│   │   └── tauri.conf.json                       # Window, CSP (API + Clerk hosts) and bundle settings; serves web/out
+│   │   └── tauri.conf.json                       # Window, CSP (API + Firebase sign-in hosts) and bundle settings; serves web/out
 │   ├── app-icon.png                              # Source image for `npm run icons`
 │   ├── package-lock.json                         # Pinned npm dependencies (Tauri CLI)
 │   └── package.json                              # Tauri CLI scripts: dev (over the Next dev server) and build (static export →…
@@ -242,7 +242,7 @@ MoatMine/
 │   │   │   ├── AiSettingsCard.tsx                # Provider keys, model picker and external agent settings
 │   │   │   ├── AlertsBell.tsx                    # Unread alerts popover with mark-all-read
 │   │   │   ├── AllocationPie.tsx                 # Donut of holdings and cash weights
-│   │   │   ├── AuthShell.tsx                     # Clerk sign-in gate (when configured) and the nav's sign-out link
+│   │   │   ├── AuthShell.tsx                     # Firebase sign-in gate (when configured) and the nav's sign-out link
 │   │   │   ├── BadTimesPanel.tsx                 # Crisis drawdowns vs a benchmark and the stock's worst falls
 │   │   │   ├── BookToggle.tsx                    # Real money / Paper switch and the paper-mode notice
 │   │   │   ├── ChatPanel.tsx                     # Agent chat with model picker, tool use and suggestions
@@ -255,24 +255,27 @@ MoatMine/
 │   │   │   ├── ResearchPanels.tsx                # Company card, earnings, dividends, analysts and news panels
 │   │   │   ├── SafetyBits.tsx                    # Grade badge, score ring and safety-check result view
 │   │   │   ├── SafetyPanel.tsx                   # Stock safety report, AI analyzer and the buy check / buy plan form
+│   │   │   ├── SignInForm.test.tsx
+│   │   │   ├── SignInForm.tsx                    # Sign-in screen: email/password (create, reset) everywhere, Google in browsers…
 │   │   │   ├── SymbolSearch.tsx                  # Debounced ticker search with a results dropdown
 │   │   │   ├── ValuationPanel.tsx                # Fair-value models with editable assumptions
 │   │   │   └── ValueChart.tsx                    # Holdings value over time for one book
 │   │   ├── lib/                                  # API client, formatters and hooks
 │   │   │   ├── api-schema.ts                     # Types generated from openapi.json (npm run gen:api); don't edit
-│   │   │   ├── api.ts                            # API client (Clerk or dev token), error type, and the response types mirrored…
+│   │   │   ├── api.ts                            # API client (Firebase ID token or dev token), error type, and the response…
 │   │   │   ├── dataSource.test.ts                # Which data-source labels count as sample data
 │   │   │   ├── dataSource.ts                     # IsSampleData: whether a result's data source is the mock provider or its…
+│   │   │   ├── firebase.ts                       # Firebase app and Auth from the NEXT_PUBLIC_FIREBASE_* settings; detects the…
 │   │   │   ├── format.ts                         # Money, number, percent, date and tone formatters (en-US)
 │   │   │   ├── useApi.test.ts
 │   │   │   ├── useApi.ts                         # Fetch hook; ignores responses from superseded requests
 │   │   │   └── useBookMode.ts                    # Shared real/paper choice, remembered in localStorage
 │   │   └── copy.test.ts                          # Fails if any UI copy calls an investment safe or its returns guaranteed
-│   ├── .env.example                              # API URL and (optional) Clerk publishable key
+│   ├── .env.example                              # API URL and (optional) Firebase web-app settings
 │   ├── .gitignore                                # Next.js build output and local env files
 │   ├── README.md                                 # How the web app is built, configured and exported for desktop
 │   ├── eslint.config.mjs                         # ESLint flat config: Next.js core-web-vitals + typescript rules,…
-│   ├── next.config.ts                            # Server build vs static export (GitHub Pages base path; swaps @clerk/nextjs…
+│   ├── next.config.ts                            # Server build vs static export (with the GitHub Pages base path)
 │   ├── openapi.json                              # The API's OpenAPI schema (python -m app.openapi_spec); CI fails if it is stale
 │   ├── package-lock.json                         # Pinned npm dependencies
 │   ├── package.json                              # Next.js 16 / React 19 app; scripts for dev, build and build:desktop

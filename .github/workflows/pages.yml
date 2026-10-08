@@ -3,7 +3,7 @@ name: Deploy web to GitHub Pages
 # Builds the web UI as static files (the same export the desktop app uses) and publishes it at
 # https://<owner>.github.io/<repo>/. The UI calls the API on Render; Pages only serves files.
 # Needs: Settings → Pages → Source "GitHub Actions", and the repository variables API_URL
-# (the Render API address) and CLERK_PUBLISHABLE_KEY (Settings → Secrets and variables → Actions → Variables).
+# (the Render API address) and the FIREBASE_* web-app settings (Settings → Secrets and variables → Actions → Variables).
 on:
   push:
     branches: [main]
@@ -46,7 +46,10 @@ jobs:
         env:
           NEXT_BASE_PATH: /${{ github.event.repository.name }}
           NEXT_PUBLIC_API_URL: ${{ vars.API_URL }}
-          NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${{ vars.CLERK_PUBLISHABLE_KEY }}
+          NEXT_PUBLIC_FIREBASE_API_KEY: ${{ vars.FIREBASE_API_KEY }}
+          NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: ${{ vars.FIREBASE_AUTH_DOMAIN }}
+          NEXT_PUBLIC_FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
+          NEXT_PUBLIC_FIREBASE_APP_ID: ${{ vars.FIREBASE_APP_ID }}
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

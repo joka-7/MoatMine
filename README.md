@@ -145,7 +145,13 @@ The app runs with **no API keys**: `MARKET_PROVIDER=mock` serves deterministic s
 
 ## Deploy
 
-**Clerk first.** Create a Clerk application. You need three values from it: the publishable key, the JWKS URL (`https://<frontend-api>/.well-known/jwks.json`) and the issuer (`https://<frontend-api>`). The API refuses to start with `AUTH_MODE=dev` on Postgres, and with `AUTH_MODE=clerk` if either Clerk value is missing.
+**Firebase first (sign-in only).** MoatMine uses Firebase Authentication for accounts, like the other apps; its data stays in its own database, not in Firestore.
+1. Create a project at https://console.firebase.google.com (the free Spark plan is enough).
+2. **Build → Authentication → Get started → Sign-in method:** enable **Email/Password** and **Google**.
+3. **Authentication → Settings → Authorized domains:** add `<owner>.github.io` (and `localhost` for local testing).
+4. **Project settings → Your apps → Add app → Web.** Note the `apiKey`, `authDomain`, `projectId` and `appId`. None of them is secret.
+
+The API checks every request's Firebase ID token against Google's public keys, for this project only. It refuses to start with `AUTH_MODE=dev` on Postgres, and with `AUTH_MODE=firebase` without `FIREBASE_PROJECT_ID`.
 
 **Render.** New → Blueprint → this repo. Then fill in the prompted secrets:
 - `FINNHUB_API_KEY`. The blueprint sets `MARKET_PROVIDER=finnhub`, but without this key the API serves the labelled sample data. Before you rely on it:
@@ -154,38 +160,34 @@ The app runs with **no API keys**: `MARKET_PROVIDER=mock` serves deterministic s
   - `/stock/candle` may need a paid plan. Until then, charts fall back to sample data. Every result built on those bars (safety score, portfolio risk, stress tests, bad-times history, holdings value chart, price ratios) is labelled `mock-fallback`, and target alerts treat the volatility as unknown instead of using sample prices.
 - `FMP_API_KEY` (optional). Company descriptions, statements (Piotroski, Altman), price targets and dividend history need it or a paid Finnhub plan; without them those sections say so instead of breaking. The FMP mapping follows FMP's documented `/stable` fields but hasn't been run against a live key yet.
 - `FERNET_KEY`
-- `CLERK_JWKS_URL` and `CLERK_ISSUER` (the blueprint sets `AUTH_MODE=clerk`)
-- `CLERK_AUTHORIZED_PARTIES` = your web app's origin (`https://<owner>.github.io` on GitHub Pages) plus `tauri://localhost,http://tauri.localhost`, so sessions minted for another site on the same Clerk instance are refused
+- `FIREBASE_PROJECT_ID` (the blueprint sets `AUTH_MODE=firebase`)
 - AI keys (optional)
-- `CORS_ORIGINS` = the same web origin plus `tauri://localhost,http://tauri.localhost`
+- `CORS_ORIGINS` = your web app's origin (`https://<owner>.github.io` on GitHub Pages) plus `tauri://localhost,http://tauri.localhost`
 
 **Web (GitHub Pages).** Render runs the API, the worker and the database; the web UI is only static files, so GitHub Pages can serve it. `.github/workflows/pages.yml` builds the static export and publishes it at `https://<owner>.github.io/<repo>/` on every push to `main` that touches `web/`. Once:
 1. Settings → Pages → Source: **GitHub Actions**.
-2. Settings → Secrets and variables → Actions → **Variables**: `API_URL` = `https://<moatmine-api>.onrender.com` and `CLERK_PUBLISHABLE_KEY` = the Clerk publishable key. Neither is secret: both end up in the page anyway. The workflow stops with an error until `API_URL` is set.
-3. In Clerk, allow the Pages origin. Check whether your Clerk plan's production instance accepts a `github.io` address or needs a domain you own.
+2. Settings → Secrets and variables → Actions → **Variables**: `API_URL` = `https://<moatmine-api>.onrender.com`, and `FIREBASE_API_KEY`, `FIREBASE_AUTH_DOMAIN`, `FIREBASE_PROJECT_ID`, `FIREBASE_APP_ID` from the Firebase web app. None is secret: they all end up in the page anyway. The workflow stops with an error until `API_URL` is set.
 
-With the key set, the whole app sits behind Clerk's sign-in, and every API call sends the Clerk session token from `getToken()`. Vercel also works (import the repo with root directory `web` and set `NEXT_PUBLIC_API_URL` and `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`), but nothing needs it.
+With the Firebase settings present, the whole app sits behind sign-in (email and password, or Google in a browser), and every API call sends the user's Firebase ID token (`authToken()` in `web/src/lib/api.ts`). Vercel also works (import the repo with root directory `web` and set the same values as `NEXT_PUBLIC_*` variables), but nothing needs it.
 
-**Desktop.** Set `NEXT_PUBLIC_API_URL` and `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` before `npm run build` so the installer points at Render and signs in with Clerk. Users can also change the API URL in Settings. The static export swaps `@clerk/nextjs` for `@clerk/react` (see `web/next.config.ts`), because the Next.js provider needs a server.
+**Desktop.** For a local installer build, set `NEXT_PUBLIC_API_URL` and the `NEXT_PUBLIC_FIREBASE_*` values before `npm run build` so it points at Render and signs in with Firebase; the release workflow does this from the repository variables. Users can also change the API URL in Settings.
 
-The desktop CSP in `desktop/src-tauri/tauri.conf.json` allows Clerk development instances (`*.clerk.accounts.dev`). For production you must add these to `script-src` and `connect-src`:
-- your production Clerk frontend API domain
-- your API domain, if it isn't on `*.onrender.com` (narrow `*.onrender.com` to your API host if users won't point the app elsewhere)
+The desktop CSP in `desktop/src-tauri/tauri.conf.json` allows the API on `*.onrender.com` and Firebase's sign-in endpoints (`identitytoolkit.googleapis.com`, `securetoken.googleapis.com`). If your API isn't on `*.onrender.com`, add its domain to `connect-src` (or narrow `*.onrender.com` to your API host if users won't point the app elsewhere).
 
 The production `csp` has no `'unsafe-inline'` for scripts: Tauri hashes each inline script of the static export into the policy at build time. `devCsp` (used by `npm run dev`) keeps `'unsafe-inline'` and `http://localhost:8000` for the Next dev server and a local API.
 
-**Releases (desktop and Android).** `.github/workflows/release.yml` publishes release `v<version>`, creating the tag, with the desktop installers and the Android APK (`.github/workflows/android.yml`). The version comes from `desktop/src-tauri/tauri.conf.json`. A push to `main` releases automatically when that version has no tag yet, so a release is: bump the version, add a `CHANGELOG.md` entry, merge. It needs the same `API_URL` and `CLERK_PUBLISHABLE_KEY` repository variables as the Pages build, so the apps point at your API. Android only installs signed APKs and only accepts updates signed with the same key, so create one keystore once and store it as secrets:
+**Releases (desktop and Android).** `.github/workflows/release.yml` publishes release `v<version>`, creating the tag, with the desktop installers and the Android APK (`.github/workflows/android.yml`). The version comes from `desktop/src-tauri/tauri.conf.json`. A push to `main` releases automatically when that version has no tag yet, so a release is: bump the version, add a `CHANGELOG.md` entry, merge. It needs the same `API_URL` and `FIREBASE_*` repository variables as the Pages build, so the apps point at your API. Android only installs signed APKs and only accepts updates signed with the same key, so create one keystore once and store it as secrets:
 ```bash
 keytool -genkeypair -keystore moatmine.jks -alias moatmine -keyalg RSA -keysize 2048 -validity 10000
 base64 -w0 moatmine.jks   # → secret ANDROID_KEYSTORE_B64; the password → secret ANDROID_KEY_PASSWORD
 ```
 Keep `moatmine.jks` and its password safe: losing them means users must uninstall to get the next version. Without the secrets the APK is signed with a throwaway key. Desktop installers need no keys (they are unsigned, as above).
 
-Desktop and Android sign-in have only been built, not exercised against a live Clerk instance; Google's sign-in button is likely to be blocked inside the app windows, as Google blocks embedded webviews. Before shipping desktop builds, check that your Clerk instance accepts the Tauri origins (`tauri://localhost`, `http://tauri.localhost`).
+Inside the desktop and Android apps, the sign-in screen offers email and password only: Google blocks its sign-in in embedded app windows (the same limit as Sirtuti's desktop app). Sign-in has been built and its screens tested, but not exercised against a live Firebase project.
 
 ## Before real users
 
-- **Auth.** `AUTH_MODE=dev` trusts the bearer token as the user id. It works only against a local SQLite database: the API refuses to start in dev mode on Postgres. Production runs `AUTH_MODE=clerk` (see Deploy).
+- **Auth.** `AUTH_MODE=dev` trusts the bearer token as the user id. It works only against a local SQLite database: the API refuses to start in dev mode on Postgres. Production runs `AUTH_MODE=firebase` (see Deploy).
 - **Schema.** Alembic owns the schema (`backend/migrations/`). Render runs `alembic upgrade head` before each deploy of the API and the worker. After changing `app/models.py`, run `alembic revision --autogenerate -m "..."`, review the file, and commit it with the model change. `tests/test_db.py` fails if the models and migrations drift apart. A database created before migrations is adopted by the baseline revision as-is.
 - **Market data.** Check the Finnhub and FMP caveats under Deploy → Render before showing data to other users.
 - **Broker sync.** SnapTrade or Plaid Investments can fill the existing `accounts` and `holdings` tables. Today they are entered manually.

@@ -11,6 +11,10 @@ API share one version.
 - "Install app" from Chrome and Edge, and Add to Home Screen on phones.
 - Automatic releases: a new version on `main` publishes desktop installers and an Android APK.
 
+### Changed
+- Sign-in moved from Clerk to Firebase Authentication (email and password, plus Google in
+  browsers), like the other apps. Existing Clerk accounts don't carry over: users sign up again.
+
 ## [0.1.0] - 2026-10-08
 
 The first tagged release: the version the first desktop builds are cut from.
