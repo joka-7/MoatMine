@@ -3,13 +3,16 @@ import tempfile
 
 from cryptography.fernet import Fernet
 
-_tmp = tempfile.mkdtemp()
-os.environ["DATABASE_URL"] = f"sqlite:///{_tmp}/test.db"
-os.environ["FERNET_KEY"] = Fernet.generate_key().decode()
-os.environ["MARKET_PROVIDER"] = "mock"
-os.environ["AUTH_MODE"] = "dev"
-os.environ["ANTHROPIC_API_KEY"] = "server-key"
-os.environ.pop("OPENAI_API_KEY", None)
+# Test modules import helpers from `tests.conftest`, which runs this file a second time under that
+# name; a second FERNET_KEY or database there would no longer match the settings already cached.
+if "MOATMINE_TEST_ENV" not in os.environ:
+    os.environ["MOATMINE_TEST_ENV"] = "1"
+    os.environ["DATABASE_URL"] = f"sqlite:///{tempfile.mkdtemp()}/test.db"
+    os.environ["FERNET_KEY"] = Fernet.generate_key().decode()
+    os.environ["MARKET_PROVIDER"] = "mock"
+    os.environ["AUTH_MODE"] = "dev"
+    os.environ["ANTHROPIC_API_KEY"] = "server-key"
+    os.environ.pop("OPENAI_API_KEY", None)
 
 import pytest  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
