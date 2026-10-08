@@ -2,10 +2,11 @@
 
 import asyncio
 import json
+from pathlib import Path
 
 import pytest
 
-from app.ai.tools import run_tool, user_named
+from app.ai.tools import TOOL_SPECS, run_tool, user_named
 from app.db import SessionLocal
 from app.jsontypes import JSONDict
 
@@ -55,3 +56,9 @@ def test_run_tool_write_tools_need_the_user_to_name_the_symbol(client, user_said
 )
 def test_user_named(symbol, text, named):
     assert user_named(symbol, text) is named
+
+
+def test_tool_specs_match_the_readme():
+    readme = (Path(__file__).resolve().parents[2] / "README.md").read_text()
+    missing = [s["name"] for s in TOOL_SPECS if f"`{s['name']}`" not in readme]
+    assert not missing, f"README's AI agent row doesn't list {missing}"

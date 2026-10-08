@@ -58,9 +58,9 @@ Every page at desktop and phone width: [`docs/screenshots/`](docs/screenshots/).
 | My info | Your own notes, thesis, news and links per stock |
 | **PAPI / MAMI targets** | **P**rofit %, **A**mount (value), **P**eriod (days held), **I**ntent (category plus risk as annualised volatility %). Each has a target and **MA**x/**MI**n bounds. Scope is one symbol or the whole portfolio. Shown as live range bars. |
 | Alerts | Worker evaluates targets and watch prices and writes de-duplicated alerts (bell menu) |
-| AI agent | Tool-using chat through **[ModelDispatcher](https://github.com/joka-7/ModelDispatcher)**, bound to the user's risk profile. Tools: portfolio, risk profile, safety score, safety check, portfolio risk, stress test, quotes, ratios, company, earnings, analysts, dividends, valuation, bad times, news feed, targets, watchlist, notes |
+| AI agent | Tool-using chat through **[ModelDispatcher](https://github.com/joka-7/ModelDispatcher)**, bound to the user's risk profile. Read tools: `get_portfolio`, `get_quote`, `get_ratios`, `get_news`, `get_company`, `get_earnings`, `get_analysts`, `get_dividends`, `get_valuation`, `get_bad_times`, `get_risk_profile`, `get_safety_score`, `safety_check`, `get_portfolio_risk`, `get_stress_test`, `get_news_feed`, `get_targets_status`, `get_watchlist`, `get_notes`. Write tools (`add_to_watchlist`, `save_note`) act only on a symbol the user named in their own message |
 | AI settings | ModelDispatcher's shared `<ModelPicker>`: providers in fallback order, a model each, pooled keys (encrypted server-side), a favorite free AI app (`<AskExternallyButton>` / `<PasteExternalReply>` in chat), plus an **external agent** at any OpenAI-compatible base URL |
-| MCP | `/mcp/` exposes the same tools to Claude Desktop, Claude Code or any MCP client, using per-user revocable tokens |
+| MCP | `/mcp/` exposes the read tools to Claude Desktop, Claude Code or any MCP client, using per-user revocable tokens. The write tools aren't served |
 
 ### AI via ModelDispatcher (`backend/app/ai/dispatcher.py`)
 
@@ -124,8 +124,11 @@ The app runs with **no API keys**: `MARKET_PROVIDER=mock` serves deterministic s
 **Clerk first.** Create a Clerk application. You need three values from it: the publishable key, the JWKS URL (`https://<frontend-api>/.well-known/jwks.json`) and the issuer (`https://<frontend-api>`). The API refuses to start with `AUTH_MODE=dev` on Postgres, and with `AUTH_MODE=clerk` if either Clerk value is missing.
 
 **Render.** New → Blueprint → this repo. Then fill in the prompted secrets:
-- `FINNHUB_API_KEY`
-- `FMP_API_KEY` (optional: company descriptions, financial statements for Piotroski/Altman, price targets, dividends)
+- `FINNHUB_API_KEY`. The blueprint sets `MARKET_PROVIDER=finnhub`, but without this key the API serves the labelled sample data. Before you rely on it:
+  - Finnhub's free plan is for personal use. Check the terms before showing its data to other users.
+  - Free Finnhub gives quotes, news, ratios, earnings, recommendations and splits.
+  - `/stock/candle` may need a paid plan. Until then, charts fall back to sample data. Every result built on those bars (safety score, portfolio risk, stress tests, bad-times history, holdings value chart, price ratios) is labelled `mock-fallback`, and target alerts treat the volatility as unknown instead of using sample prices.
+- `FMP_API_KEY` (optional). Company descriptions, statements (Piotroski, Altman), price targets and dividend history need it or a paid Finnhub plan; without them those sections say so instead of breaking. The FMP mapping follows FMP's documented `/stable` fields but hasn't been run against a live key yet.
 - `FERNET_KEY`
 - `CLERK_JWKS_URL` and `CLERK_ISSUER` (the blueprint sets `AUTH_MODE=clerk`)
 - `CLERK_AUTHORIZED_PARTIES` = your Vercel URL plus `tauri://localhost,http://tauri.localhost`, so sessions minted for another site on the same Clerk instance are refused
@@ -146,7 +149,6 @@ Desktop sign-in has only been built, not exercised against a live Clerk instance
 
 - **Auth.** `AUTH_MODE=dev` trusts the bearer token as the user id. It works only against a local SQLite database: the API refuses to start in dev mode on Postgres. Production runs `AUTH_MODE=clerk` (see Deploy).
 - **Schema.** Alembic owns the schema (`backend/migrations/`). Render runs `alembic upgrade head` before each deploy of the API and the worker. After changing `app/models.py`, run `alembic revision --autogenerate -m "..."`, review the file, and commit it with the model change. `tests/test_db.py` fails if the models and migrations drift apart. A database created before migrations is adopted by the baseline revision as-is.
-- **Data coverage.** Free Finnhub gives quotes, news, ratios, earnings, recommendations and splits. Company descriptions, statements (Piotroski, Altman), price targets and dividend history need `FMP_API_KEY` or a paid Finnhub plan; without them those sections say so instead of breaking. The FMP mapping follows FMP's documented `/stable` fields but hasn't been run against a live key yet.
-- **Market data licensing.** Finnhub's free plan is for personal use. Check the terms before showing its data to other users. `/stock/candle` may need a paid Finnhub plan. Until then, charts fall back to sample data. Every result built on those bars (safety score, portfolio risk, stress tests, bad-times history, holdings value chart, price ratios) is labelled `mock-fallback`, and target alerts treat the volatility as unknown instead of using sample prices.
+- **Market data.** Check the Finnhub and FMP caveats under Deploy → Render before showing data to other users.
 - **Broker sync.** SnapTrade or Plaid Investments can fill the existing `accounts` and `holdings` tables. Today they are entered manually.
 - **Chat.** Chat replies are not streamed yet (one response per turn).
