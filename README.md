@@ -10,7 +10,7 @@ Risk-aware investing app: every stock gets a graded safety score, every buy is c
 ```text
 MoatMine/
 ├── .claude/            # Claude Code agents, commands and skills synced from .ai (ai-sync)
-├── .github/            # CI workflow and the pull request template
+├── .github/            # CI, Pages deploy and release workflows, and the pull request template
 ├── backend/            # FastAPI API, background worker, MCP server, safety/valuation maths, Alembic…
 ├── desktop/            # Tauri v2 shell that loads the static-exported web UI and calls the same API
 ├── docs/               # Repo map, HLD/LLD design docs and UI screenshots
@@ -85,6 +85,8 @@ The agent has no tool that places trades.
 - **Web app:** `https://<owner>.github.io/<repo>/` once GitHub Pages is set up (see Deploy).
 - **Desktop Chrome or Edge, Android Chrome:** open the web app → browser menu → *Install app*. It opens in its own window and on the home screen (`web/src/app/manifest.ts`).
 - **iPhone:** open the web app in Safari → Share → *Add to Home Screen*.
+- **Desktop app:** download the installer for Windows (`.msi` / `.exe`), macOS (`.dmg`) or Linux (`.AppImage` / `.deb`) from the latest GitHub release. The builds are not code-signed, so Windows SmartScreen and macOS Gatekeeper warn on first launch (macOS: right-click the app → *Open*).
+- **Android app:** download `MoatMine_<version>_android.apk` from the latest release and open it; allow installing from your browser when asked. Install new versions over the old one.
 
 ## Getting started
 
@@ -172,7 +174,14 @@ The desktop CSP in `desktop/src-tauri/tauri.conf.json` allows Clerk development 
 
 The production `csp` has no `'unsafe-inline'` for scripts: Tauri hashes each inline script of the static export into the policy at build time. `devCsp` (used by `npm run dev`) keeps `'unsafe-inline'` and `http://localhost:8000` for the Next dev server and a local API.
 
-Desktop sign-in has only been built, not exercised against a live Clerk instance. Before shipping desktop builds, check that your Clerk instance accepts the Tauri origins (`tauri://localhost`, `http://tauri.localhost`).
+**Releases (desktop and Android).** `.github/workflows/release.yml` publishes release `v<version>`, creating the tag, with the desktop installers and the Android APK (`.github/workflows/android.yml`). The version comes from `desktop/src-tauri/tauri.conf.json`. A push to `main` releases automatically when that version has no tag yet, so a release is: bump the version, add a `CHANGELOG.md` entry, merge. It needs the same `API_URL` and `CLERK_PUBLISHABLE_KEY` repository variables as the Pages build, so the apps point at your API. Android only installs signed APKs and only accepts updates signed with the same key, so create one keystore once and store it as secrets:
+```bash
+keytool -genkeypair -keystore moatmine.jks -alias moatmine -keyalg RSA -keysize 2048 -validity 10000
+base64 -w0 moatmine.jks   # → secret ANDROID_KEYSTORE_B64; the password → secret ANDROID_KEY_PASSWORD
+```
+Keep `moatmine.jks` and its password safe: losing them means users must uninstall to get the next version. Without the secrets the APK is signed with a throwaway key. Desktop installers need no keys (they are unsigned, as above).
+
+Desktop and Android sign-in have only been built, not exercised against a live Clerk instance; Google's sign-in button is likely to be blocked inside the app windows, as Google blocks embedded webviews. Before shipping desktop builds, check that your Clerk instance accepts the Tauri origins (`tauri://localhost`, `http://tauri.localhost`).
 
 ## Before real users
 

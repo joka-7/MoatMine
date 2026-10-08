@@ -33,6 +33,7 @@ the mock market provider serves labelled sample data.
 | files or folders | `python .ai/skills/repo_tree/gen_tree.py --project . --output docs/STRUCTURE.md --max-depth 4 --max-entries 25` and `--output README.md --max-depth 1` |
 | `backend/requirements.txt` | `uv pip compile requirements.txt -o requirements.lock --python-version 3.12 --no-header` (in `backend/`) |
 | an agent tool in `backend/app/ai/tools.py` | set its `read_only` flag and list it in the README's AI agent row |
+| a release | bump `version` in `desktop/src-tauri/tauri.conf.json`, `desktop/package.json` and `web/package.json`, add a `CHANGELOG.md` entry, merge: `release.yml` tags and publishes it |
 
 ## Check before you push
 

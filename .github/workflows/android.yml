@@ -1,0 +1,116 @@
+name: Android APK
+
+# Builds and signs the Android APK with Tauri and, when publishing, attaches it to release
+# v<version>. Called by release.yml after the desktop builds; can also be run from the Actions tab.
+# Android only installs signed APKs, and an update must carry the same key as the installed app,
+# so the key lives in secrets: ANDROID_KEYSTORE_B64 (+ ANDROID_KEYSTORE_B64_2 if the base64 was split)
+# and ANDROID_KEY_PASSWORD, with a key under the alias "moatmine". Without them the APK is signed
+# with a throwaway key, and phones must uninstall the old app before installing the next one.
+on:
+  workflow_call:
+    inputs:
+      publish:
+        type: boolean
+        required: true
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: Attach the APK to the release of the current version
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+jobs:
+  apk:
+    runs-on: ubuntu-24.04
+    env:
+      NEXT_PUBLIC_API_URL: ${{ vars.API_URL }}
+      NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${{ vars.CLERK_PUBLISHABLE_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Install Android NDK and build tools
+        run: |
+          SDKM=$(ls $ANDROID_HOME/cmdline-tools/*/bin/sdkmanager | head -1)
+          yes | "$SDKM" --licenses > /dev/null || true
+          "$SDKM" --install "ndk;27.0.12077973" "build-tools;34.0.0" "platforms;android-34" > /dev/null
+          echo "NDK_HOME=$ANDROID_HOME/ndk/27.0.12077973" >> "$GITHUB_ENV"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android,armv7-linux-androideabi
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: "./desktop/src-tauri -> target"
+
+      # the Tauri build runs `npm --prefix ../web run build:desktop`, so both need their packages
+      - run: npm ci
+        working-directory: web
+      - run: npm ci
+        working-directory: desktop
+
+      - name: Generate the Android project
+        working-directory: desktop
+        run: |
+          npx tauri android init --ci
+          npx tauri icon app-icon.png
+
+      - name: Build APK
+        working-directory: desktop
+        run: npx tauri android build --apk --target aarch64 armv7
+
+      - name: Sign APK
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
+          KEYSTORE_B64_2: ${{ secrets.ANDROID_KEYSTORE_B64_2 }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          VERSION=$(node -p "require('./desktop/src-tauri/tauri.conf.json').version")
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          BT=$ANDROID_HOME/build-tools/34.0.0
+          APK=$(find desktop/src-tauri/gen/android/app/build/outputs/apk -name '*release-unsigned.apk' | head -1)
+          [ -n "$APK" ] || { echo "::error::No unsigned APK found"; exit 1; }
+          echo "Unsigned APK: $APK"
+          KEYSTORE_B64="$KEYSTORE_B64$KEYSTORE_B64_2"
+          if [ -n "$KEYSTORE_B64" ]; then
+            # tolerate spaces/line breaks picked up while pasting the secret
+            printf '%s' "$KEYSTORE_B64" | tr -d ' \r\n\t' | base64 -d > release.jks 2>/dev/null \
+              || { echo "::error::ANDROID_KEYSTORE_B64 is not valid base64."; exit 1; }
+            KEY_PASSWORD=$(printf '%s' "$KEY_PASSWORD" | tr -d '\r\n' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+            keytool -list -keystore release.jks -storepass "$KEY_PASSWORD" -alias moatmine > /dev/null 2>&1 \
+              || { echo "::error::ANDROID_KEY_PASSWORD doesn't open the keystore, or it has no key with alias 'moatmine'."; exit 1; }
+          else
+            echo "::warning::ANDROID_KEYSTORE_B64 is not set: signing with a throwaway key. Phones must uninstall before installing the next build."
+            KEY_PASSWORD=temporary-$RANDOM$RANDOM
+            keytool -genkeypair -keystore release.jks -alias moatmine -keyalg RSA -keysize 2048 -validity 10000 \
+              -storepass "$KEY_PASSWORD" -keypass "$KEY_PASSWORD" -dname "CN=MoatMine temporary"
+          fi
+          "$BT/zipalign" -f -p 4 "$APK" aligned.apk
+          "$BT/apksigner" sign --ks release.jks --ks-key-alias moatmine --ks-pass "pass:$KEY_PASSWORD" --key-pass "pass:$KEY_PASSWORD" \
+            --out "MoatMine_${VERSION}_android.apk" aligned.apk
+          "$BT/apksigner" verify "MoatMine_${VERSION}_android.apk"
+          rm -f release.jks
+
+      - name: Keep the APK as a build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: MoatMine_${{ env.VERSION }}_android
+          path: MoatMine_${{ env.VERSION }}_android.apk
+
+      - name: Attach the APK to the release
+        if: inputs.publish
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release upload "v$VERSION" "MoatMine_${VERSION}_android.apk" --clobber

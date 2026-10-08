@@ -4,6 +4,13 @@ Notable changes per release. The format follows [Keep a Changelog](https://keepa
 versions follow [Semantic Versioning](https://semver.org/). The web app, the desktop app and the
 API share one version.
 
+## [Unreleased]
+
+### Added
+- The web UI deploys to GitHub Pages; Vercel is no longer needed.
+- "Install app" from Chrome and Edge, and Add to Home Screen on phones.
+- Automatic releases: a new version on `main` publishes desktop installers and an Android APK.
+
 ## [0.1.0] - 2026-10-08
 
 The first tagged release: the version the first desktop builds are cut from.

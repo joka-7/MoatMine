@@ -56,7 +56,7 @@ and the logic that isn't obvious, see [`LLD.md`](LLD.md).
 flowchart LR
   subgraph Clients
     W[Web UI<br/>Next.js static export<br/>on GitHub Pages]
-    D[Desktop<br/>Tauri over static export]
+    D[Desktop and Android<br/>Tauri over static export]
     X[External agents<br/>MCP clients]
   end
   subgraph Render
@@ -83,7 +83,7 @@ flowchart LR
 | Component | Owns | Code |
 |---|---|---|
 | Web UI | All screens; one API client; Clerk sign-in gate | `web/src/app/*`, `web/src/lib/api.ts`, `web/src/components/AuthShell.tsx` |
-| Desktop | Native window over the static export; no logic | `desktop/src-tauri/src/lib.rs`, `tauri.conf.json` |
+| Desktop and Android | Native window over the static export; no logic. Built and published by `.github/workflows/release.yml` and `android.yml` | `desktop/src-tauri/src/lib.rs`, `tauri.conf.json` |
 | API: routers | HTTP surface, auth dependency, request validation | `app/routers/*.py`, `app/auth.py`, `app/schemas.py` |
 | API: domain services | Gathering data for the maths; applying the user's rules | `app/safety/service.py`, `app/portfolio.py`, `app/research.py`, `app/targets.py` |
 | Pure maths | Safety score, buy check, risk/stress, valuation, crises, moat | `app/safety/{score,check,risk,moat,profile}.py`, `app/valuation.py`, `app/crises.py`, `app/analytics.py` |
