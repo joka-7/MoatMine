@@ -190,6 +190,21 @@ def test_portfolio_breaches(book, expected):
     assert all(f"above your {b.limit:g}% limit" in b.message for b in got)
 
 
+@pytest.mark.parametrize("values, fall", [
+    ([100, 125, 95], -24.0),  # 125 -> 95 is past the -20% limit, though still only -5% against the start
+    ([100, 125, 100], None),  # exactly -20%: at the limit, not past it
+    ([100, 90, 85], None),  # -15%
+    ([100, 60, 110], None),  # recovered to a new high
+    ([], None),
+    ([0, 0], None),  # nothing held
+])
+def test_loss_limit_breach(values, fall):
+    got = chk.loss_limit_breach(RULES, values)
+    assert (None if got is None else round(got.pct, 1)) == fall
+    if got:
+        assert got.rule == "loss_limit" and "24.0% below their 1-year high" in got.message and "20% loss limit" in got.message
+
+
 # ---------------- risk maths ----------------
 
 
@@ -252,7 +267,8 @@ def test_profile_roundtrip_and_auto_target(client):
     p = r.json()
     assert p["saved"] and p["level"] == "balanced" and p["max_position_pct"] == 12 and p["max_sector_pct"] == 30
     targets = {t["name"]: t for t in client.get("/targets", headers=D).json()}
-    assert targets["Risk profile (auto)"]["profit_min"] == -25 and targets["Risk profile (auto)"]["risk_max"] == 45
+    auto = targets["Risk profile (auto)"]
+    assert auto["profit_min"] is None and auto["risk_max"] == 45  # the loss limit is a fall from peak, not a profit bound
     assert client.put("/safety/profile", json={}, headers=D).status_code == 422
 
 

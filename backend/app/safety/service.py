@@ -123,14 +123,17 @@ def save_profile(db: Session, user: str, level: str, answers: JSONDict, override
 
 
 def _sync_auto_target(db: Session, user: str, p: RiskProfile) -> None:
-    """Mirror the profile's loss and risk limits into a portfolio-level PAPI target (MAMI bounds)."""
+    """Mirror the profile's risk limit into a portfolio-level PAPI target (Intent's MAMI bound).
+
+    The loss limit isn't mirrored: it is a fall from the portfolio's peak, while the target's
+    profit bound is a return against cost. The worker checks it on its own (`loss_limit_breach`).
+    """
     t = db.scalar(select(Target).where(Target.user_id == user, Target.name == AUTO_TARGET))
     if t is None:
         t = Target(user_id=user, name=AUTO_TARGET, symbol=None)
         db.add(t)
-    t.profit_min = p.max_drawdown_pct
     t.risk_max = p.max_volatility_pct
-    t.intent = "growth" if p.level == "growth" else "retirement" if p.level == "conservative" else "growth"
+    t.intent = "retirement" if p.level == "conservative" else "growth"
     t.intent_note = f"From your {p.level} risk profile. Edit the profile, not this target."
 
 

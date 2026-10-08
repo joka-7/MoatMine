@@ -54,3 +54,33 @@ def test_book_for_counts_a_failed_sector_lookup_as_unknown(client):
         _, book, sectors = asyncio.run(book_for(db, "sector-flaky", _FailsFor(get_provider(), "MSFT"), "real"))
     assert sectors["MSFT"] is None and sectors["AAPL"]
     assert "Unknown" in book.by_sector and set(book.by_symbol) == {"AAPL", "MSFT"}
+
+
+class _FallsBy:
+    """Market provider whose daily bars fall from 100 to `last` over the window; the rest delegates."""
+
+    name = "falls-for-test"
+
+    def __init__(self, inner, last: float):
+        self._inner, self._last = inner, last
+
+    def __getattr__(self, item):
+        return getattr(self._inner, item)
+
+    async def candles(self, symbol, resolution, start, end):
+        days = (end - start) // 86400
+        return [{"t": start + i * 86400, "o": 0, "h": 0, "l": 0, "c": 100 + (self._last - 100) * i / days, "v": 0}
+                for i in range(days + 1)]
+
+
+def test_run_once_alerts_on_the_loss_limit(client, monkeypatch):
+    who, user = auth("worker-fall"), "worker-fall"
+    acc = client.post("/accounts", json={"name": "B", "cash": 0}, headers=who).json()["id"]
+    client.post("/holdings", json={"account_id": acc, "symbol": "AAPL", "quantity": 1, "avg_cost": 1}, headers=who)
+    client.put("/safety/profile", json={"level": "growth", "max_drawdown_pct": -20, "max_position_pct": 100,
+                                        "max_sector_pct": 100}, headers=who)
+    for last, expect in ((85, False), (70, True)):  # -15% stays quiet, -30% alerts
+        monkeypatch.setattr(worker, "get_provider", lambda last=last: _FallsBy(get_provider(), last))
+        asyncio.run(worker.run_once())
+        msgs = [a["message"] for a in client.get("/alerts?unread_only=true", headers=who).json()]
+        assert any("loss limit" in m for m in msgs) is expect, (user, last, msgs)

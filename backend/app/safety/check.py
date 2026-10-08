@@ -45,13 +45,15 @@ class Book:
 
 @dataclass(frozen=True)
 class Breach:
-    rule: str  # "position_size" | "sector"
-    subject: str  # symbol or sector
-    pct: float  # share of the book
+    rule: str  # "position_size" | "sector" | "loss_limit"
+    subject: str  # symbol, sector, or "portfolio"
+    pct: float  # share of the book; for loss_limit the (negative) fall from the peak
     limit: float
 
     @property
     def message(self) -> str:
+        if self.rule == "loss_limit":
+            return f"Your holdings are {-self.pct:.1f}% below their 1-year high — past your {-self.limit:g}% loss limit"
         return f"{self.subject} is {self.pct:.1f}% of your portfolio — above your {self.limit:g}% limit"
 
 
@@ -66,6 +68,19 @@ def portfolio_breaches(rules: Rules, book: Book) -> list[Breach]:
     by_symbol = [Breach("position_size", s, v / total * 100, rules.max_position_pct) for s, v in book.by_symbol.items()]
     by_sector = [Breach("sector", s, v / total * 100, rules.max_sector_pct) for s, v in book.by_sector.items() if s != "Unknown"]
     return [b for b in by_symbol + by_sector if b.pct > b.limit]
+
+
+def loss_limit_breach(rules: Rules, values: list[float]) -> Breach | None:
+    """The book's current fall from its peak, if it is past the user's loss limit.
+
+    `values` is the book's daily value over the lookback window, oldest first. The loss limit
+    (`max_drawdown_pct`, negative) is a fall from the highest value, not a loss against cost.
+    """
+    peak = max(values, default=0.0)
+    if peak <= 0:
+        return None
+    fall = (values[-1] / peak - 1) * 100
+    return Breach("loss_limit", "portfolio", fall, rules.max_drawdown_pct) if fall < rules.max_drawdown_pct else None
 
 
 def _r(rule: str, status: str, message: str) -> JSONDict:

@@ -18,7 +18,7 @@ from app.portfolio import (
     PAPER_BROKER,
     BookMode,
     book_mode_of,
-    held_value_by_day,
+    held_value_history,
     holdings_in_book,
     is_paper,
     pay_for_paper_buy,
@@ -138,13 +138,7 @@ async def portfolio_history(
     holdings = await asyncio.to_thread(holdings_in_book, db, user, mode)
     if not holdings:
         return []
-    end = int(time.time())
-    start = end - days * 86400
-    syms = sorted({h.symbol for h in holdings})
     with track_sources() as used:
-        series = await asyncio.gather(*(provider.candles(s, "D", start, end) for s in syms))
+        out = await held_value_history(provider, holdings, days, int(time.time()))
     response.headers["X-Data-Source"] = source_label(provider.name, used)
-    qty: dict[str, float] = {}
-    for h in holdings:
-        qty[h.symbol] = qty.get(h.symbol, 0) + h.quantity
-    return held_value_by_day(dict(zip(syms, series, strict=True)), qty)
+    return out

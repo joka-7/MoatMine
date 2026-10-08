@@ -33,6 +33,16 @@ warn  if no score, sector % > limit, volatility > limit, market cap < minimum, p
 verdict = block if any fail, else warn if any warn, else pass
 ```
 
+**Loss limit** (`loss_limit_breach`, `app/safety/check.py`). `max_drawdown_pct` is a fall from
+the peak, not a return against cost, so it is not mirrored into the auto target's `profit_min`
+(migration `0002` clears the old values):
+
+```
+values = daily value of today's real holdings over 365 days (held_value_history)
+fall % = (values[-1] / max(values) - 1) * 100
+breach if fall % < max_drawdown_pct        (both negative; exactly at the limit is not a breach)
+```
+
 **Data-source labelling** (`app/market/sources.py`):
 
 ```

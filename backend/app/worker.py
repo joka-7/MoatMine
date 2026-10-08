@@ -9,6 +9,7 @@ Run:  python -m app.worker        (or --once for a single pass)
 import asyncio
 import logging
 import sys
+import time
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -18,9 +19,10 @@ from app.db import SessionLocal
 from app.log_config import configure_logging
 from app.market import get_provider
 from app.market.base import MarketProvider
+from app.market.sources import MOCK_FALLBACK, track_sources
 from app.models import Alert, RiskProfile, Target, WatchItem
-from app.portfolio import portfolio_snapshot, quotes_for
-from app.safety.check import portfolio_breaches
+from app.portfolio import held_value_history, holdings_in_book, portfolio_snapshot, quotes_for
+from app.safety.check import Breach, Rules, loss_limit_breach, portfolio_breaches
 from app.safety.service import book_for, rules_for
 from app.targets import breach_messages, evaluate, risk_by_symbol
 
@@ -96,10 +98,28 @@ async def _alerts_for_user(db: Session, user: str, provider: MarketProvider, pro
     return created
 
 
+async def _loss_limit_breach(db: Session, user: str, provider: MarketProvider, rules: Rules) -> Breach | None:
+    """The real-money holdings' fall from their 1-year high, against the loss limit.
+
+    Skipped when the history is sample data: an alert about a fall that didn't happen is worse than none.
+    """
+    holdings = await asyncio.to_thread(holdings_in_book, db, user, "real")
+    if not holdings:
+        return None
+    with track_sources() as used:
+        history = await held_value_history(provider, holdings, 365, int(time.time()))
+    if MOCK_FALLBACK in used:
+        return None
+    return loss_limit_breach(rules, [p["value"] for p in history])
+
+
 async def _risk_rule_alerts(db: Session, user: str, provider: MarketProvider) -> int:
-    """Position and sector concentration of the real-money book against the user's risk profile."""
+    """Concentration and loss limit of the real-money book against the user's risk profile."""
     _, book, _ = await book_for(db, user, provider, "real")
-    breaches = portfolio_breaches(await asyncio.to_thread(rules_for, db, user), book)
+    rules = await asyncio.to_thread(rules_for, db, user)
+    breaches = portfolio_breaches(rules, book)
+    if (fall := await _loss_limit_breach(db, user, provider, rules)) is not None:
+        breaches.append(fall)
     return sum([
         await asyncio.to_thread(_emit, db, user, "risk", 0, b.subject if b.rule == "position_size" else None,
                                 f"risk:{b.rule.replace('_size', '')}:{b.subject}", b.message)

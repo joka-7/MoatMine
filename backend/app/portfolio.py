@@ -149,3 +149,13 @@ def held_value_by_day(series: dict[str, list[Candle]], qty: dict[str, float]) ->
         if day >= first:
             out.append({"t": day, "value": round(sum(last[s] * qty[s] for s in closes), 2)})
     return out
+
+
+async def held_value_history(provider: MarketProvider, holdings: list[Holding], days: int, now: int) -> list[JSONDict]:
+    """Daily value over the last `days` of the given holdings at today's quantities."""
+    syms = sorted({h.symbol for h in holdings})
+    series = await asyncio.gather(*(provider.candles(s, "D", now - days * 86400, now) for s in syms))
+    qty: dict[str, float] = {}
+    for h in holdings:
+        qty[h.symbol] = qty.get(h.symbol, 0) + h.quantity
+    return held_value_by_day(dict(zip(syms, series, strict=True)), qty)
