@@ -21,11 +21,11 @@ export default function BadTimesPanel({ symbol }: { symbol: string }) {
   const [input, setInput] = useState("SPY");
   const { data: d, error } = useApi<BadTimes>(`/stocks/${symbol}/crises?benchmark=${bench}`);
   const r = d?.resilience;
-  const chart = d?.crises.filter((c) => c.stock).map((c) => ({
+  const chart = d?.crises.flatMap((c) => c.stock ? [{
     name: c.name.replace(/ (crash|crisis|sell-off|bear market).*/i, ""),
-    [symbol]: c.stock!.drawdown_pct,
+    [symbol]: c.stock.drawdown_pct,
     [bench]: c.benchmark?.drawdown_pct ?? null,
-  })) ?? [];
+  }] : []) ?? [];
   const captureTone = r?.downside_capture_pct == null ? "" : r.downside_capture_pct <= 80 ? "up" : r.downside_capture_pct > 120 ? "down" : "";
 
   return (

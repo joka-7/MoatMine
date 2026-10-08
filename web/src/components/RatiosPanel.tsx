@@ -11,6 +11,7 @@ const GROUPS: { title: string; keys: [string, string, string?][] }[] = [
   { title: "Profitability", keys: [["roe", "ROE", "%"], ["roa", "ROA", "%"], ["gross_margin", "Gross margin", "%"], ["net_margin", "Net margin", "%"]] },
   { title: "Health & income", keys: [["debt_to_equity", "Debt/Equity"], ["current_ratio", "Current ratio"], ["dividend_yield", "Div. yield", "%"], ["beta", "Beta"]] },
 ];
+const VALUATION_LABEL: Record<string, string> = Object.fromEntries(GROUPS[0]?.keys.map(([k, label]) => [k, label]) ?? []);
 const PRICE: [string, string, string?][] = [
   ["total_return_pct", "Return", "%"], ["volatility_pct", "Volatility (ann.)", "%"], ["max_drawdown_pct", "Max drawdown", "%"],
   ["sharpe", "Sharpe"], ["sortino", "Sortino"], ["rsi14", "RSI 14"], ["sma50", "SMA 50"], ["sma200", "SMA 200"],
@@ -32,7 +33,7 @@ export default function RatiosPanel({ symbol }: { symbol: string }) {
   const f = data?.fundamental ?? {};
   const bars = (["pe", "forward_pe", "pb", "ps", "peg"] as const)
     .filter((k) => f[k] != null)
-    .map((k) => ({ name: GROUPS[0].keys.find(([kk]) => kk === k)![1], value: f[k] as number }));
+    .map((k) => ({ name: VALUATION_LABEL[k] ?? k, value: f[k] as number }));
 
   return (
     <div className="card">

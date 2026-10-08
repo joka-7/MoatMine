@@ -7,7 +7,8 @@
     "build": "next build",
     "build:desktop": "cross-env NEXT_OUTPUT=export next build",
     "start": "next start",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint ."
   },
   "dependencies": {
     "@clerk/nextjs": "7.9.11",
@@ -21,10 +22,14 @@
     "recharts": "^2.15.4"
   },
   "devDependencies": {
+    "@eslint/eslintrc": "^3.3.7",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "cross-env": "^10.1.0",
-    "typescript": "^5"
+    "eslint": "^9.39.5",
+    "eslint-config-next": "^15.5.27",
+    "typescript": "^5",
+    "typescript-eslint": "^8.71.1"
   }
 }

@@ -62,7 +62,7 @@ function McpTokens() {
       </div>
       {fresh && (
         <div className="card" style={{ background: "var(--bg)", marginBottom: 10 }}>
-          <div className="sub" style={{ fontSize: 12 }}>Copy now. It won't be shown again.</div>
+          <div className="sub" style={{ fontSize: 12 }}>Copy now. It won&apos;t be shown again.</div>
           <code style={{ wordBreak: "break-all" }}>{fresh}</code>
         </div>
       )}

@@ -47,7 +47,7 @@ export default function ValuationPanel({ symbol }: { symbol: string }) {
   };
 
   const s = v?.summary;
-  const chart = v?.models.filter((m) => m.value).map((m) => ({ name: m.name.replace(/ \(.*\)/, ""), value: m.value! })) ?? [];
+  const chart = v?.models.flatMap((m) => m.value ? [{ name: m.name.replace(/ \(.*\)/, ""), value: m.value }] : []) ?? [];
 
   return (
     <div className="grid" style={{ gap: 16 }}>

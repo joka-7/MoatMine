@@ -67,7 +67,7 @@ export function EarningsPanel({ symbol }: { symbol: string }) {
             <table>
               <thead><tr><th>Quarter</th><th className="n">Estimate</th><th className="n">Actual</th><th className="n">Surprise</th></tr></thead>
               <tbody>
-                {data!.map((e) => (
+                {(data ?? []).map((e) => (
                   <tr key={e.period}>
                     <td>{e.period}</td><td className="n">{num(e.estimate)}</td><td className="n">{num(e.actual)}</td>
                     <td className={`n ${tone(e.surprise_pct)}`}>{pct(e.surprise_pct)}</td>
@@ -208,6 +208,8 @@ export function NewsPanel({ symbol }: { symbol: string }) {
         <ul>
           {data?.map((n, i) => (
             <li key={i} style={{ display: "flex", gap: 12 }}>
+              {/* remote news thumbnails: next/image can't optimise them in the static desktop export */}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
               {n.image && <img src={n.image} alt="" style={{ width: 72, height: 48, objectFit: "cover", borderRadius: 6, flex: "none" }} />}
               <a href={n.url || undefined} target="_blank" rel="noreferrer">
                 <div className="h">{n.headline}</div>

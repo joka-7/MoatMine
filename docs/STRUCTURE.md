@@ -254,6 +254,7 @@ MoatMine/
 │   ├── .env.example                              # API URL and (optional) Clerk publishable key
 │   ├── .gitignore                                # Next.js build output and local env files
 │   ├── README.md                                 # How the web app is built, configured and exported for desktop
+│   ├── eslint.config.mjs
 │   ├── next.config.ts                            # Vercel build vs static export for Tauri (swaps @clerk/nextjs for @clerk/react)
 │   ├── package-lock.json                         # Pinned npm dependencies
 │   ├── package.json                              # Next.js 15 / React 19 app; scripts for dev, build and build:desktop
