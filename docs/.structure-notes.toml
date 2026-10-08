@@ -15,6 +15,7 @@
 ".claude/skills/.ai-managed" = "marker: directory is written by ai-sync"
 ".github/workflows/ci.yml" = "CI: backend ruff/mypy/pytest + OpenAPI drift, web tsc/lint/vitest/type drift + both builds, desktop cargo check, repo map"
 ".github/pull_request_template.md" = "Why / what / how verified, plus the regenerate-and-document checklist"
+"CHANGELOG.md" = "Notable changes per release (Keep a Changelog), from v0.1.0"
 "CONTRIBUTING.md" = "How to get a change merged: commit style, what to regenerate when, the checks to run"
 "web/eslint.config.mjs" = "ESLint flat config: Next.js core-web-vitals + typescript rules, typescript-eslint strict"
 "web/vitest.config.mts" = "vitest: jsdom, React plugin, the @/ alias; tests are src/**/*.test.ts[x]"
