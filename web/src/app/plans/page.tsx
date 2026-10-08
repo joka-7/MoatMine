@@ -8,7 +8,7 @@ import { date, money } from "@/lib/format";
 import { useApi } from "@/lib/useApi";
 
 const STATUS: Record<BuyPlan["status"], string> = {
-  ready: "ok", cooling_off: "", blocked: "below_min", executed: "reached", cancelled: "",
+  ready: "ok", cooling_off: "", blocked: "below_min", executing: "", executed: "reached", cancelled: "",
 };
 
 function left(iso: string, now: number) {

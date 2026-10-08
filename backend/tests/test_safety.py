@@ -287,3 +287,59 @@ def test_ai_analyzer(client, fake_ai):
     assert d["overview"] == "Solid balance sheet." and d["areas"][0]["name"] == "Price risk" and d["fit"]
     req = fake_ai.built["anthropic"].requests[0]
     assert '"user_rules"' in req.messages[-1].content and "not advice" in req.messages[0].content
+
+
+def _plan_user(client, name: str, cash: float = 100_000) -> tuple[dict[str, str], int]:
+    who = auth(name)
+    client.put("/safety/profile", json={**LOOSE}, headers=who)
+    acc = client.post("/accounts", json={"name": "Paper", "broker": "paper", "cash": cash}, headers=who).json()["id"]
+    return who, acc
+
+
+def test_execute_plan_runs_once_under_concurrent_requests(client):
+    import asyncio
+
+    from app.db import SessionLocal
+    from app.routers.safety import execute_plan
+
+    who, acc = _plan_user(client, "double-click")
+    plan = client.post("/plans", json={"account_id": acc, "symbol": "JNJ", "quantity": 1}, headers=who).json()
+    assert plan["status"] == "ready", plan
+
+    async def attempt() -> str:
+        with SessionLocal() as db:
+            try:
+                await execute_plan(plan["id"], "double-click", db)
+                return "executed"
+            except Exception as e:  # HTTPException 409 for the loser
+                return type(e).__name__
+
+    results = asyncio.run(_both(attempt))
+    assert sorted(results) == ["HTTPException", "executed"]
+    assert len(client.get("/portfolio?mode=paper", headers=who).json()["holdings"]) == 1
+
+
+async def _both(fn):
+    import asyncio
+
+    return await asyncio.gather(fn(), fn())
+
+
+@pytest.mark.parametrize(("note", "status"), [("Long-term hold, accepting the extra risk here.", "cooling_off"), ("", "cancelled")])
+def test_execute_plan_sends_a_drifted_warn_back_through_note_and_cooling_off(client, note, status):
+    who, acc = _plan_user(client, f"drift-{bool(note)}")
+    plan = client.post("/plans", json={"account_id": acc, "symbol": "JNJ", "quantity": 1, "note": note}, headers=who).json()
+    assert plan["verdict"] == "pass" and plan["status"] == "ready", plan
+    client.put("/safety/profile", json={**LOOSE, "max_volatility_pct": 0.1, "cooling_off_hours": 24}, headers=who)
+    r = client.post(f"/plans/{plan['id']}/execute", headers=who)
+    assert r.status_code == 409 and r.json()["detail"]["check"]["verdict"] == "warn"
+    after = next(p for p in client.get("/plans", headers=who).json() if p["id"] == plan["id"])
+    assert after["status"] == status and after["verdict"] == "warn"
+    assert client.get("/portfolio?mode=paper", headers=who).json()["holdings"] == []
+
+
+def test_execute_plan_releases_the_claim_when_paper_cash_is_short(client):
+    who, acc = _plan_user(client, "short-cash", cash=1)
+    plan = client.post("/plans", json={"account_id": acc, "symbol": "JNJ", "quantity": 1}, headers=who).json()
+    assert client.post(f"/plans/{plan['id']}/execute", headers=who).status_code == 409
+    assert next(p for p in client.get("/plans", headers=who).json() if p["id"] == plan["id"])["status"] == "ready"

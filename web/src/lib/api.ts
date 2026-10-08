@@ -201,7 +201,7 @@ export type StressScenario = {
 export type StressReport = { mode: "real" | "paper"; total_value: number; loss_limit_pct: number; scenarios: StressScenario[]; note: string; data_source: string };
 export type BuyPlan = {
   id: number; account_id: number; symbol: string; quantity: number; price: number; amount: number; note: string;
-  verdict: "pass" | "warn" | "block"; status: "blocked" | "cooling_off" | "ready" | "executed" | "cancelled";
+  verdict: "pass" | "warn" | "block"; status: "blocked" | "cooling_off" | "ready" | "executing" | "executed" | "cancelled";
   available_at: string; created_at: string; check: CheckResult; executed_holding_id: number | null;
 };
 

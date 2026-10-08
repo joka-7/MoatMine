@@ -5,7 +5,7 @@ from typing import Self
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field, field_validator, model_validator
-from sqlalchemy import select
+from sqlalchemy import CursorResult, select, update
 from sqlalchemy.orm import Session
 
 from app.auth import current_user
@@ -214,6 +214,18 @@ async def create_plan(body: PlanIn, user: str = Depends(current_user), db: Sessi
     return _plan_out(p)
 
 
+def _claim(db: Session, p: BuyPlan, observed: str) -> None:
+    """Move the plan to `executing` only if nobody else has changed it since we read it.
+
+    A double-click or a retried request would otherwise run two executions concurrently and
+    create two holdings for one approved plan.
+    """
+    result = db.execute(update(BuyPlan).where(BuyPlan.id == p.id, BuyPlan.status == observed).values(status="executing"))
+    db.commit()
+    if not isinstance(result, CursorResult) or result.rowcount != 1:
+        raise HTTPException(409, "plan is already being executed or has changed")
+
+
 @router.post("/plans/{plan_id}/execute")
 async def execute_plan(plan_id: int, user: str = Depends(current_user), db: Session = Depends(get_db)) -> JSONDict:
     p = _own_plan(db, plan_id, user)
@@ -223,6 +235,20 @@ async def execute_plan(plan_id: int, user: str = Depends(current_user), db: Sess
     acc = db.get(Account, p.account_id)
     if acc is None:
         raise HTTPException(404, "account not found")
+    observed = p.status  # "ready", or "cooling_off" whose wait is over
+    _claim(db, p, observed)
+    try:
+        return await _execute_claimed(db, user, p, acc)
+    except Exception:  # release the claim unless the attempt already moved the plan to a final state
+        db.rollback()
+        db.refresh(p)
+        if p.status == "executing":
+            p.status = observed
+            db.commit()
+        raise
+
+
+async def _execute_claimed(db: Session, user: str, p: BuyPlan, acc: Account) -> JSONDict:
     # re-check at execution time: prices and the portfolio may have moved during cooling-off
     price = (await get_provider().quote(p.symbol))["price"]
     recheck = await check_for(db, user, get_provider(), p.symbol, p.quantity * price, book_mode_of(acc))
@@ -230,6 +256,8 @@ async def execute_plan(plan_id: int, user: str = Depends(current_user), db: Sess
         p.status, p.check_json, p.verdict = "blocked", json.dumps(recheck), "block"
         db.commit()
         raise HTTPException(409, {"message": "The buy no longer passes your rules.", "check": recheck})
+    if recheck["verdict"] == "warn" and p.verdict != "warn":
+        _send_back_through_warn_flow(db, p, recheck)
     try:
         pay_for_paper_buy(acc, p.quantity * price)
     except InsufficientPaperCashError as e:
@@ -242,6 +270,25 @@ async def execute_plan(plan_id: int, user: str = Depends(current_user), db: Sess
     p.status, p.price, p.executed_holding_id = "executed", price, h.id
     db.commit()
     return _plan_out(p)
+
+
+def _send_back_through_warn_flow(db: Session, p: BuyPlan, recheck: JSONDict) -> None:
+    """A plan approved as `pass` now breaks a rule: it gets the same note + cooling-off a warn plan needs.
+
+    Raises:
+        HTTPException: 409 always, unless the plan already has a reason and the profile has no
+            cooling-off, in which case it may go ahead now (the caller continues).
+    """
+    p.verdict, p.check_json = "warn", json.dumps(recheck)
+    if len(p.note.strip()) < 20:
+        p.status = "cancelled"
+        db.commit()
+        raise HTTPException(409, {"message": "This buy now breaks some of your rules. Make a new plan and write why you still want it.", "check": recheck})
+    hours = recheck["cooling_off_hours"]
+    if hours:
+        p.status, p.available_at = "cooling_off", datetime.now(UTC) + timedelta(hours=hours)
+        db.commit()
+        raise HTTPException(409, {"message": f"This buy now breaks some of your rules, so it waits {hours}h before it can run.", "check": recheck})
 
 
 @router.post("/plans/{plan_id}/cancel")
