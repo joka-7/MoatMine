@@ -216,6 +216,10 @@ MoatMine/
 │   ├── RUNBOOK.md                                # MoatMine runbook
 │   └── STRUCTURE.md                              # Repository structure
 ├── web/                                          # Next.js UI, static-exported for GitHub Pages and the desktop app
+│   ├── public/
+│   │   └── icons/                                # App icons for the install manifest (192 and 512 px, from desktop/app-icon.png)
+│   │       ├── icon-192.png
+│   │       └── icon-512.png
 │   ├── src/                                      # App source
 │   │   ├── app/                                  # Routes (App Router): one folder per page
 │   │   │   ├── agent/                            # AI agent page (ChatPanel)
@@ -230,6 +234,7 @@ MoatMine/
 │   │   │   ├── favicon.ico                       # Browser tab icon
 │   │   │   ├── globals.css                       # Design tokens and every shared class (cards, grids, tables, buttons,…
 │   │   │   ├── layout.tsx                        # Root layout: auth shell, side nav, main area
+│   │   │   ├── manifest.ts                       # Web app manifest (name, icons, standalone window) so browsers offer Install…
 │   │   │   └── page.tsx                          # Dashboard: totals, value chart, allocation, holdings, targets, news;…
 │   │   ├── components/                           # Shared UI components
 │   │   │   ├── AiSettingsCard.tsx                # Provider keys, model picker and external agent settings

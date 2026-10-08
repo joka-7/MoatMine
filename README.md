@@ -80,6 +80,12 @@ uses `modeldispatcher-react-ui` / `modeldispatcher-browser-agent` (npm), both 0.
 
 The agent has no tool that places trades.
 
+## Install
+
+- **Web app:** `https://<owner>.github.io/<repo>/` once GitHub Pages is set up (see Deploy).
+- **Desktop Chrome or Edge, Android Chrome:** open the web app → browser menu → *Install app*. It opens in its own window and on the home screen (`web/src/app/manifest.ts`).
+- **iPhone:** open the web app in Safari → Share → *Add to Home Screen*.
+
 ## Getting started
 
 Prerequisites:

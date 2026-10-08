@@ -21,6 +21,8 @@
 "web/eslint.config.mjs" = "ESLint flat config: Next.js core-web-vitals + typescript rules, typescript-eslint strict"
 "web/vitest.config.mts" = "vitest: jsdom, React plugin, the @/ alias; tests are src/**/*.test.ts[x]"
 "web/openapi.json" = "The API's OpenAPI schema (python -m app.openapi_spec); CI fails if it is stale"
+"web/public/icons" = "App icons for the install manifest (192 and 512 px, from desktop/app-icon.png)"
+"web/src/app/manifest.ts" = "Web app manifest (name, icons, standalone window) so browsers offer Install app"
 "web/src/lib/api-schema.ts" = "Types generated from openapi.json (npm run gen:api); don't edit"
 "web/src/lib/dataSource.ts" = "isSampleData: whether a result's data source is the mock provider or its fallback"
 "web/src/lib/dataSource.test.ts" = "Which data-source labels count as sample data"
