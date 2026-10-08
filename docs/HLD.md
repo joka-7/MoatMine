@@ -162,7 +162,8 @@ sequenceDiagram
   state live in process memory:
   - the TTL caches (`app/cache.py`);
   - the news-summary cache (`app/research.py`);
-  - ModelDispatcher's per-user AI quota store (`app/ai/dispatcher.py` `_QUOTA_STORE`);
+  - ModelDispatcher's per-user AI quota store (`app/ai/dispatcher.py` `_QUOTA_STORE`) and the
+    server-wide daily AI budget (`SERVER_BUDGET`);
   - the per-user request rate limits (`app/ratelimit.py`).
 
   With a second instance the quotas and rate limits would apply per instance (doubling them),

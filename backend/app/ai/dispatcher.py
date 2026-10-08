@@ -16,6 +16,8 @@ from __future__ import annotations
 
 import asyncio
 import re
+from collections.abc import Callable
+from datetime import UTC, date, datetime
 from typing import Protocol
 
 from model_dispatcher import (
@@ -96,8 +98,35 @@ def external_factory(base_url: str, model: str) -> ModelProvider:
                           tier=ModelTier.STANDARD)
 
 
-def _registry(db: Session, user: str, requested: str) -> tuple[ProviderRegistry, dict[str, str]]:
+class DailyTokenBudget:
+    """Tokens spent on the server's own AI keys today (UTC), across every user. Per process."""
+
+    def __init__(self, today: Callable[[], date] = lambda: datetime.now(UTC).date()):
+        self._today = today
+        self._day = today()
+        self._used = 0
+
+    def used(self) -> int:
+        if self._today() != self._day:
+            self._day, self._used = self._today(), 0
+        return self._used
+
+    def add(self, tokens: int) -> None:
+        self.used()  # roll over first
+        self._used += tokens
+
+    def exhausted(self, limit: int) -> bool:
+        return limit > 0 and self.used() >= limit
+
+
+# per-user quotas don't stop many accounts together draining the server's keys; this does
+SERVER_BUDGET = DailyTokenBudget()
+
+
+def _registry(db: Session, user: str, requested: str) -> tuple[ProviderRegistry, dict[str, str], set[str]]:
+    """The providers this user may use now, the credential metadata, and which providers run on server keys."""
     s = get_settings()
+    server_keys_allowed = not SERVER_BUDGET.exhausted(s.ai_server_tokens_per_day)
     cfg = load_ai_settings(db, user)
     chosen = [p for p in cfg["config"]["providers"] if p["provider"] in VENDORS]
     user_keys = {p["provider"]: list(p.get("apiKeys") or []) for p in chosen}
@@ -105,15 +134,19 @@ def _registry(db: Session, user: str, requested: str) -> tuple[ProviderRegistry,
     order = [p["provider"] for p in chosen] + [v for v in VENDORS if v not in user_models]
 
     registry = ProviderRegistry()
+    on_server_key: set[str] = set()
     if requested != EXTERNAL:
         for vendor in order:
             if requested not in ("auto", vendor):
                 continue
-            server_key = getattr(s, VENDORS[vendor][1]) or None
+            server_key = (getattr(s, VENDORS[vendor][1]) or None) if server_keys_allowed else None
             if not server_key and not user_keys.get(vendor):
                 continue  # a keyless vendor in the registry would hard-fail the request
             model = user_models.get(vendor) or VENDORS[vendor][2]
-            registry.register(provider_factory(vendor, model, server_key, tier_for(model)))
+            provider = provider_factory(vendor, model, server_key, tier_for(model))
+            registry.register(provider)
+            if not user_keys.get(vendor):  # the user's own key wins when they have one
+                on_server_key.add(provider.name)
 
     metadata = credential_metadata({v: k for v, k in user_keys.items() if k})
     ext = cfg.get("external")
@@ -126,10 +159,11 @@ def _registry(db: Session, user: str, requested: str) -> tuple[ProviderRegistry,
     if not len(registry):
         raise DispatchError(503, {
             "error": "no_provider_available",
-            "detail": "No AI provider available. Add your own key in Settings → AI, or ask the server owner to set one.",
+            "detail": "No AI provider available. Add your own key in Settings → AI, or ask the server owner to set one."
+            + ("" if server_keys_allowed else " The server's shared AI budget for today is used up."),
             "action": "open_ai_settings",
         })
-    return registry, metadata
+    return registry, metadata, on_server_key
 
 
 def _gateway(registry: ProviderRegistry) -> ModelGateway:
@@ -163,7 +197,7 @@ def _served_by(result: RunResult) -> str:
 
 async def _run(db: Session, user: str, messages: list[Message], requested: str,
                tools: ToolRegistry | None) -> tuple[str, str]:
-    registry, metadata = await asyncio.to_thread(_registry, db, user, requested)  # reads the user's AI settings
+    registry, metadata, on_server_key = await asyncio.to_thread(_registry, db, user, requested)  # reads the user's AI settings
     request = CompletionRequest(messages=tuple(messages), tenant=TenantId(user))
     try:
         result = await adispatch_with_timeout(
@@ -172,7 +206,10 @@ async def _run(db: Session, user: str, messages: list[Message], requested: str,
         )
     except ModelDispatcherError as e:
         raise DispatchError(e.http_status, e.to_payload()) from e
-    return result.final_message.content or "", _served_by(result)
+    served = _served_by(result)
+    if served in on_server_key:
+        SERVER_BUDGET.add(result.usage.total_tokens)
+    return result.final_message.content or "", served
 
 
 _ROLES = {"user": Role.USER, "assistant": Role.ASSISTANT, "system": Role.SYSTEM}

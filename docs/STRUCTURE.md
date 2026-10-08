@@ -129,6 +129,7 @@ MoatMine/
 │   │   ├── test_crises.py               # Crisis drawdown/recovery and worst-drawdown maths on hand-built bars
 │   │   ├── test_crypto.py               # Encryption round trips, tampering, masking, MCP token hashing
 │   │   ├── test_db.py                   # Migrations match the models; readiness check reports DB and schema state
+│   │   ├── test_dispatcher.py           # The server-wide AI budget: per-user quotas alone don't stop many accounts…
 │   │   ├── test_finnhub.py              # Finnhub provider against canned HTTP responses (no network).
 │   │   ├── test_fmp.py                  # FMP provider against canned HTTP responses (no network).
 │   │   ├── test_log_config.py           # Secret redaction, JSON/text formatters, request-id middleware

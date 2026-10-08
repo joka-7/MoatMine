@@ -45,6 +45,8 @@ class Settings(BaseSettings):
     ai_tokens_per_min: int = 60_000
     ai_tokens_per_day: int = 1_000_000
     ai_timeout_seconds: float = 90.0
+    # tokens per UTC day all users together may spend on the server's own keys (0 = no cap)
+    ai_server_tokens_per_day: int = 5_000_000
 
     worker_interval_seconds: int = 300
 
