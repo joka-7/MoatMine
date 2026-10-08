@@ -68,3 +68,9 @@ def test_estimate_loss_maker_and_overrides():
     assert out["assumptions"]["growth_source"] == "user"
     bad = v.estimate(10, {"eps": 1, "fcf_per_share": 1}, v.Assumptions(discount_rate=2, terminal_growth=3))
     assert next(m for m in bad["models"] if m["key"] == "dcf")["skipped"].startswith("discount rate")
+
+
+def test_epv_refuses_a_non_positive_discount_rate():
+    assert v.epv(4.0, 8.0) == pytest.approx(50.0)  # 4 / 8%
+    with pytest.raises(ValueError):
+        v.epv(4.0, 0.0)

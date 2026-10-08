@@ -84,7 +84,13 @@ def ddm(dps: float, gd: float, r: float) -> float:
 
 
 def epv(eps: float, r: float) -> float:
-    """Earnings power value: today's earnings as a no-growth perpetuity."""
+    """Earnings power value: today's earnings as a no-growth perpetuity.
+
+    Raises:
+        ValueError: the discount rate isn't positive.
+    """
+    if r <= 0:
+        raise ValueError("discount rate must be positive")
     return eps / (r / 100)
 
 
@@ -191,8 +197,8 @@ def estimate(price: float, f: JSONDict, a: Assumptions) -> JSONDict:
         models.append(_model("ddm", "Dividend discount", ddm(dps, a.dividend_growth, r),
                              f"D1 {dps * (1 + a.dividend_growth / 100):.2f} / ({r} − {a.dividend_growth})%"))
 
-    models.append(_model("epv", "Earnings power (no growth)", epv(eps, r) if _pos(eps) else None,
-                         f"EPS / {r}%", None if _pos(eps) else "needs positive EPS"))
+    models.append(_model("epv", "Earnings power (no growth)", epv(eps, r) if _pos(eps) and r > 0 else None,
+                         f"EPS / {r}%", None if _pos(eps) and r > 0 else "needs positive EPS and discount rate"))
 
     models.append(_model("pe_multiple", f"P/E multiple ({a.pe_multiple:g}×)",
                          eps * a.pe_multiple if _pos(eps) else None, f"EPS × {a.pe_multiple:g}",

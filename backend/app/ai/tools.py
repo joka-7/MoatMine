@@ -8,6 +8,7 @@ import json
 import time
 from dataclasses import replace
 
+from pydantic import BaseModel, Field, ValidationError
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -41,20 +42,30 @@ def _mode_param() -> JSONDict:
     return {"type": "object", "properties": dict(_MODE_PROP)}
 
 
-def _assumptions(args: JSONDict) -> Assumptions:
-    """Valuation defaults, with any of the four rates the model chose to override (in percent)."""
-    d = Assumptions()
+class _ValuationArgs(BaseModel):
+    """The model's assumption overrides, held to the same bounds as GET /stocks/{symbol}/valuation."""
 
-    def rate(key: str, default: float) -> float:
-        return float(args[key]) if args.get(key) is not None else default
+    discount_rate: float | None = Field(None, gt=0, le=40)
+    growth_rate: float | None = Field(None, ge=-20, le=60)
+    terminal_growth: float | None = Field(None, ge=-2, le=6)
+    margin_of_safety: float | None = Field(None, ge=0, le=90)
 
-    return replace(
-        d,
-        discount_rate=rate("discount_rate", d.discount_rate),
-        growth_rate=float(args["growth_rate"]) if args.get("growth_rate") is not None else d.growth_rate,
-        terminal_growth=rate("terminal_growth", d.terminal_growth),
-        margin_of_safety=rate("margin_of_safety", d.margin_of_safety),
-    )
+    def assumptions(self) -> Assumptions:
+        given = {k: v for k, v in self.model_dump().items() if v is not None}
+        d = Assumptions()
+        return replace(
+            d,
+            discount_rate=given.get("discount_rate", d.discount_rate),
+            growth_rate=given.get("growth_rate", d.growth_rate),
+            terminal_growth=given.get("terminal_growth", d.terminal_growth),
+            margin_of_safety=given.get("margin_of_safety", d.margin_of_safety),
+        )
+
+
+class _CheckArgs(BaseModel):
+    """Same bound as POST /safety/check: a negative amount would make any buy look smaller."""
+
+    amount: float = Field(gt=0)
 
 
 def _mode(args: JSONDict) -> BookMode:
@@ -130,6 +141,16 @@ def openai_tools() -> list[JSONDict]:
 
 
 async def run_tool(name: str, args: JSONDict, db: Session, user: str) -> str:
+    """Run one tool and return its JSON result. Arguments come from a model, so bad ones become an
+    error the model can read and correct, not an exception."""
+    try:
+        out = await _run(name, args, db, user)
+    except ValidationError as e:
+        out = {"error": "invalid arguments", "details": [f"{'.'.join(map(str, err['loc']))}: {err['msg']}" for err in e.errors()]}
+    return json.dumps(out, default=str)
+
+
+async def _run(name: str, args: JSONDict, db: Session, user: str) -> object:
     p = get_provider()
     sym = (args.get("symbol") or "").strip().upper()
     out: object  # any JSON-serialisable result
@@ -153,7 +174,7 @@ async def run_tool(name: str, args: JSONDict, db: Session, user: str) -> str:
         case "get_dividends":
             out = {"dividends": (await p.dividends(sym))[:12], "splits": await p.splits(sym)}
         case "get_valuation":
-            v = await valuation(p, sym, _assumptions(args))
+            v = await valuation(p, sym, _ValuationArgs.model_validate(args).assumptions())
             out = {k: v[k] for k in ("price", "assumptions", "models", "summary", "indicators", "quality", "disclaimer")}
         case "get_bad_times":
             out = await bad_times(p, sym)
@@ -162,7 +183,7 @@ async def run_tool(name: str, args: JSONDict, db: Session, user: str) -> str:
         case "get_safety_score":
             out = await stock_safety(p, sym)
         case "safety_check":
-            out = await check_for(db, user, p, sym, float(args["amount"]), _mode(args))
+            out = await check_for(db, user, p, sym, _CheckArgs.model_validate(args).amount, _mode(args))
         case "get_portfolio_risk":
             out = await portfolio_risk_report(db, user, p, _mode(args))
         case "get_stress_test":
@@ -195,4 +216,4 @@ async def run_tool(name: str, args: JSONDict, db: Session, user: str) -> str:
             out = {"ok": True}
         case _:
             out = {"error": f"unknown tool {name}"}
-    return json.dumps(out, default=str)
+    return out
