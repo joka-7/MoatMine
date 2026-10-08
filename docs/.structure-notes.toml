@@ -35,7 +35,7 @@
 "ai-config.toml" = "Manifest for ai-sync: stack, practices and targets for the generated AI config"
 "ai-config.local.md" = "MoatMine-specific notes merged into AGENTS.md/CLAUDE.md by ai-sync"
 "LICENSE" = "License text"
-"render.yaml" = "Render blueprint: Postgres, API (pre-deploy alembic upgrade, /health/ready check) and worker"
+"render.yaml" = "Render blueprint: API (pre-deploy alembic upgrade, /health/ready check) and worker; the database is on Neon"
 "README.md" = "What MoatMine is, features, how to run, test and deploy it"
 
 "backend/.env.example" = "Every backend setting with safe local defaults (AUTH_MODE=dev, mock market data)"

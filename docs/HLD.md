@@ -62,8 +62,8 @@ flowchart LR
   subgraph Render
     API[FastAPI API<br/>app/main.py]
     WK[Worker<br/>app/worker.py]
-    PG[(Postgres)]
   end
+  PG[(Postgres on Neon)]
   CL[Firebase Authentication<br/>sign-in only]
   MD[Market data<br/>Finnhub · FMP · mock]
   AI[LLM vendors via<br/>ModelDispatcher]
@@ -140,8 +140,11 @@ sequenceDiagram
   2. Each tool resolves the user from the token and calls the same `run_tool`.
 
 ## Data storage
-- **Primary store: Postgres on Render** (`render.yaml`, plan `basic-256mb`); SQLite locally and
-  in tests.
+- **Primary store: Postgres on Neon** (free tier; `DATABASE_URL` in `render.yaml`'s shared env
+  group). Render runs only the API and the worker. SQLite locally and in tests.
+  - Neon's *direct* connection string, not its "-pooler" one: the migration lock below is a
+    session-level advisory lock, which a transaction-mode pooler doesn't hold.
+  - Neon suspends an idle database; `pool_pre_ping` (`app/db.py`) replaces connections it closed.
   - All user data is in one schema (`app/models.py`): accounts, holdings, watchlist, stock
     notes, targets, alerts, AI settings (encrypted), MCP tokens (hashed), risk profiles and buy
     plans.
@@ -155,9 +158,8 @@ sequenceDiagram
   - ModelDispatcher's quota store is `InMemoryQuotaStore` (`app/ai/dispatcher.py`).
   - Running more than one API instance would split caches and quotas. Nothing coordinates them.
 - **Blob storage:** none.
-- **Backup/DR:** the repo doesn't document backups, point-in-time recovery or a restore
-  procedure. Whatever the Render Postgres plan provides is all there is
-  (BACKLOG #31 tracks a runbook).
+- **Backup/DR:** Neon's own restore window for your plan, plus `pg_dump` backups you take
+  yourself (`docs/RUNBOOK.md` "Database backup and restore").
 - **Encryption at rest (application level):**
   - User AI keys are Fernet-encrypted with `FERNET_KEY` (`app/crypto.py`). Losing that key
     makes them unreadable, and no rotation is implemented.

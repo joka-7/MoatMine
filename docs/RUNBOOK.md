@@ -1,8 +1,8 @@
 # MoatMine runbook
 
-What to do when something goes wrong in production (Render: `moatmine-api`, `moatmine-worker`,
-`moatmine-db`, from `render.yaml`). Each step names the file, command or endpoint it relies on.
-Anything this repo can't confirm is marked **Check** — it depends on your Render plan or account.
+What to do when something goes wrong in production (Render: `moatmine-api` and `moatmine-worker`
+from `render.yaml`; the database on Neon). Each step names the file, command or endpoint it relies
+on. Anything this repo can't confirm is marked **Check** — it depends on your Render or Neon plan.
 
 ## Health signals
 
@@ -74,9 +74,8 @@ order matters:
 
 ## Database backup and restore
 
-- **Check:** whether your `moatmine-db` plan (`basic-256mb` in `render.yaml`) includes Render's
-  automatic backups and point-in-time recovery, and how long they are kept. Restore from the
-  database's page in Render if it does.
+- **Check:** how far back your Neon plan lets you restore the database (Neon calls it the restore
+  window or history retention). Within that window, restore from the Neon console.
 - **Logical backup** you control, before risky changes (a migration, a key rotation):
   ```bash
   pg_dump --format=custom --no-owner "$DATABASE_URL" > moatmine-$(date +%F).dump

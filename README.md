@@ -26,7 +26,7 @@ MoatMine/
 ├── README.md           # What MoatMine is, features, how to run, test and deploy it
 ├── ai-config.local.md  # MoatMine-specific notes merged into AGENTS.md/CLAUDE.md by ai-sync
 ├── ai-config.toml      # Manifest for ai-sync: stack, practices and targets for the generated AI config
-└── render.yaml         # Render blueprint: Postgres, API (pre-deploy alembic upgrade, /health/ready…
+└── render.yaml         # Render blueprint: API (pre-deploy alembic upgrade, /health/ready check) and…
 ```
 <!-- END GENERATED TREE -->
 
@@ -153,7 +153,13 @@ The app runs with **no API keys**: `MARKET_PROVIDER=mock` serves deterministic s
 
 The API checks every request's Firebase ID token against Google's public keys, for this project only. It refuses to start with `AUTH_MODE=dev` on Postgres, and with `AUTH_MODE=firebase` without `FIREBASE_PROJECT_ID`.
 
+**Database (Neon).** Render has no free database, so the data lives in Postgres on [Neon](https://neon.tech) (free tier):
+1. Create a Neon project and database.
+2. Copy its connection string from Connection details with **pooled connection off**: the direct string, without `-pooler` in the host, ending in `?sslmode=require`. The migrations take a lock that Neon's pooler doesn't keep.
+3. Paste it as `DATABASE_URL` below. Neon pauses an idle database and wakes it on the next query (the first request after a pause is slower). **Check** how many compute hours your Neon plan includes: the worker queries the database every `WORKER_INTERVAL_SECONDS` (300 by default), which keeps it awake.
+
 **Render.** New → Blueprint → this repo. Then fill in the prompted secrets:
+- `DATABASE_URL`: the Neon connection string from above
 - `FINNHUB_API_KEY`. The blueprint sets `MARKET_PROVIDER=finnhub`, but without this key the API serves the labelled sample data. Before you rely on it:
   - Finnhub's free plan is for personal use. Check the terms before showing its data to other users.
   - Free Finnhub gives quotes, news, ratios, earnings, recommendations and splits.
@@ -164,7 +170,7 @@ The API checks every request's Firebase ID token against Google's public keys, f
 - AI keys (optional)
 - `CORS_ORIGINS` = your web app's origin (`https://<owner>.github.io` on GitHub Pages) plus `tauri://localhost,http://tauri.localhost`
 
-**Web (GitHub Pages).** Render runs the API, the worker and the database; the web UI is only static files, so GitHub Pages can serve it. `.github/workflows/pages.yml` builds the static export and publishes it at `https://<owner>.github.io/<repo>/` on every push to `main` that touches `web/`. Once:
+**Web (GitHub Pages).** Render runs the API and the worker, Neon the database; the web UI is only static files, so GitHub Pages can serve it. `.github/workflows/pages.yml` builds the static export and publishes it at `https://<owner>.github.io/<repo>/` on every push to `main` that touches `web/`. Once:
 1. Settings → Pages → Source: **GitHub Actions**.
 2. Settings → Secrets and variables → Actions → **Variables**: `API_URL` = `https://<moatmine-api>.onrender.com`, and `FIREBASE_API_KEY`, `FIREBASE_AUTH_DOMAIN`, `FIREBASE_PROJECT_ID`, `FIREBASE_APP_ID` from the Firebase web app. None is secret: they all end up in the page anyway. The workflow stops with an error until `API_URL` is set.
 

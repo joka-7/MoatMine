@@ -292,6 +292,6 @@ MoatMine/
 ├── README.md                                     # What MoatMine is, features, how to run, test and deploy it
 ├── ai-config.local.md                            # MoatMine-specific notes merged into AGENTS.md/CLAUDE.md by ai-sync
 ├── ai-config.toml                                # Manifest for ai-sync: stack, practices and targets for the generated AI config
-└── render.yaml                                   # Render blueprint: Postgres, API (pre-deploy alembic upgrade, /health/ready…
+└── render.yaml                                   # Render blueprint: API (pre-deploy alembic upgrade, /health/ready check) and…
 ```
 <!-- END GENERATED TREE -->
