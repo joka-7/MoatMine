@@ -104,7 +104,9 @@ Important ones:
 | `POST /ai/chat` | `{messages[{role: "user"\|"assistant", content}], model, symbol?}` | `{model, content, tools_used[]}`, or ModelDispatcher's error payload with its HTTP status |
 
 Agent and MCP tools are listed in `TOOL_SPECS` (`app/ai/tools.py`) as JSON Schema. The
-portfolio-shaped tools take `mode`.
+portfolio-shaped tools take `mode`. Each spec has an explicit `read_only` flag: the in-app agent
+gets every tool, and `app/mcp_server.py` registers only the read-only ones, wrapping each in a
+typed function chosen by its argument shape (`_SHAPES`); a new shape with no wrapper fails at import.
 
 ## Config keys
 

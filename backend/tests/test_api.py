@@ -1,3 +1,4 @@
+import json
 import socket
 from datetime import UTC, datetime, timedelta
 
@@ -5,6 +6,7 @@ import pytest
 from model_dispatcher import ModelTier
 
 from app.ai import dispatcher
+from app.ai.tools import TOOL_SPECS
 from app.jsontypes import JSONDict
 from tests.conftest import auth, reply, tool_call
 
@@ -220,10 +222,17 @@ def test_mcp_requires_token_and_serves_tools(client, alice_account):
     }
     assert client.post("/mcp/", json=init, headers=h).status_code == 200
     tools = client.post("/mcp/", json={"jsonrpc": "2.0", "id": 2, "method": "tools/list"}, headers=h).json()
-    names = {t["name"] for t in tools["result"]["tools"]}
-    assert {"get_portfolio", "get_targets_status", "get_quote", "get_valuation", "get_company", "get_news_feed"} <= names
+    listed = {t["name"]: t for t in tools["result"]["tools"]}
+    assert set(listed) == {s["name"] for s in TOOL_SPECS if s["read_only"]}  # every read tool, no write tool
+    assert listed["safety_check"]["inputSchema"]["required"] == ["symbol", "amount"]
+    assert listed["get_quote"]["description"] == next(s["description"] for s in TOOL_SPECS if s["name"] == "get_quote")
+
     res = client.post("/mcp/", json=rpc, headers=h).json()
-    assert "AAPL" in res["result"]["content"][0]["text"]
+    portfolio = json.loads(res["result"]["content"][0]["text"])
+    assert portfolio["mode"] == "real" and {x["symbol"] for x in portfolio["holdings"]} == {"AAPL", "MSFT"}
+    check = {**rpc, "params": {"name": "safety_check", "arguments": {"symbol": "AAPL", "amount": -5}}}
+    out = json.loads(client.post("/mcp/", json=check, headers=h).json()["result"]["content"][0]["text"])
+    assert out["error"] == "invalid arguments"  # MCP gets the same argument bounds as the in-app agent
 
 
 def test_missing_market_price_is_a_502(client):

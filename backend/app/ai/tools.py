@@ -74,17 +74,19 @@ def _mode(args: JSONDict) -> BookMode:
     return "paper" if args.get("mode") == "paper" else "real"
 
 
+# read_only: False marks a tool that changes the user's data. Those need the user's own say-so
+# (see run_tool) and are never served over MCP.
 TOOL_SPECS: list[JSONDict] = [
-    {"name": "get_portfolio", "description": "User's accounts, holdings with P/L and weights, and totals for the real-money or the paper book.", "parameters": _mode_param()},
-    {"name": "get_quote", "description": "Latest quote for a symbol.", "parameters": _sym_param()},
-    {"name": "get_ratios", "description": "Fundamental ratios (P/E, ROE, margins…) and 1-year price/risk stats (volatility, drawdown, Sharpe, RSI).", "parameters": _sym_param()},
-    {"name": "get_news", "description": "Recent company news headlines for a symbol.", "parameters": _sym_param()},
-    {"name": "get_company", "description": "Company profile: description, sector, industry, employees, website, IPO date, market cap.", "parameters": _sym_param()},
-    {"name": "get_earnings", "description": "Recent quarterly EPS: actual vs estimate and surprise %.", "parameters": _sym_param()},
-    {"name": "get_analysts", "description": "Analyst recommendation trend (strong buy … strong sell) and consensus price target.", "parameters": _sym_param()},
-    {"name": "get_dividends", "description": "Dividend history and stock splits.", "parameters": _sym_param()},
+    {"name": "get_portfolio", "read_only": True, "description": "User's accounts, holdings with P/L and weights, and totals for the real-money or the paper book.", "parameters": _mode_param()},
+    {"name": "get_quote", "read_only": True, "description": "Latest quote for a symbol.", "parameters": _sym_param()},
+    {"name": "get_ratios", "read_only": True, "description": "Fundamental ratios (P/E, ROE, margins…) and 1-year price/risk stats (volatility, drawdown, Sharpe, RSI).", "parameters": _sym_param()},
+    {"name": "get_news", "read_only": True, "description": "Recent company news headlines for a symbol.", "parameters": _sym_param()},
+    {"name": "get_company", "read_only": True, "description": "Company profile: description, sector, industry, employees, website, IPO date, market cap.", "parameters": _sym_param()},
+    {"name": "get_earnings", "read_only": True, "description": "Recent quarterly EPS: actual vs estimate and surprise %.", "parameters": _sym_param()},
+    {"name": "get_analysts", "read_only": True, "description": "Analyst recommendation trend (strong buy … strong sell) and consensus price target.", "parameters": _sym_param()},
+    {"name": "get_dividends", "read_only": True, "description": "Dividend history and stock splits.", "parameters": _sym_param()},
     {
-        "name": "get_valuation",
+        "name": "get_valuation", "read_only": True,
         "description": "Fair-value estimate from several models (DCF, Graham, Lynch, DDM, EPV, P/E and EV/EBITDA multiples), "
         "valuation indicators (PEG, FCF yield, payout…) and quality scores (Piotroski F, Altman Z). "
         "Optional assumption overrides in percent.",
@@ -99,15 +101,15 @@ TOOL_SPECS: list[JSONDict] = [
         },
     },
     {
-        "name": "get_bad_times",
+        "name": "get_bad_times", "read_only": True,
         "description": "How the stock behaved in past market crises (dot-com, 2008, 2011, Q4 2018, COVID, 2022) vs SPY: "
         "drawdown, recovery time, downside capture, plus its own worst drawdowns. Use for any safety/risk question.",
         "parameters": _sym_param(),
     },
-    {"name": "get_risk_profile", "description": "The user's own risk rules: level, max position/sector %, minimum safety score, volatility and loss limits, cooling-off. Every recommendation must respect these.", "parameters": {"type": "object", "properties": {}}},
-    {"name": "get_safety_score", "description": "0–100 safety score for a stock with its components (Altman Z, Piotroski, debt, volatility, worst fall, crisis resilience, size, earnings, valuation, moat: return on capital, margin stability, steady growth) with A–F grades by area and red flags.", "parameters": _sym_param()},
+    {"name": "get_risk_profile", "read_only": True, "description": "The user's own risk rules: level, max position/sector %, minimum safety score, volatility and loss limits, cooling-off. Every recommendation must respect these.", "parameters": {"type": "object", "properties": {}}},
+    {"name": "get_safety_score", "read_only": True, "description": "0–100 safety score for a stock with its components (Altman Z, Piotroski, debt, volatility, worst fall, crisis resilience, size, earnings, valuation, moat: return on capital, margin stability, steady growth) with A–F grades by area and red flags.", "parameters": _sym_param()},
     {
-        "name": "safety_check",
+        "name": "safety_check", "read_only": True,
         "description": "Check a proposed buy against the user's risk rules: pass / warn / block with each rule's result. Run this before discussing any buy.",
         "parameters": {
             "type": "object",
@@ -115,19 +117,19 @@ TOOL_SPECS: list[JSONDict] = [
             "required": ["symbol", "amount"],
         },
     },
-    {"name": "get_portfolio_risk", "description": "Portfolio volatility, beta, value-at-risk, max drawdown, concentration, sectors, correlation and rule breaches, for the real-money or the paper book.", "parameters": _mode_param()},
-    {"name": "get_stress_test", "description": "Today's portfolio (real-money or paper book) replayed through past crises and market falls of 10/20/35%, vs the user's loss limit.", "parameters": _mode_param()},
-    {"name": "get_news_feed", "description": "Recent news across all holdings and watchlist symbols.", "parameters": {"type": "object", "properties": {}}},
-    {"name": "get_targets_status", "description": "User's PAPI targets (profit, amount, period, intent) evaluated against their min/max bounds.", "parameters": {"type": "object", "properties": {}}},
-    {"name": "get_watchlist", "description": "User's watchlist with live quotes.", "parameters": {"type": "object", "properties": {}}},
-    {"name": "get_notes", "description": "User's own saved notes/thesis for a symbol.", "parameters": _sym_param()},
+    {"name": "get_portfolio_risk", "read_only": True, "description": "Portfolio volatility, beta, value-at-risk, max drawdown, concentration, sectors, correlation and rule breaches, for the real-money or the paper book.", "parameters": _mode_param()},
+    {"name": "get_stress_test", "read_only": True, "description": "Today's portfolio (real-money or paper book) replayed through past crises and market falls of 10/20/35%, vs the user's loss limit.", "parameters": _mode_param()},
+    {"name": "get_news_feed", "read_only": True, "description": "Recent news across all holdings and watchlist symbols.", "parameters": {"type": "object", "properties": {}}},
+    {"name": "get_targets_status", "read_only": True, "description": "User's PAPI targets (profit, amount, period, intent) evaluated against their min/max bounds.", "parameters": {"type": "object", "properties": {}}},
+    {"name": "get_watchlist", "read_only": True, "description": "User's watchlist with live quotes.", "parameters": {"type": "object", "properties": {}}},
+    {"name": "get_notes", "read_only": True, "description": "User's own saved notes/thesis for a symbol.", "parameters": _sym_param()},
     {
-        "name": "add_to_watchlist",
+        "name": "add_to_watchlist", "read_only": False,
         "description": "Add a symbol to the user's watchlist. Only when the user asks.",
         "parameters": {"type": "object", "properties": {"symbol": {"type": "string"}, "note": {"type": "string"}}, "required": ["symbol"]},
     },
     {
-        "name": "save_note",
+        "name": "save_note", "read_only": False,
         "description": "Save a note about a symbol to the user's stock page. Only when the user asks.",
         "parameters": {
             "type": "object",
@@ -157,11 +159,7 @@ def registry(db: Session, user: str, used: list[str], user_said: str = "") -> To
     return reg
 
 
-def openai_tools() -> list[JSONDict]:
-    return [{"type": "function", "function": spec} for spec in TOOL_SPECS]
-
-
-WRITE_TOOLS = {"add_to_watchlist", "save_note"}
+WRITE_TOOLS = {spec["name"] for spec in TOOL_SPECS if not spec["read_only"]}
 
 
 def user_named(symbol: str, user_said: str) -> bool:
