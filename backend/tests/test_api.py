@@ -44,8 +44,9 @@ def test_user_isolation(client, alice_account):
 
 
 def test_portfolio_history(client, alice_account):
-    hist = client.get("/portfolio/history?days=30", headers=A).json()
-    assert len(hist) >= 25 and all(p["value"] > 0 for p in hist)
+    r = client.get("/portfolio/history?days=30", headers=A)
+    hist = r.json()
+    assert len(hist) >= 25 and all(p["value"] > 0 for p in hist) and r.headers["x-data-source"] == "mock"
 
 
 def test_stock_data(client):
@@ -56,7 +57,7 @@ def test_stock_data(client):
     assert bars and all(b["l"] <= min(b["o"], b["c"]) and b["h"] >= max(b["o"], b["c"]) for b in bars)
     assert client.get("/stocks/AAPL/candles?resolution=bad").status_code == 422
     ratios = client.get("/stocks/AAPL/ratios").json()
-    assert "pe" in ratios["fundamental"] and ratios["price"]["volatility_pct"] > 0
+    assert "pe" in ratios["fundamental"] and ratios["price"]["volatility_pct"] > 0 and ratios["data_source"] == "mock"
     assert len(client.get("/stocks/AAPL/news").json()) > 0
 
 

@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 from app.errors import InsufficientPaperCashError
 from app.jsontypes import JSONDict
 from app.market import describe_error
-from app.market.base import MarketProvider, Quote
+from app.market.base import Candle, MarketProvider, Quote
 from app.models import Account, Holding
 
 logger = logging.getLogger(__name__)
@@ -126,3 +126,26 @@ async def portfolio_snapshot(db: Session, user_id: str, provider: MarketProvider
             "unpriced": sorted({r["symbol"] for r in rows if r["stale"]}),
         },
     }
+
+
+def held_value_by_day(series: dict[str, list[Candle]], qty: dict[str, float]) -> list[JSONDict]:
+    """Daily value of fixed quantities, from each symbol's daily bars.
+
+    Symbols trade on different days (holidays, listings, gaps in the data), so a day missing for
+    one symbol carries its last close forward instead of dropping it from that day's total.
+    The series starts on the first day every symbol has a price; symbols with no bars at all
+    are left out.
+    """
+    closes = {s: {b["t"] - b["t"] % 86400: b["c"] for b in bars} for s, bars in series.items() if bars}
+    if not closes:
+        return []
+    first = max(min(d) for d in closes.values())
+    last: dict[str, float] = {}
+    out: list[JSONDict] = []
+    for day in sorted(set().union(*closes.values())):
+        for s, by_day in closes.items():
+            if day in by_day:
+                last[s] = by_day[day]
+        if day >= first:
+            out.append({"t": day, "value": round(sum(last[s] * qty[s] for s in closes), 2)})
+    return out

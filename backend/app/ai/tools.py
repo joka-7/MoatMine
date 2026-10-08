@@ -7,7 +7,6 @@ No tool places trades.
 import asyncio
 import json
 import re
-import time
 from collections.abc import Awaitable, Callable
 from dataclasses import replace
 
@@ -17,13 +16,12 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.analytics import price_stats
 from app.crises import bad_times
 from app.jsontypes import JSONDict
 from app.market import get_provider
 from app.models import StockNote, Target, WatchItem
 from app.portfolio import BookMode, portfolio_snapshot, quotes_for
-from app.research import news_feed, valuation
+from app.research import news_feed, ratios, valuation
 from app.safety.service import check_for, get_profile, portfolio_risk_report, profile_dict, stock_safety, stress_report
 from app.targets import evaluate, risk_by_symbol
 from app.valuation import Assumptions
@@ -199,9 +197,7 @@ async def _run(name: str, args: JSONDict, db: Session, user: str) -> object:
         case "get_quote":
             out = await p.quote(sym)
         case "get_ratios":
-            end = int(time.time())
-            bars = await p.candles(sym, "D", end - 365 * 86400, end)
-            out = {"fundamental": await p.metrics(sym), "price": price_stats([b["c"] for b in bars])}
+            out = await ratios(p, sym, 365)
         case "get_news":
             out = [{k: n[k] for k in ("headline", "source", "datetime", "url")} for n in (await p.news(sym))[:10]]
         case "get_company":

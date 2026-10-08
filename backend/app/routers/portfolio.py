@@ -2,7 +2,7 @@ import asyncio
 import time
 from collections.abc import Sequence
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -12,11 +12,13 @@ from app.errors import InsufficientPaperCashError
 from app.jsontypes import JSONDict
 from app.market import get_provider
 from app.market.base import MarketProvider
+from app.market.sources import source_label, track_sources
 from app.models import Account, Holding
 from app.portfolio import (
     PAPER_BROKER,
     BookMode,
     book_mode_of,
+    held_value_by_day,
     holdings_in_book,
     is_paper,
     pay_for_paper_buy,
@@ -125,6 +127,7 @@ async def get_portfolio(mode: BookMode = "real", user: str = Depends(current_use
 
 @router.get("/portfolio/history")
 async def portfolio_history(
+    response: Response,
     days: int = Query(180, ge=7, le=3650),
     mode: BookMode = "real",
     user: str = Depends(current_user),
@@ -138,14 +141,10 @@ async def portfolio_history(
     end = int(time.time())
     start = end - days * 86400
     syms = sorted({h.symbol for h in holdings})
-    series = await asyncio.gather(*(provider.candles(s, "D", start, end) for s in syms))
+    with track_sources() as used:
+        series = await asyncio.gather(*(provider.candles(s, "D", start, end) for s in syms))
+    response.headers["X-Data-Source"] = source_label(provider.name, used)
     qty: dict[str, float] = {}
     for h in holdings:
         qty[h.symbol] = qty.get(h.symbol, 0) + h.quantity
-
-    by_day: dict[int, float] = {}
-    for sym, bars in zip(syms, series, strict=True):
-        for b in bars:
-            day = b["t"] - b["t"] % 86400
-            by_day[day] = by_day.get(day, 0) + b["c"] * qty[sym]
-    return [{"t": t, "value": round(v, 2)} for t, v in sorted(by_day.items())]
+    return held_value_by_day(dict(zip(syms, series, strict=True)), qty)

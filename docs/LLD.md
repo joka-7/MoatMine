@@ -98,6 +98,8 @@ Important ones:
 | `GET /safety/stress?mode=` | — | `{mode, total_value, loss_limit_pct, betas{}, scenarios[{key, name, kind, change, change_pct, worst[], holdings[], breaches_limit}], data_source, note, as_of}` |
 | `POST /plans` / `POST /plans/{id}/execute` | `{account_id, symbol, quantity, note}` | `{id, status, verdict, available_at, check, executed_holding_id, …}`; 409 = blocked or short of cash, 422 = reason needed |
 | `GET /stocks/{s}/candles` | `resolution, start, end` | `Candle[]` + header `X-Data-Source` |
+| `GET /portfolio/history` | `days, mode` | `{t, value}[]` (last close carried forward over gaps, from the first day every holding has a price) + header `X-Data-Source` |
+| `GET /stocks/{s}/ratios` | `lookback_days` | `{fundamental, price, data_source}` |
 | `GET /health` / `GET /health/ready` | — | `{ok}` / `{ok, database}` (ready returns 503 if the DB is unreachable or behind) |
 | `POST /ai/chat` | `{messages[{role: "user"\|"assistant", content}], model, symbol?}` | `{model, content, tools_used[]}`, or ModelDispatcher's error payload with its HTTP status |
 

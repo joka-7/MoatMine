@@ -11,13 +11,24 @@ from sqlalchemy.orm import Session
 from app import cache
 from app.ai.dispatcher import complete
 from app.ai.llm_json import json_object_in
+from app.analytics import price_stats
 from app.jsontypes import JSONDict
 from app.market import describe_error
 from app.market.base import MarketProvider
+from app.market.sources import source_label, track_sources
 from app.models import Holding, WatchItem
 from app.valuation import Assumptions, estimate
 
 logger = logging.getLogger(__name__)
+
+
+async def ratios(provider: MarketProvider, symbol: str, lookback_days: int) -> JSONDict:
+    """Fundamental ratios from the provider plus price/risk ratios computed from daily candles."""
+    end = int(time.time())
+    with track_sources() as used:
+        bars = await provider.candles(symbol, "D", end - lookback_days * 86400, end)
+    return {"fundamental": await provider.metrics(symbol), "price": price_stats([b["c"] for b in bars]),
+            "data_source": source_label(provider.name, used)}
 
 
 async def valuation(provider: MarketProvider, symbol: str, a: Assumptions) -> JSONDict:

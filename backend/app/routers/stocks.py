@@ -6,7 +6,6 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.analytics import price_stats
 from app.auth import current_user
 from app.crises import bad_times
 from app.db import get_db
@@ -17,6 +16,7 @@ from app.market.sources import source_label, track_sources
 from app.models import StockNote
 from app.ratelimit import rate_limited
 from app.research import news_feed, news_summary, valuation
+from app.research import ratios as research_ratios
 from app.schemas import NoteIn, NoteOut
 from app.valuation import Assumptions
 
@@ -71,11 +71,7 @@ async def profile(symbol: str, provider: MarketProvider = Depends(get_provider))
 
 @router.get("/{symbol}/ratios")
 async def ratios(symbol: str, lookback_days: int = Query(365, ge=30, le=3650), provider: MarketProvider = Depends(get_provider)) -> JSONDict:
-    """Fundamental ratios from the provider + price/risk ratios computed from candles."""
-    sym = _sym(symbol)
-    end = int(time.time())
-    bars = await provider.candles(sym, "D", end - lookback_days * 86400, end)
-    return {"fundamental": await provider.metrics(sym), "price": price_stats([b["c"] for b in bars])}
+    return await research_ratios(provider, _sym(symbol), lookback_days)
 
 
 @router.get("/{symbol}/news")

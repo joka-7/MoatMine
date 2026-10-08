@@ -109,7 +109,7 @@ export type Evaluation = {
   checks: { profit: Check; amount: Check; period: Check; intent: Check & { intent: Intent; note: string } };
 };
 export type Alert = { id: number; source: string; symbol: string | null; message: string; read: boolean; created_at: string };
-export type Ratios = { fundamental: Record<string, number | null>; price: Record<string, number | null> };
+export type Ratios = { fundamental: Record<string, number | null>; price: Record<string, number | null>; data_source: string };
 export type ChatMsg = { role: "user" | "assistant"; content: string; meta?: string };
 export type ModelChoice = { id: string; label: string; available: boolean };
 

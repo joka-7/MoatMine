@@ -57,6 +57,7 @@ export default function RatiosPanel({ symbol }: { symbol: string }) {
           {PRICE.map(([k, label, unit]) => <Cellv key={k} label={label} v={data?.price[k]} unit={unit} />)}
         </div>
       </div>
+      {data?.data_source.startsWith("mock") && <div className="sub" style={{ fontSize: 11, marginTop: 6 }}>Price &amp; risk figures use sample data, not real prices.</div>}
       {bars.length > 0 && (
         <div style={{ height: 160, marginTop: 14 }}>
           <ResponsiveContainer>

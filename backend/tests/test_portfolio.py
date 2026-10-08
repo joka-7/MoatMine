@@ -7,6 +7,8 @@ import pytest
 
 from app.ai.tools import run_tool
 from app.db import SessionLocal
+from app.market.base import Candle
+from app.portfolio import held_value_by_day
 from tests.conftest import auth
 
 P = auth("pat")
@@ -179,3 +181,28 @@ def test_paper_holdings_resize_only_through_buys_and_sell_back_on_delete(client)
     assert client.delete(f"/holdings/{hid}", headers=who).status_code == 204
     assert client.get("/portfolio?mode=paper", headers=who).json()["totals"]["cash"] == pytest.approx(10_000, abs=0.01)
     assert price > 0
+
+
+D = 86400
+
+
+def _bars(*closes: tuple[int, float]) -> list[Candle]:
+    return [{"t": day * D + 3600, "o": c, "h": c, "l": c, "c": c, "v": 0} for day, c in closes]
+
+
+@pytest.mark.parametrize(
+    ("series", "expected"),
+    [
+        # B skips day 2: its day-1 close carries forward instead of the total dropping to A alone
+        ({"A": _bars((1, 10), (2, 11), (3, 12)), "B": _bars((1, 100), (3, 90))}, [(1, 120), (2, 122), (3, 114)]),
+        # B lists on day 2: the series starts once both have a price
+        ({"A": _bars((1, 10), (2, 11), (3, 12)), "B": _bars((2, 100), (3, 90))}, [(2, 122), (3, 114)]),
+        # a symbol with no bars is left out rather than zeroing the whole series
+        ({"A": _bars((1, 10), (2, 11)), "B": []}, [(1, 20), (2, 22)]),
+        ({"A": [], "B": []}, []),
+    ],
+)
+def test_held_value_by_day(series, expected):
+    # 2 A and 1 B held throughout
+    got = held_value_by_day(series, {"A": 2, "B": 1})
+    assert [(p["t"] // D, p["value"]) for p in got] == expected

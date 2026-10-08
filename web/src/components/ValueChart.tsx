@@ -2,7 +2,7 @@
 
 import { AreaSeries, ColorType, UTCTimestamp, createChart, IChartApi } from "lightweight-charts";
 import { useEffect, useRef, useState } from "react";
-import { api } from "@/lib/api";
+import { apiWithHeaders } from "@/lib/api";
 import type { BookMode } from "@/lib/useBookMode";
 
 const SPANS = [30, 90, 180, 365, 1095] as const;
@@ -13,12 +13,13 @@ export default function ValueChart({ mode }: { mode: BookMode }) {
   const chartRef = useRef<IChartApi | null>(null);
   const [days, setDays] = useState<number>(180);
   const [points, setPoints] = useState<{ t: number; value: number }[] | null>(null);
+  const [source, setSource] = useState("");
 
   useEffect(() => {
     let current = true; // drop the response if days/mode changed before it arrived
     setPoints(null); // and don't keep drawing the previous book's line meanwhile
-    api<{ t: number; value: number }[]>(`/portfolio/history?days=${days}&mode=${mode}`)
-      .then((p) => { if (current) setPoints(p); })
+    apiWithHeaders<{ t: number; value: number }[]>(`/portfolio/history?days=${days}&mode=${mode}`)
+      .then(({ data, headers }) => { if (current) { setPoints(data); setSource(headers.get("X-Data-Source") ?? ""); } })
       .catch(() => { if (current) setPoints([]); });
     return () => { current = false; };
   }, [days, mode]);
@@ -56,7 +57,7 @@ export default function ValueChart({ mode }: { mode: BookMode }) {
         </div>
       </div>
       {points && !points.length ? <div className="empty">Add holdings to see value over time.</div> : <div ref={el} style={{ height: 260 }} />}
-      <div className="sub" style={{ fontSize: 12 }}>Current quantities priced historically. Scroll to zoom, drag to pan.</div>
+      <div className="sub" style={{ fontSize: 12 }}>Current quantities priced historically{source.startsWith("mock") ? " (sample data, not real prices)" : ""}. Scroll to zoom, drag to pan.</div>
     </div>
   );
 }
