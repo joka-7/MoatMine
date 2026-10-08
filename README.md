@@ -144,7 +144,9 @@ The app runs with **no API keys**: `MARKET_PROVIDER=mock` serves deterministic s
 
 The desktop CSP in `desktop/src-tauri/tauri.conf.json` allows Clerk development instances (`*.clerk.accounts.dev`). For production you must add these to `script-src` and `connect-src`:
 - your production Clerk frontend API domain
-- your API domain, if it isn't on `*.onrender.com`
+- your API domain, if it isn't on `*.onrender.com` (narrow `*.onrender.com` to your API host if users won't point the app elsewhere)
+
+The production `csp` has no `'unsafe-inline'` for scripts: Tauri hashes each inline script of the static export into the policy at build time. `devCsp` (used by `npm run dev`) keeps `'unsafe-inline'` and `http://localhost:8000` for the Next dev server and a local API.
 
 Desktop sign-in has only been built, not exercised against a live Clerk instance. Before shipping desktop builds, check that your Clerk instance accepts the Tauri origins (`tauri://localhost`, `http://tauri.localhost`).
 

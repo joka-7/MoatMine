@@ -20,7 +20,8 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; script-src 'self' 'unsafe-inline' https://*.clerk.accounts.dev https://challenges.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' http://localhost:8000 https://*.onrender.com https://*.clerk.accounts.dev; frame-src https://challenges.cloudflare.com; worker-src 'self' blob:"
+      "csp": "default-src 'self'; script-src 'self' https://*.clerk.accounts.dev https://challenges.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https://*.onrender.com https://*.clerk.accounts.dev; frame-src https://challenges.cloudflare.com; worker-src 'self' blob:",
+      "devCsp": "default-src 'self'; script-src 'self' 'unsafe-inline' https://*.clerk.accounts.dev https://challenges.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' http://localhost:8000 https://*.onrender.com https://*.clerk.accounts.dev; frame-src https://challenges.cloudflare.com; worker-src 'self' blob:"
     }
   },
   "bundle": {
