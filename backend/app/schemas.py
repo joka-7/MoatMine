@@ -116,7 +116,8 @@ class AlertOut(BaseModel):
 
 
 class ChatMessage(BaseModel):
-    role: Literal["user", "assistant", "system"]
+    # no "system": the server owns the system prompt (it carries the user's risk rules)
+    role: Literal["user", "assistant"]
     content: str
 
 

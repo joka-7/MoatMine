@@ -6,6 +6,7 @@ No tool places trades.
 
 import asyncio
 import json
+import re
 import time
 from collections.abc import Awaitable, Callable
 from dataclasses import replace
@@ -139,14 +140,17 @@ TOOL_SPECS: list[JSONDict] = [
 ]
 
 
-def registry(db: Session, user: str, used: list[str]) -> ToolRegistry:
-    """Every tool as a ModelDispatcher ToolRegistry for one user's chat turn; `used` collects the names called."""
+def registry(db: Session, user: str, used: list[str], user_said: str = "") -> ToolRegistry:
+    """Every tool as a ModelDispatcher ToolRegistry for one user's chat turn; `used` collects the names called.
+
+    `user_said` is the user's latest message: write tools only act on symbols it names.
+    """
     reg = ToolRegistry()
 
     def handler(name: str) -> Callable[[JSONDict], Awaitable[str]]:
         async def run(args: JSONDict) -> str:
             used.append(name)
-            return await run_tool(name, dict(args), db, user)
+            return await run_tool(name, dict(args), db, user, user_said)
 
         return run
 
@@ -159,9 +163,25 @@ def openai_tools() -> list[JSONDict]:
     return [{"type": "function", "function": spec} for spec in TOOL_SPECS]
 
 
-async def run_tool(name: str, args: JSONDict, db: Session, user: str) -> str:
+WRITE_TOOLS = {"add_to_watchlist", "save_note"}
+
+
+def user_named(symbol: str, user_said: str) -> bool:
+    """Whether the user's own message names this ticker (as a whole word, any case)."""
+    return bool(symbol) and re.search(rf"(?<![A-Za-z0-9]){re.escape(symbol)}(?![A-Za-z0-9])", user_said, re.IGNORECASE) is not None
+
+
+async def run_tool(name: str, args: JSONDict, db: Session, user: str, user_said: str = "") -> str:
     """Run one tool and return its JSON result. Arguments come from a model, so bad ones become an
-    error the model can read and correct, not an exception."""
+    error the model can read and correct, not an exception.
+
+    Write tools act only on a symbol the user named in `user_said` (their latest message): text the
+    model read elsewhere (a news headline, a filing) must not be able to change the user's data.
+    Callers without a user message (MCP) can't write at all.
+    """
+    if name in WRITE_TOOLS and not user_named((args.get("symbol") or "").strip(), user_said):
+        out: object = {"error": "write tools only act on a symbol the user named in their own message; ask them first"}
+        return json.dumps(out)
     try:
         out = await _run(name, args, db, user)
     except ValidationError as e:

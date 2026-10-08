@@ -199,8 +199,14 @@ sequenceDiagram
   `web/src/lib/api.ts`.
 - **Provider responses are mapped defensively** (`.get` with defaults). A failed FMP call falls
   back to the primary provider. A failed quote marks the holding `stale` and prices it at cost.
-- **AI tool arguments** come from the model and only get light checks: `run_tool` casts types
-  but does not apply the HTTP bounds (SDR-10 / BACKLOG #21).
+- **AI tool arguments** come from the model: `run_tool` validates them against the same bounds
+  as the HTTP routes and returns the errors to the model. The write tools (`WRITE_TOOLS`) act only
+  on a symbol the user named in their latest chat message, so text the model read elsewhere can't
+  change the user's data; MCP callers have no chat message and can't write.
+- **Chat messages** may only have the `user` or `assistant` role; the server owns the system prompt.
+- **External agent URLs** must be `https://` and resolve only to public addresses
+  (`settings_store.check_public_https_url`), checked when saved.
+- **Clerk tokens** must come from an origin in `CLERK_AUTHORIZED_PARTIES` (the `azp` claim) when it is set.
 
 ## Integration test strategy
 - **API level:** `backend/tests/` drives the real FastAPI app through `TestClient` (`conftest.py`):

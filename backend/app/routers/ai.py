@@ -57,7 +57,8 @@ def models(user: str = Depends(current_user), db: Session = Depends(get_db)) -> 
 async def chat_endpoint(body: ChatIn, user: str = Depends(current_user), db: Session = Depends(get_db)) -> JSONDict:
     used: list[str] = []
     context = await asyncio.to_thread(agent_context, db, user, body.symbol)
-    out = await chat(db, user, [m.model_dump() for m in body.messages], registry(db, user, used),
+    user_said = next((m.content for m in reversed(body.messages) if m.role == "user"), "")
+    out = await chat(db, user, [m.model_dump() for m in body.messages], registry(db, user, used, user_said),
                      requested=body.model, context=context)
     return {**out, "tools_used": used}
 

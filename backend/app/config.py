@@ -21,6 +21,8 @@ class Settings(BaseSettings):
     auth_mode: Literal["dev", "clerk"] = "dev"
     clerk_jwks_url: str = ""
     clerk_issuer: str = ""
+    # comma-separated frontend origins allowed to have issued the session (the JWT's azp); empty = not checked
+    clerk_authorized_parties: str = ""
 
     # CORS: Vercel URL(s) plus the Tauri origins
     cors_origins: str = "http://localhost:3000,tauri://localhost,http://tauri.localhost"
@@ -80,6 +82,10 @@ class Settings(BaseSettings):
             except ValueError as e:
                 raise ValueError("FERNET_KEY is not a valid Fernet key (32 url-safe base64 bytes)") from e
         return self
+
+    @property
+    def clerk_parties(self) -> set[str]:
+        return {o.strip().rstrip("/") for o in self.clerk_authorized_parties.split(",") if o.strip()}
 
     @property
     def cors_list(self) -> list[str]:

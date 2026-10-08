@@ -25,6 +25,8 @@ envVarGroups:
         sync: false
       - key: CLERK_ISSUER
         sync: false
+      - key: CLERK_AUTHORIZED_PARTIES
+        sync: false
       - key: ANTHROPIC_API_KEY
         sync: false
       - key: OPENAI_API_KEY

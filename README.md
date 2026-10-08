@@ -128,6 +128,7 @@ The app runs with **no API keys**: `MARKET_PROVIDER=mock` serves deterministic s
 - `FMP_API_KEY` (optional: company descriptions, financial statements for Piotroski/Altman, price targets, dividends)
 - `FERNET_KEY`
 - `CLERK_JWKS_URL` and `CLERK_ISSUER` (the blueprint sets `AUTH_MODE=clerk`)
+- `CLERK_AUTHORIZED_PARTIES` = your Vercel URL plus `tauri://localhost,http://tauri.localhost`, so sessions minted for another site on the same Clerk instance are refused
 - AI keys (optional)
 - `CORS_ORIGINS` = your Vercel URL plus `tauri://localhost,http://tauri.localhost`
 

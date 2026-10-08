@@ -4,7 +4,10 @@ Keys never leave the server in full: reads return masked keys, and a write that 
 key back (the user didn't change it) keeps the stored original.
 """
 
+import ipaddress
 import json
+import socket
+from urllib.parse import urlsplit
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -16,6 +19,29 @@ from app.models import AISettings
 SUPPORTED = ("anthropic", "openai", "gemini", "groq")  # ModelPicker also offers ollama: browser-only
 FAVORITES = ("chatgpt", "claude", "gemini", "geminiApp", "groq")
 EMPTY = {"config": {"providers": [], "ollamaUrl": ""}, "external": None, "favorite": None}
+
+
+def check_public_https_url(url: str) -> None:
+    """The external agent is called from our server, so it must be a public HTTPS host.
+
+    Otherwise a user could point it at Render's internal network or the cloud metadata service.
+    Checked when saved; a host that later re-resolves to a private address isn't caught here.
+
+    Raises:
+        ValueError: not https, no host, or the host is/resolves to a private, loopback,
+            link-local, reserved or multicast address.
+    """
+    parts = urlsplit(url)
+    if parts.scheme != "https" or not parts.hostname:
+        raise ValueError("external agent needs an https:// base URL")
+    try:
+        infos = socket.getaddrinfo(parts.hostname, parts.port or 443, proto=socket.IPPROTO_TCP)
+    except socket.gaierror as e:
+        raise ValueError(f"external agent host {parts.hostname} doesn't resolve") from e
+    for info in infos:
+        ip = ipaddress.ip_address(info[4][0])
+        if not ip.is_global or ip.is_multicast:
+            raise ValueError("external agent must be on the public internet, not a private or local address")
 
 
 def _row(db: Session, user: str) -> AISettings | None:
@@ -60,8 +86,7 @@ def save_ai_settings(db: Session, user: str, config: JSONDict, external: JSONDic
 
     ext = None
     if external and external.get("base_url"):
-        if not str(external["base_url"]).startswith("https://"):
-            raise ValueError("external agent needs an https:// base URL")
+        check_public_https_url(str(external["base_url"]))
         key = external.get("api_key", "")
         if current.get("external") and key == mask(current["external"]["api_key"]):
             key = current["external"]["api_key"]

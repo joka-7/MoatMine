@@ -61,6 +61,23 @@ def test_current_user_rejects_bad_clerk_tokens(clerk_mode, creds):
     assert e.value.status_code == 401 and e.value.detail in ("missing token", "invalid token")
 
 
+@pytest.mark.parametrize(
+    ("azp", "accepted"),
+    [("https://app.example", True), ("https://app.example/", True), ("https://other.example", False), (None, False)],
+)
+def test_current_user_checks_the_authorized_party(monkeypatch, azp, accepted):
+    s = Settings(auth_mode="clerk", database_url="sqlite:///./x.db", clerk_jwks_url=f"{ISSUER}/jwks", clerk_issuer=ISSUER,
+                 clerk_authorized_parties="https://app.example, tauri://localhost")
+    monkeypatch.setattr(auth, "get_settings", lambda: s)
+    monkeypatch.setattr(auth, "_jwks_client", lambda _url: _FakeJwks())
+    if accepted:
+        assert auth.current_user(_bearer(_token(azp=azp))) == "user_123"
+    else:
+        with pytest.raises(HTTPException) as e:
+            auth.current_user(_bearer(_token(azp=azp)))
+        assert e.value.status_code == 401
+
+
 @pytest.mark.parametrize(("creds", "user"), [(None, "dev"), (_bearer("alice"), "alice")])
 def test_current_user_dev_mode_trusts_the_token(creds, user):
     assert auth.current_user(creds) == user

@@ -42,4 +42,7 @@ def current_user(creds: HTTPAuthorizationCredentials | None = Depends(_bearer)) 
     except jwt.PyJWTError as e:
         # the reason stays server-side; callers only learn that the token was rejected
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "invalid token") from e
+    # a valid session minted for some other site on the same Clerk instance must not work here
+    if s.clerk_parties and str(claims.get("azp", "")).rstrip("/") not in s.clerk_parties:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "invalid token")
     return str(claims["sub"])

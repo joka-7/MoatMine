@@ -99,7 +99,7 @@ Important ones:
 | `POST /plans` / `POST /plans/{id}/execute` | `{account_id, symbol, quantity, note}` | `{id, status, verdict, available_at, check, executed_holding_id, …}`; 409 = blocked or short of cash, 422 = reason needed |
 | `GET /stocks/{s}/candles` | `resolution, start, end` | `Candle[]` + header `X-Data-Source` |
 | `GET /health` / `GET /health/ready` | — | `{ok}` / `{ok, database}` (ready returns 503 if the DB is unreachable or behind) |
-| `POST /ai/chat` | `{messages[{role, content}], model, symbol?}` | `{model, content, tools_used[]}`, or ModelDispatcher's error payload with its HTTP status |
+| `POST /ai/chat` | `{messages[{role: "user"\|"assistant", content}], model, symbol?}` | `{model, content, tools_used[]}`, or ModelDispatcher's error payload with its HTTP status |
 
 Agent and MCP tools are listed in `TOOL_SPECS` (`app/ai/tools.py`) as JSON Schema. The
 portfolio-shaped tools take `mode`.
@@ -114,6 +114,7 @@ Read in `app/config.py` `Settings`, through `get_settings()` (cached once per pr
 | `DB_POOL_SIZE`, `DB_MAX_OVERFLOW`, `DB_POOL_TIMEOUT_SECONDS` | 5 / 5 / 10 | `app/db.py` `_make_engine` (Postgres only) |
 | `AUTH_MODE` | `dev` (`dev`\|`clerk`) | `app/auth.py` |
 | `CLERK_JWKS_URL`, `CLERK_ISSUER` | `""` (required in clerk mode) | `app/auth.py` |
+| `CLERK_AUTHORIZED_PARTIES` | `""` (comma-separated origins; empty = the token's `azp` isn't checked) | `app/auth.py` `current_user` |
 | `CORS_ORIGINS`, `CORS_ORIGIN_REGEX` | localhost:3000 + Tauri origins | `app/main.py` |
 | `MARKET_PROVIDER` | `mock` | `app/market/__init__.py` `get_provider` (finnhub only when `FINNHUB_API_KEY` is set) |
 | `FINNHUB_API_KEY`, `FMP_API_KEY` | `""` | `get_provider` |
