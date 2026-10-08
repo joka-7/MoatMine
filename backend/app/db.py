@@ -23,7 +23,15 @@ def _make_engine(url: str) -> Engine:
         url = "postgresql+psycopg://" + url[len("postgresql://"):]
     if url.startswith("sqlite"):
         return create_engine(url, connect_args={"check_same_thread": False})
-    return create_engine(url, pool_pre_ping=True)
+    s = get_settings()
+    return create_engine(
+        url,
+        pool_pre_ping=True,
+        pool_size=s.db_pool_size,
+        max_overflow=s.db_max_overflow,
+        pool_timeout=s.db_pool_timeout_seconds,
+        pool_recycle=1800,  # drop connections before managed Postgres idles them out
+    )
 
 
 engine = _make_engine(get_settings().database_url)

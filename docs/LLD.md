@@ -111,6 +111,7 @@ Read in `app/config.py` `Settings`, through `get_settings()` (cached once per pr
 | Key | Default | Read by |
 |---|---|---|
 | `DATABASE_URL` | `sqlite:///./moatmine.db` | `app/db.py` (engine; `postgres://` is rewritten to `postgresql+psycopg://`) |
+| `DB_POOL_SIZE`, `DB_MAX_OVERFLOW`, `DB_POOL_TIMEOUT_SECONDS` | 5 / 5 / 10 | `app/db.py` `_make_engine` (Postgres only) |
 | `AUTH_MODE` | `dev` (`dev`\|`clerk`) | `app/auth.py` |
 | `CLERK_JWKS_URL`, `CLERK_ISSUER` | `""` (required in clerk mode) | `app/auth.py` |
 | `CORS_ORIGINS`, `CORS_ORIGIN_REGEX` | localhost:3000 + Tauri origins | `app/main.py` |

@@ -157,6 +157,19 @@ sequenceDiagram
     makes them unreadable, and no rotation is implemented.
   - MCP tokens are stored as SHA-256 hashes.
 
+## Scaling
+- **The API runs as one instance on purpose** (`numInstances: 1` in `render.yaml`). Three pieces of
+  state live in process memory:
+  - the TTL caches (`app/cache.py`);
+  - the news-summary cache (`app/research.py`);
+  - ModelDispatcher's per-user AI quota store (`app/ai/dispatcher.py` `_QUOTA_STORE`).
+
+  With a second instance the quotas would apply per instance (doubling them) and the caches
+  would split. Move them to a shared store such as Redis before scaling out.
+- **Database pool:** each process has its own pool, `DB_POOL_SIZE` + `DB_MAX_OVERFLOW` (5 + 5 by
+  default). Requests wait up to `DB_POOL_TIMEOUT_SECONDS` for a connection. The API and worker
+  together stay well under the connection limit of the `basic-256mb` Postgres.
+
 ## Config management
 - **Precedence:** process environment over a local `backend/.env` over defaults in
   `app/config.py` `Settings` (pydantic-settings). There is no secrets-manager integration.

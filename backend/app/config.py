@@ -12,6 +12,10 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     database_url: str = "sqlite:///./moatmine.db"
+    # Postgres connection pool per process (API and worker each have one)
+    db_pool_size: int = 5
+    db_max_overflow: int = 5
+    db_pool_timeout_seconds: float = 10.0  # wait for a free connection, then fail the request
 
     # auth: "dev" trusts the bearer token as the user id (local SQLite only); "clerk" verifies a Clerk JWT
     auth_mode: Literal["dev", "clerk"] = "dev"
