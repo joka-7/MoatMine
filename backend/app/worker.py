@@ -18,6 +18,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.clock import utc_now
 from app.config import get_settings
 from app.db import SessionLocal
 from app.log_config import configure_logging
@@ -101,7 +102,7 @@ async def _alerts_for_user(db: Session, user: str, provider: MarketProvider, pro
         snap = await portfolio_snapshot(db, user, provider, "real")
         risks = await risk_by_symbol(provider, {h["symbol"] for h in snap["holdings"]})
         for t in targets:
-            for key, msg in breach_messages(evaluate(t, snap, risks)):
+            for key, msg in breach_messages(evaluate(t, snap, risks, utc_now())):
                 created += await asyncio.to_thread(_emit, db, user, "target", t.id, t.symbol, key, msg)
 
     watch = await asyncio.to_thread(lambda: db.scalars(

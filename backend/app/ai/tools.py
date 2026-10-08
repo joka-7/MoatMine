@@ -16,6 +16,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.clock import utc_now
 from app.crises import bad_times
 from app.jsontypes import JSONDict
 from app.market import get_provider
@@ -228,7 +229,7 @@ async def _run(name: str, args: JSONDict, db: Session, user: str) -> object:
             snap = await portfolio_snapshot(db, user, p)
             risks = await risk_by_symbol(p, {h["symbol"] for h in snap["holdings"]})
             targets = await asyncio.to_thread(lambda: db.scalars(select(Target).where(Target.user_id == user)).all())
-            out = [evaluate(t, snap, risks) for t in targets]
+            out = [evaluate(t, snap, risks, utc_now()) for t in targets]
         case "get_watchlist":
             items = await asyncio.to_thread(lambda: db.scalars(select(WatchItem).where(WatchItem.user_id == user)).all())
             q = await quotes_for(p, {i.symbol for i in items})

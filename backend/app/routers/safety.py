@@ -9,6 +9,7 @@ from sqlalchemy import CursorResult, select, update
 from sqlalchemy.orm import Session
 
 from app.auth import current_user
+from app.clock import Clock, get_clock
 from app.db import get_db
 from app.errors import InsufficientPaperCashError
 from app.jsontypes import JSONDict
@@ -158,8 +159,7 @@ class PlanIn(BaseModel):
         return _sym(v)
 
 
-def _plan_out(p: BuyPlan) -> JSONDict:
-    now = datetime.now(UTC)
+def _plan_out(p: BuyPlan, now: datetime) -> JSONDict:
     avail = p.available_at if p.available_at.tzinfo else p.available_at.replace(tzinfo=UTC)
     status = p.status
     if status == "cooling_off" and avail <= now:
@@ -180,13 +180,14 @@ def _own_plan(db: Session, plan_id: int, user: str) -> BuyPlan:
 
 
 @router.get("/plans")
-def list_plans(user: str = Depends(current_user), db: Session = Depends(get_db)) -> list[JSONDict]:
+def list_plans(user: str = Depends(current_user), db: Session = Depends(get_db), now: Clock = Depends(get_clock)) -> list[JSONDict]:
     rows = db.scalars(select(BuyPlan).where(BuyPlan.user_id == user).order_by(BuyPlan.created_at.desc()).limit(100)).all()
-    return [_plan_out(p) for p in rows]
+    return [_plan_out(p, now()) for p in rows]
 
 
 @router.post("/plans", status_code=201)
-async def create_plan(body: PlanIn, user: str = Depends(current_user), db: Session = Depends(get_db), provider: MarketProvider = Depends(get_provider)) -> JSONDict:
+async def create_plan(body: PlanIn, user: str = Depends(current_user), db: Session = Depends(get_db),
+                      provider: MarketProvider = Depends(get_provider), clock: Clock = Depends(get_clock)) -> JSONDict:
     acc = await asyncio.to_thread(db.get, Account, body.account_id)
     if not acc or acc.user_id != user:
         raise HTTPException(404, "account not found")
@@ -195,7 +196,7 @@ async def create_plan(body: PlanIn, user: str = Depends(current_user), db: Sessi
     if check["requires_note"] and len(body.note.strip()) < 20:
         raise HTTPException(422, {"message": "This buy breaks some of your rules. Write why you still want it (20+ characters).", "check": check})
 
-    now = datetime.now(UTC)
+    now = clock()
     if check["verdict"] == "block":
         status, available = "blocked", now
     elif check["verdict"] == "warn" and check["cooling_off_hours"]:
@@ -207,7 +208,7 @@ async def create_plan(body: PlanIn, user: str = Depends(current_user), db: Sessi
                 available_at=available)
     db.add(p)
     await asyncio.to_thread(db.commit)
-    return _plan_out(p)
+    return _plan_out(p, now)
 
 
 def _claim(db: Session, p: BuyPlan, observed: str) -> None:
@@ -228,9 +229,10 @@ async def execute_plan(
     user: str = Depends(current_user),
     db: Session = Depends(get_db),
     provider: MarketProvider = Depends(get_provider),
+    clock: Clock = Depends(get_clock),
 ) -> JSONDict:
     p = await asyncio.to_thread(_own_plan, db, plan_id, user)
-    out = _plan_out(p)
+    out = _plan_out(p, clock())
     if out["status"] != "ready":
         raise HTTPException(409, f"plan is {out['status']}" + (f" until {out['available_at']}" if out["status"] == "cooling_off" else ""))
     acc = await asyncio.to_thread(db.get, Account, p.account_id)
@@ -239,7 +241,7 @@ async def execute_plan(
     observed = p.status  # "ready", or "cooling_off" whose wait is over
     await asyncio.to_thread(_claim, db, p, observed)
     try:
-        return await _execute_claimed(db, user, p, acc, provider)
+        return await _execute_claimed(db, user, p, acc, provider, clock)
     except Exception:  # release the claim unless the attempt already moved the plan to a final state
         await asyncio.to_thread(_release, db, p, observed)
         raise
@@ -253,7 +255,7 @@ def _release(db: Session, p: BuyPlan, observed: str) -> None:
         db.commit()
 
 
-async def _execute_claimed(db: Session, user: str, p: BuyPlan, acc: Account, provider: MarketProvider) -> JSONDict:
+async def _execute_claimed(db: Session, user: str, p: BuyPlan, acc: Account, provider: MarketProvider, clock: Clock) -> JSONDict:
     # re-check at execution time: prices and the portfolio may have moved during cooling-off
     price = (await provider.quote(p.symbol))["price"]
     recheck = await check_for(db, user, provider, p.symbol, p.quantity * price, book_mode_of(acc))
@@ -262,7 +264,7 @@ async def _execute_claimed(db: Session, user: str, p: BuyPlan, acc: Account, pro
         await asyncio.to_thread(db.commit)
         raise HTTPException(409, {"message": "The buy no longer passes your rules.", "check": recheck})
     if recheck["verdict"] == "warn" and p.verdict != "warn":
-        await asyncio.to_thread(_send_back_through_warn_flow, db, p, recheck)
+        await asyncio.to_thread(_send_back_through_warn_flow, db, p, recheck, clock())
     try:
         pay_for_paper_buy(acc, p.quantity * price)
     except InsufficientPaperCashError as e:
@@ -274,10 +276,10 @@ async def _execute_claimed(db: Session, user: str, p: BuyPlan, acc: Account, pro
         db.add(StockNote(user_id=user, symbol=p.symbol, kind="thesis", title=f"Why I bought ({p.quantity:g} @ {price:.2f})", body=p.note))
     p.status, p.price, p.executed_holding_id = "executed", price, h.id
     await asyncio.to_thread(db.commit)
-    return _plan_out(p)
+    return _plan_out(p, clock())
 
 
-def _send_back_through_warn_flow(db: Session, p: BuyPlan, recheck: JSONDict) -> None:
+def _send_back_through_warn_flow(db: Session, p: BuyPlan, recheck: JSONDict, now: datetime) -> None:
     """A plan approved as `pass` now breaks a rule: it gets the same note + cooling-off a warn plan needs.
 
     Raises:
@@ -291,17 +293,17 @@ def _send_back_through_warn_flow(db: Session, p: BuyPlan, recheck: JSONDict) -> 
         raise HTTPException(409, {"message": "This buy now breaks some of your rules. Make a new plan and write why you still want it.", "check": recheck})
     hours = recheck["cooling_off_hours"]
     if hours:
-        p.status, p.available_at = "cooling_off", datetime.now(UTC) + timedelta(hours=hours)
+        p.status, p.available_at = "cooling_off", now + timedelta(hours=hours)
         db.commit()
         raise HTTPException(409, {"message": f"This buy now breaks some of your rules, so it waits {hours}h before it can run.", "check": recheck})
 
 
 @router.post("/plans/{plan_id}/cancel")
-def cancel_plan(plan_id: int, user: str = Depends(current_user), db: Session = Depends(get_db)) -> JSONDict:
+def cancel_plan(plan_id: int, user: str = Depends(current_user), db: Session = Depends(get_db), now: Clock = Depends(get_clock)) -> JSONDict:
     p = _own_plan(db, plan_id, user)
     if p.status == "executed":
         raise HTTPException(409, "already executed")
     p.status = "cancelled"
     db.commit()
-    return _plan_out(p)
+    return _plan_out(p, now())
 

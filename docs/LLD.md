@@ -158,6 +158,9 @@ Web: `NEXT_PUBLIC_API_URL` and `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` (`web/src/lib
 - **Market provider.** `get_provider()` is an `lru_cache` singleton built from settings. Every route
   receives it as `provider: MarketProvider = Depends(get_provider)` and passes it down to services
   as a `MarketProvider` argument.
+- **Clock.** Plan routes and target evaluation take the time from `get_clock` (`app/clock.py`);
+  tests override it to move through cooling-off waits and holding periods. `evaluate` takes `now`
+  explicitly; the worker and agent tools pass `utc_now()`.
   - Tests swap it with `app.dependency_overrides[get_provider]`, or pass a fake straight to a
     service.
   - Agent tools, the MCP server and the worker run outside FastAPI's dependency system and call
@@ -240,11 +243,12 @@ I/O boundaries (HTTP transport, LLM vendor, JWKS).
 | `Settings` safety guard, `ConfigError` without values | `test_config.py` | none |
 | Encryption, masking, token hashing | `test_crypto.py` | none |
 | Migrations match models; readiness | `test_db.py` | `ScriptDirectory.get_heads` / `schema_is_current` |
-| Worker isolation; sector failure tolerance | `test_worker.py` | a provider wrapper that raises for one symbol |
+| Buy plans: create, execute, cancel, cooling-off (fake clock), concurrency, re-check drift | `test_safety.py` | `get_clock` override |
+| PAPI period against a given clock | `test_targets.py` | none |
+| Worker isolation; sector failure tolerance; loss-limit alert; heartbeat; SIGTERM; unread-alert index | `test_worker.py` | provider wrappers (one raises, one falls) |
 | Logging redaction, formatters, request id | `test_log_config.py` | none |
 | TTL cache expiry, eviction order, lock pruning (fake clock) | `test_cache.py` | none |
 | Chat, tools, MCP, settings, news summary | `test_api.py`, `test_research.py` | ModelDispatcher `MockProvider` |
 
 Known gaps:
-- `QA-06`/`QA-07`: the plans scenario is still one long test that uses the wall clock.
 - No web unit tests (`QA-09`).

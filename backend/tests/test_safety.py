@@ -280,41 +280,103 @@ def test_stock_safety_endpoint(client):
     assert moat["grade"] is not None and r["moat"]["years"] == 10 and len(r["moat"]["series"]) == 10
 
 
-def test_plans_flow(client):
-    acc = client.post("/accounts", json={"name": "Paper", "broker": "paper", "cash": 100_000}, headers=D).json()["id"]
+class FakeClock:
+    def __init__(self) -> None:
+        self.now = datetime(2026, 5, 4, 9, tzinfo=UTC)
 
-    client.put("/safety/profile", json={**LOOSE}, headers=D)
-    # valuation can still warn (it isn't a profile rule), so give a reason; no cooling-off with 0 hours
-    ok = client.post("/plans", json={"account_id": acc, "symbol": "AAPL", "quantity": 1,
-                                     "note": "Core position, reviewed the valuation models."}, headers=D).json()
-    assert ok["verdict"] in ("pass", "warn") and ok["status"] == "ready", ok
-    done = client.post(f"/plans/{ok['id']}/execute", headers=D).json()
-    assert done["status"] == "executed" and done["executed_holding_id"]
+    def __call__(self) -> datetime:
+        return self.now
 
-    client.put("/safety/profile", json={**LOOSE, "max_volatility_pct": 0.1, "cooling_off_hours": 24}, headers=D)
-    r = client.post("/plans", json={"account_id": acc, "symbol": "MSFT", "quantity": 1}, headers=D)
-    assert r.status_code == 422 and r.json()["detail"]["check"]["verdict"] == "warn"  # needs a reason
-    risky = client.post("/plans", json={"account_id": acc, "symbol": "MSFT", "quantity": 1,
-                                        "note": "Long-term hold, accepting higher volatility here."}, headers=D).json()
-    assert risky["status"] == "cooling_off"
-    assert datetime.fromisoformat(risky["available_at"]) > datetime.now(UTC) + timedelta(hours=23)
-    assert client.post(f"/plans/{risky['id']}/execute", headers=D).status_code == 409
-    assert client.post(f"/plans/{risky['id']}/cancel", headers=D).json()["status"] == "cancelled"
 
-    client.put("/safety/profile", json={**LOOSE, "min_safety_score": 100}, headers=D)
-    blocked = client.post("/plans", json={"account_id": acc, "symbol": "NVDA", "quantity": 1}, headers=D).json()
-    assert blocked["status"] == "blocked"
-    # paper accounts enforce blocks on direct adds too; real accounts only warn
-    assert client.post("/holdings", json={"account_id": acc, "symbol": "NVDA", "quantity": 1, "avg_cost": 100}, headers=D).status_code == 409
-    real = client.post("/accounts", json={"name": "Real", "cash": 0}, headers=D).json()["id"]
-    r = client.post("/holdings", json={"account_id": real, "symbol": "NVDA", "quantity": 1, "avg_cost": 100}, headers=D)
-    assert r.status_code == 201 and r.json()["check"]["verdict"] == "block"
+@pytest.fixture
+def clock():
+    from app.clock import get_clock
+    from app.main import app
 
-    notes = client.get("/stocks/AAPL/notes", headers=D).json()
-    assert notes[0]["kind"] == "thesis" and "Core position" in notes[0]["body"]  # the plan's reason becomes a journal entry
+    fake = FakeClock()
+    app.dependency_overrides[get_clock] = lambda: fake
+    yield fake
+    app.dependency_overrides.pop(get_clock, None)
+
+
+@pytest.fixture
+def paper(client, request):
+    """A fresh user (named after the test) with a 100k paper account; returns (headers, account id)."""
+    return _plan_user(client, f"plans-{request.node.name}"[:120])
+
+
+REASON = "Long-term hold, accepting higher volatility here."
+
+
+@pytest.mark.parametrize(("rules", "note", "code", "status"), [
+    ({}, REASON, 201, "ready"),  # valuation can still warn, but with no cooling-off a reasoned buy is ready now
+    ({"max_volatility_pct": 0.1}, "", 422, None),  # breaks a rule: needs a written reason
+    ({"max_volatility_pct": 0.1}, "too short", 422, None),
+    ({"max_volatility_pct": 0.1, "cooling_off_hours": 24}, REASON, 201, "cooling_off"),
+    ({"min_safety_score": 100}, "", 201, "blocked"),
+])
+def test_create_plan(client, clock, paper, rules, note, code, status):
+    who, acc = paper
+    client.put("/safety/profile", json={**LOOSE, **rules}, headers=who)
+    r = client.post("/plans", json={"account_id": acc, "symbol": "MSFT", "quantity": 1, "note": note}, headers=who)
+    assert r.status_code == code, r.text
+    if code == 422:
+        assert r.json()["detail"]["check"]["verdict"] == "warn"
+        return
+    plan = r.json()
+    assert plan["status"] == status
+    wait = timedelta(hours=24) if status == "cooling_off" else timedelta(0)
+    assert datetime.fromisoformat(plan["available_at"]) == clock.now + wait
+
+
+@pytest.mark.parametrize(("cooling_off_hours", "advance_hours", "code", "status"), [
+    (0, 0, 200, "executed"),
+    (24, 23, 409, "cooling_off"),  # still waiting
+    (24, 24, 200, "executed"),  # the wait is over
+])
+def test_execute_plan(client, clock, paper, cooling_off_hours, advance_hours, code, status):
+    who, acc = paper
+    rules = {"max_volatility_pct": 0.1, "cooling_off_hours": cooling_off_hours}
+    client.put("/safety/profile", json={**LOOSE, **rules}, headers=who)
+    plan = client.post("/plans", json={"account_id": acc, "symbol": "AAPL", "quantity": 1, "note": REASON}, headers=who).json()
+    clock.now += timedelta(hours=advance_hours)
+
+    r = client.post(f"/plans/{plan['id']}/execute", headers=who)
+
+    assert r.status_code == code, r.text
+    got = {p["id"]: p for p in client.get("/plans", headers=who).json()}[plan["id"]]
+    assert got["status"] == status
+    if status == "executed":
+        assert got["executed_holding_id"]
+        notes = client.get("/stocks/AAPL/notes", headers=who).json()
+        assert notes[0]["kind"] == "thesis" and REASON in notes[0]["body"]  # the reason becomes a journal entry
+
+
+@pytest.mark.parametrize(("execute_first", "code", "status"), [(False, 200, "cancelled"), (True, 409, "executed")])
+def test_cancel_plan(client, clock, paper, execute_first, code, status):
+    who, acc = paper
+    client.put("/safety/profile", json={**LOOSE}, headers=who)
+    plan = client.post("/plans", json={"account_id": acc, "symbol": "AAPL", "quantity": 1, "note": REASON}, headers=who).json()
+    if execute_first:
+        client.post(f"/plans/{plan['id']}/execute", headers=who)
+    assert client.post(f"/plans/{plan['id']}/cancel", headers=who).status_code == code
+    assert {p["id"]: p for p in client.get("/plans", headers=who).json()}[plan["id"]]["status"] == status
+
+
+@pytest.mark.parametrize(("broker", "code", "verdict"), [("paper", 409, None), ("manual", 201, "block")])
+def test_add_holding_enforces_blocks_on_paper_only(client, request, broker, code, verdict):
+    who = auth(f"blocks-{request.node.name}"[:120])
+    client.put("/safety/profile", json={**LOOSE, "min_safety_score": 100}, headers=who)
+    acc = client.post("/accounts", json={"name": "A", "broker": broker, "cash": 100_000}, headers=who).json()["id"]
+    r = client.post("/holdings", json={"account_id": acc, "symbol": "NVDA", "quantity": 1, "avg_cost": 100}, headers=who)
+    assert r.status_code == code
+    if verdict:
+        assert r.json()["check"]["verdict"] == verdict  # real accounts record trades already made: they warn
 
 
 def test_portfolio_risk_and_stress_endpoints(client):
+    acc = client.post("/accounts", json={"name": "Real", "cash": 1_000}, headers=D).json()["id"]
+    client.post("/holdings", json={"account_id": acc, "symbol": "AAPL", "quantity": 5, "avg_cost": 150}, headers=D)
     r = client.get("/safety/portfolio", headers=D).json()
     assert r["holdings_count"] >= 1 and r["volatility_pct"] is not None and "breaches" in r
     s = client.get("/safety/stress", headers=D).json()
@@ -346,6 +408,7 @@ def _plan_user(client, name: str, cash: float = 100_000) -> tuple[dict[str, str]
 def test_execute_plan_runs_once_under_concurrent_requests(client):
     import asyncio
 
+    from app.clock import utc_now
     from app.db import SessionLocal
     from app.market import get_provider
     from app.routers.safety import execute_plan
@@ -357,7 +420,7 @@ def test_execute_plan_runs_once_under_concurrent_requests(client):
     async def attempt() -> str:
         with SessionLocal() as db:
             try:
-                await execute_plan(plan["id"], "double-click", db, get_provider())
+                await execute_plan(plan["id"], "double-click", db, get_provider(), utc_now)
                 return "executed"
             except Exception as e:  # HTTPException 409 for the loser
                 return type(e).__name__

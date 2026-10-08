@@ -49,16 +49,16 @@ async def risk_by_symbol(provider: MarketProvider, symbols: set[str], lookback_d
     return out
 
 
-def _days_since(iso_dates: list[str]) -> int | None:
+def _days_since(iso_dates: list[str], now: datetime) -> int | None:
     if not iso_dates:
         return None
     first = min(datetime.fromisoformat(d) for d in iso_dates)
     if first.tzinfo is None:
         first = first.replace(tzinfo=UTC)
-    return (datetime.now(UTC) - first).days
+    return (now - first).days
 
 
-def evaluate(t: Target, snapshot: JSONDict, risks: dict[str, float | None]) -> JSONDict:
+def evaluate(t: Target, snapshot: JSONDict, risks: dict[str, float | None], now: datetime) -> JSONDict:
     holdings = snapshot["holdings"]
     # an unpriced holding is valued at cost, which would read as 0% P/L and hide a real loss
     if t.symbol:
@@ -79,7 +79,7 @@ def evaluate(t: Target, snapshot: JSONDict, risks: dict[str, float | None]) -> J
         wsum = sum(v for v, _ in weighted)
         risk = round(sum(v * r for v, r in weighted) / wsum, 2) if wsum else None
 
-    period = _days_since([h["opened_at"] for h in rows])
+    period = _days_since([h["opened_at"] for h in rows], now)
 
     checks = {
         "profit": check_bound(profit, t.profit_target, t.profit_min, t.profit_max),
