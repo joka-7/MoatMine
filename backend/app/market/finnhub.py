@@ -6,6 +6,7 @@ recorded with app.market.sources so every result built on those bars is labelled
 as sample data.
 """
 
+import asyncio
 import logging
 import time
 from datetime import date, timedelta
@@ -17,6 +18,7 @@ from app.errors import MarketDataError
 from app.jsontypes import JSONDict
 from app.market.base import Candle, NewsItem, Quote
 from app.market.mock import MockProvider
+from app.market.retry import Sleep, get_with_retry
 from app.market.sources import MOCK_FALLBACK, note_source
 
 logger = logging.getLogger(__name__)
@@ -46,14 +48,15 @@ _METRIC_MAP = {
 class FinnhubProvider:
     name = "finnhub"
 
-    def __init__(self, api_key: str, transport: httpx.AsyncBaseTransport | None = None):
+    def __init__(self, api_key: str, transport: httpx.AsyncBaseTransport | None = None,
+                 sleep: Sleep = asyncio.sleep):
+        self._sleep = sleep  # injected so tests don't wait out the backoff
         # the key goes in a header, not the URL, so it can't leak through logged URLs or error messages
         self._client = httpx.AsyncClient(base_url=BASE, timeout=10, headers={"X-Finnhub-Token": api_key}, transport=transport)
         self._fallback = MockProvider()
 
     async def _get(self, path: str, **params: str | int) -> Any:  # raw JSON, mapped by each caller
-        r = await self._client.get(path, params=params)
-        r.raise_for_status()
+        r = await get_with_retry(self._client, path, dict(params), self._sleep)
         return r.json()
 
     async def quote(self, symbol: str) -> Quote:

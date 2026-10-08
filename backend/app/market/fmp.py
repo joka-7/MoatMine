@@ -5,11 +5,13 @@ Field names follow FMP's documented schema; every read is defensive (.get) so a 
 field degrades to "—" in the UI instead of an error. Verify against your plan before relying on it.
 """
 
+import asyncio
 from typing import Any
 
 import httpx
 
 from app.jsontypes import JSONDict
+from app.market.retry import Sleep, get_with_retry
 
 BASE = "https://financialmodelingprep.com/stable"
 M = 1_000_000  # FMP returns raw currency units; the app works in millions
@@ -22,12 +24,13 @@ def _mil(v: object) -> float | None:
 class FMPProvider:
     name = "fmp"
 
-    def __init__(self, api_key: str, transport: httpx.AsyncBaseTransport | None = None):
+    def __init__(self, api_key: str, transport: httpx.AsyncBaseTransport | None = None,
+                 sleep: Sleep = asyncio.sleep):
+        self._sleep = sleep  # injected so tests don't wait out the backoff
         self._client = httpx.AsyncClient(base_url=BASE, timeout=15, params={"apikey": api_key}, transport=transport)
 
     async def _get(self, path: str, **params: str | int) -> Any:  # raw JSON, mapped by each caller
-        r = await self._client.get(path, params=params)
-        r.raise_for_status()
+        r = await get_with_retry(self._client, path, dict(params), self._sleep)
         return r.json()
 
     async def company(self, symbol: str) -> JSONDict:

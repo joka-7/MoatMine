@@ -199,6 +199,9 @@ sequenceDiagram
   `web/src/lib/api.ts`.
 - **Provider responses are mapped defensively** (`.get` with defaults). A failed FMP call falls
   back to the primary provider. A failed quote marks the holding `stale` and prices it at cost.
+- **Upstream retries:** Finnhub and FMP GETs retry 429/5xx and connection errors up to 3 attempts
+  with exponential backoff and full jitter, honouring a numeric `Retry-After` (capped at 4 s)
+  (`app/market/retry.py`). Other 4xx are final.
 - **AI tool arguments** come from the model: `run_tool` validates them against the same bounds
   as the HTTP routes and returns the errors to the model. The write tools (`WRITE_TOOLS`) act only
   on a symbol the user named in their latest chat message, so text the model read elsewhere can't

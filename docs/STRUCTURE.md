@@ -77,6 +77,7 @@ MoatMine/
 │   │   │   ├── finnhub.py               # Finnhub provider. Free tier covers quote, news, metrics, profile, search.
 │   │   │   ├── fmp.py                   # Optional source for company descriptions, financial statements,
 │   │   │   ├── mock.py                  # Deterministic fake market data so the app runs end-to-end without any API key.
+│   │   │   ├── retry.py                 # Retrying GETs for the upstream market-data APIs.
 │   │   │   └── sources.py               # Which data actually fed a computation, tracked per task rather than on the…
 │   │   ├── routers/                     # HTTP routes, one module per area
 │   │   │   ├── __init__.py              # Package marker
@@ -136,6 +137,7 @@ MoatMine/
 │   │   ├── test_portfolio.py            # Paper (practice) and real-money accounts are separate books everywhere money…
 │   │   ├── test_ratelimit.py
 │   │   ├── test_research.py             # Company/earnings/analyst data, news feed and AI news summary
+│   │   ├── test_retry.py                # Retrying market-API GETs against canned responses (no network, no real…
 │   │   ├── test_safety.py               # Safety score, risk profile, buy check, risk maths, stress tests, plans flow
 │   │   ├── test_sources.py              # Results built from fallback (sample) candles say so, however deep the candles…
 │   │   ├── test_targets.py              # PAPI evaluation never turns a missing price into a plausible-looking number.
