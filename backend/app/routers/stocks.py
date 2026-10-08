@@ -15,12 +15,16 @@ from app.market import get_provider
 from app.market.base import RESOLUTION_SECONDS, Candle, MarketProvider, NewsItem, Quote
 from app.market.sources import source_label, track_sources
 from app.models import StockNote
+from app.ratelimit import rate_limited
 from app.research import news_feed, news_summary, valuation
 from app.schemas import NoteIn, NoteOut
 from app.valuation import Assumptions
 
-router = APIRouter(prefix="/stocks", tags=["stocks"])
-feed_router = APIRouter(tags=["news"])
+# every market-data route spends the server's provider quota: signed-in users only, rate-limited
+router = APIRouter(prefix="/stocks", tags=["stocks"], dependencies=[Depends(rate_limited("market"))])
+feed_router = APIRouter(tags=["news"], dependencies=[Depends(rate_limited("market"))])
+
+MAX_CANDLES = 10_000  # a year of hourly bars; bounds the work one request can ask for
 
 
 def _sym(symbol: str) -> str:
@@ -48,8 +52,12 @@ async def candles(
 ) -> list[Candle]:
     if resolution not in RESOLUTION_SECONDS:
         raise HTTPException(422, f"resolution must be one of {list(RESOLUTION_SECONDS)}")
-    end = end or int(time.time())
-    start = start or end - 365 * 86400
+    if end is None:
+        end = int(time.time())
+    if start is None:  # default: a year, or as much as fits in MAX_CANDLES at fine resolutions
+        start = end - min(365 * 86400, MAX_CANDLES * RESOLUTION_SECONDS[resolution])
+    if end <= start or (end - start) / RESOLUTION_SECONDS[resolution] > MAX_CANDLES:
+        raise HTTPException(422, f"range must be positive and at most {MAX_CANDLES} bars at this resolution")
     with track_sources() as used:
         bars = await provider.candles(_sym(symbol), resolution, start, end)
     response.headers["X-Data-Source"] = source_label(provider.name, used)

@@ -16,6 +16,7 @@ from app.market import get_provider
 from app.market.base import MarketProvider
 from app.models import Account, BuyPlan, Holding, StockNote
 from app.portfolio import BookMode, book_mode_of, pay_for_paper_buy
+from app.ratelimit import rate_limited
 from app.safety.profile import LEVELS, QUESTIONS, level_from_answers
 from app.safety.service import (
     ai_analysis,
@@ -86,12 +87,12 @@ def write_profile(body: ProfileIn, user: str = Depends(current_user), db: Sessio
 # ---------------- stock safety & checks ----------------
 
 
-@router.get("/stocks/{symbol}/safety")
+@router.get("/stocks/{symbol}/safety", dependencies=[Depends(rate_limited("market"))])
 async def safety(symbol: str, provider: MarketProvider = Depends(get_provider)) -> JSONDict:
     return await stock_safety(provider, _sym(symbol))
 
 
-@router.post("/stocks/{symbol}/safety/analyze")
+@router.post("/stocks/{symbol}/safety/analyze", dependencies=[Depends(rate_limited("ai"))])
 async def safety_analyze(symbol: str, user: str = Depends(current_user), db: Session = Depends(get_db), provider: MarketProvider = Depends(get_provider)) -> JSONDict:
     """AI analyzer: explains each area grade and how the stock fits the user's risk rules."""
     return await ai_analysis(db, user, provider, _sym(symbol))

@@ -40,7 +40,7 @@ services:
     runtime: python
     rootDir: backend
     plan: starter # free plan sleeps when idle
-    # One instance on purpose: response caches and AI quotas live in process memory
+    # One instance on purpose: response caches, AI quotas and rate limits live in process memory
     # (docs/HLD.md "Scaling"). Move them to Redis before raising this.
     numInstances: 1
     buildCommand: pip install -r requirements.lock # exact versions; regenerate from requirements.txt

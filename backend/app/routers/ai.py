@@ -13,6 +13,7 @@ from app.crypto import new_mcp_token
 from app.db import get_db
 from app.jsontypes import JSONDict
 from app.models import MCPToken
+from app.ratelimit import rate_limited
 from app.safety.service import get_profile, profile_dict
 from app.schemas import ChatIn
 
@@ -52,7 +53,7 @@ def models(user: str = Depends(current_user), db: Session = Depends(get_db)) -> 
     return out
 
 
-@router.post("/chat")
+@router.post("/chat", dependencies=[Depends(rate_limited("ai"))])
 async def chat_endpoint(body: ChatIn, user: str = Depends(current_user), db: Session = Depends(get_db)) -> JSONDict:
     used: list[str] = []
     context = await asyncio.to_thread(agent_context, db, user, body.symbol)

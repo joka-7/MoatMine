@@ -48,6 +48,10 @@ class Settings(BaseSettings):
 
     worker_interval_seconds: int = 300
 
+    # per-user requests per minute on routes that spend provider quota (app/ratelimit.py)
+    rate_limit_market_per_min: int = 240
+    rate_limit_ai_per_min: int = 30
+
     log_level: str = "INFO"
     log_format: Literal["json", "text"] = "text"  # json in production (render.yaml)
 
