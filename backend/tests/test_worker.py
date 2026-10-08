@@ -1,8 +1,15 @@
 import asyncio
+import os
+import signal
+from datetime import UTC, datetime, timedelta
+
+import pytest
+from sqlalchemy.exc import IntegrityError
 
 from app import worker
 from app.db import SessionLocal
 from app.market import get_provider
+from app.models import ALERT_WORKER, Alert, WorkerHeartbeat
 from app.safety.service import book_for
 from tests.conftest import auth
 
@@ -84,3 +91,63 @@ def test_run_once_alerts_on_the_loss_limit(client, monkeypatch):
         asyncio.run(worker.run_once())
         msgs = [a["message"] for a in client.get("/alerts?unread_only=true", headers=who).json()]
         assert any("loss limit" in m for m in msgs) is expect, (user, last, msgs)
+
+
+def _heartbeat():
+    with SessionLocal() as db:
+        return db.get(WorkerHeartbeat, ALERT_WORKER)
+
+
+def test_run_once_records_a_heartbeat_the_health_check_reads(client):
+    asyncio.run(worker.run_once())
+    beat = _heartbeat()
+    assert beat is not None and beat.users_failed == 0 and beat.duration_seconds >= 0
+    assert client.get("/health/worker").json()["ok"] is True
+
+    with SessionLocal() as db:  # a worker that stopped finishing passes three intervals ago
+        stale = db.get(WorkerHeartbeat, ALERT_WORKER)
+        assert stale is not None
+        stale.finished_at = datetime.now(UTC) - timedelta(hours=1)
+        db.commit()
+    r = client.get("/health/worker")
+    assert r.status_code == 503 and r.json()["ok"] is False
+
+
+def test_run_once_stops_between_users_without_a_heartbeat(client):
+    asyncio.run(worker.run_once())
+    before = _heartbeat().finished_at
+    stop = asyncio.Event()
+    stop.set()
+    assert asyncio.run(worker.run_once(stop)) == 0
+    assert _heartbeat().finished_at == before
+
+
+def test_main_exits_on_sigterm(monkeypatch):
+    passes: list[int] = []
+
+    async def fake_pass(stop):
+        passes.append(1)
+        return 0
+
+    monkeypatch.setattr(worker, "run_once", fake_pass)
+
+    async def run():
+        task = asyncio.create_task(worker.main(once=False))  # interval is 300 s: only a signal ends it quickly
+        await asyncio.sleep(0.05)
+        os.kill(os.getpid(), signal.SIGTERM)
+        await asyncio.wait_for(task, 2)
+
+    asyncio.run(run())
+    assert passes == [1]
+
+
+def test_alert_index_allows_one_unread_alert_per_condition(client):
+    def alert(read: bool) -> Alert:
+        return Alert(user_id="idx", source="watch", ref_id=1, symbol="AAPL", message="m", dedupe_key="watch:1:above", read=read)
+
+    with SessionLocal() as db:
+        db.add_all([alert(True), alert(True), alert(False)])  # read ones may repeat
+        db.commit()
+        db.add(alert(False))
+        with pytest.raises(IntegrityError):
+            db.commit()

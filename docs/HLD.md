@@ -124,8 +124,11 @@ sequenceDiagram
   1. For each user, check real-book concentration and the loss limit (the holdings' fall from
      their 1-year high, skipped on sample-fallback data) against the risk rules, evaluate PAPI
      targets, and check watchlist price levels.
-  2. Write alerts deduplicated on `(user, dedupe_key, unread)`.
+  2. Write alerts deduplicated on `(user, dedupe_key, unread)`; the unique partial index
+     `uq_alerts_unread_dedupe` enforces it even if two passes overlap.
   3. Commit **per user**: one failing user doesn't drop anyone else's alerts.
+  4. Record the pass in `worker_heartbeats` (finish time, duration, alerts, failed users), read by
+     `GET /health/worker`. SIGTERM/SIGINT end the run after the current user.
 - **Agent chat** (`app/routers/ai.py` → `app/ai/dispatcher.py` `chat`):
   1. Build a system prompt that includes the user's risk rules.
   2. ModelDispatcher picks a vendor from the user's keys and the server keys, and enforces quotas.

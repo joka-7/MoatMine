@@ -3,17 +3,20 @@ import re
 import uuid
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
+from datetime import UTC, datetime
 
-from fastapi import FastAPI, Request, Response
+from fastapi import Depends, FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.orm import Session
 
 from app.config import get_settings
-from app.db import schema_is_current
+from app.db import get_db, schema_is_current
 from app.errors import DispatchError, MarketDataError
 from app.log_config import configure_logging, request_id
 from app.mcp_server import build_mcp_app, mcp
+from app.models import ALERT_WORKER, WorkerHeartbeat
 from app.routers import ai, portfolio, safety, stocks, targets, watchlist
 
 configure_logging(get_settings().log_level, get_settings().log_format)
@@ -78,6 +81,22 @@ app.mount("/mcp", mcp_app)
 def health() -> dict[str, bool]:
     """Liveness: the process is up. Says nothing about its dependencies."""
     return {"ok": True}
+
+
+@app.get("/health/worker")
+def worker_health(response: Response, db: Session = Depends(get_db)) -> dict[str, object]:
+    """The alert worker's last finished pass; 503 once it is over three intervals old (for uptime monitors)."""
+    beat = db.get(WorkerHeartbeat, ALERT_WORKER)
+    if beat is None:
+        response.status_code = 503
+        return {"ok": False, "last_pass": None}
+    finished = beat.finished_at if beat.finished_at.tzinfo else beat.finished_at.replace(tzinfo=UTC)  # SQLite drops the zone
+    age = (datetime.now(UTC) - finished).total_seconds()
+    ok = age < 3 * get_settings().worker_interval_seconds
+    if not ok:
+        response.status_code = 503
+    return {"ok": ok, "last_pass": finished.isoformat(), "age_seconds": round(age), "duration_seconds": beat.duration_seconds,
+            "alerts_created": beat.alerts_created, "users_failed": beat.users_failed}
 
 
 @app.get("/health/ready")

@@ -111,6 +111,7 @@ Important ones:
 | `GET /portfolio/history` | `days, mode` | `{t, value}[]` (last close carried forward over gaps, from the first day every holding has a price) + header `X-Data-Source` |
 | `GET /stocks/{s}/ratios` | `lookback_days` | `{fundamental, price, data_source}` |
 | `GET /health` / `GET /health/ready` | — | `{ok}` / `{ok, database}` (ready returns 503 if the DB is unreachable or behind) |
+| `GET /health/worker` | — | `{ok, last_pass, age_seconds, duration_seconds, alerts_created, users_failed}`; 503 when no pass has finished or the last is over 3 × `WORKER_INTERVAL_SECONDS` old |
 | `POST /ai/chat` | `{messages[{role: "user"\|"assistant", content}], model, symbol?}` | `{model, content, tools_used[]}`, or ModelDispatcher's error payload with its HTTP status |
 
 Agent and MCP tools are listed in `TOOL_SPECS` (`app/ai/tools.py`) as JSON Schema. The
