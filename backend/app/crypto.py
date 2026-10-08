@@ -1,7 +1,7 @@
 import hashlib
 import secrets
 
-from cryptography.fernet import Fernet
+from cryptography.fernet import Fernet, MultiFernet
 
 from app.config import get_settings
 
@@ -10,11 +10,11 @@ def new_key() -> str:
     return Fernet.generate_key().decode()
 
 
-def _fernet() -> Fernet:
-    key = get_settings().fernet_key
-    if not key:
+def _fernet() -> MultiFernet:
+    keys = get_settings().fernet_keys
+    if not keys:
         raise RuntimeError("FERNET_KEY is not set; required to store user AI keys")
-    return Fernet(key.encode())
+    return MultiFernet([Fernet(k.encode()) for k in keys])
 
 
 def encrypt(plain: str) -> str:
@@ -23,6 +23,15 @@ def encrypt(plain: str) -> str:
 
 def decrypt(token: str) -> str:
     return _fernet().decrypt(token.encode()).decode()
+
+
+def reencrypt(token: str) -> str:
+    """The same secret encrypted with the newest key (for FERNET_KEY rotation).
+
+    Raises:
+        cryptography.fernet.InvalidToken: no configured key can decrypt it.
+    """
+    return _fernet().rotate(token.encode()).decode()
 
 
 def mask(secret: str) -> str:

@@ -12,7 +12,8 @@ KEY = Fernet.generate_key().decode()
 @pytest.fixture
 def fernet_key(monkeypatch):
     def use(key: str) -> None:
-        monkeypatch.setattr(crypto, "get_settings", lambda: SimpleNamespace(fernet_key=key))
+        keys = [k for k in key.split(",") if k]
+        monkeypatch.setattr(crypto, "get_settings", lambda: SimpleNamespace(fernet_keys=keys))
 
     use(KEY)
     return use
@@ -55,3 +56,17 @@ def test_new_mcp_token_stores_only_a_hash():
     assert token.startswith("moatmine_") and len(token) > 40
     assert digest == crypto.hash_token(token) == hashlib.sha256(token.encode()).hexdigest()
     assert crypto.new_mcp_token()[0] != token
+
+
+def test_reencrypt_moves_a_secret_to_the_newest_key(fernet_key):
+    old, new = KEY, Fernet.generate_key().decode()
+    token = crypto.encrypt("sk-live-abc123")  # under the old key
+
+    fernet_key(f"{new},{old}")  # rotating: both decrypt, the new one encrypts
+    assert crypto.decrypt(token) == "sk-live-abc123"
+    moved = crypto.reencrypt(token)
+
+    fernet_key(new)  # old key retired
+    assert crypto.decrypt(moved) == "sk-live-abc123"
+    with pytest.raises(InvalidToken):
+        crypto.decrypt(token)

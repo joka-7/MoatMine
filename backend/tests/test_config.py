@@ -22,6 +22,8 @@ CLERK = {"clerk_jwks_url": "https://clerk.example/.well-known/jwks.json", "clerk
         ({"auth_mode": "clerk", "database_url": SQLITE}, False),
         ({"auth_mode": "clerk", "database_url": PG, **{**CLERK, "fernet_key": ""}}, False),  # can't store AI keys
         ({"auth_mode": "dev", "database_url": SQLITE, "fernet_key": "not-a-key"}, False),
+        ({"auth_mode": "dev", "database_url": SQLITE, "fernet_key": f"{KEY}, {Fernet.generate_key().decode()}"}, True),  # rotating
+        ({"auth_mode": "dev", "database_url": SQLITE, "fernet_key": f"{KEY},not-a-key"}, False),  # every key must be valid
         ({"auth_mode": "dev", "database_url": SQLITE, "fernet_key": ""}, True),  # local: only AI-key saving needs it
     ],
 )

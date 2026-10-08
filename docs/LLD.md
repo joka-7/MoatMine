@@ -139,7 +139,7 @@ Read in `app/config.py` `Settings`, through `get_settings()` (cached once per pr
 | `CORS_ORIGINS`, `CORS_ORIGIN_REGEX` | localhost:3000 + Tauri origins | `app/main.py` |
 | `MARKET_PROVIDER` | `mock` | `app/market/__init__.py` `get_provider` (finnhub only when `FINNHUB_API_KEY` is set) |
 | `FINNHUB_API_KEY`, `FMP_API_KEY` | `""` | `get_provider` |
-| `FERNET_KEY` | `""` (required to save AI keys) | `app/crypto.py` |
+| `FERNET_KEY` | `""` (required to save AI keys; comma-separated during a rotation, newest first) | `app/crypto.py` (`MultiFernet`), `app/rotate_keys.py` |
 | `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GEMINI_API_KEY`, `GROQ_API_KEY` | `""` | `app/ai/dispatcher.py` (server keys) |
 | `AI_REQUESTS_PER_MIN`, `AI_TOKENS_PER_MIN`, `AI_TOKENS_PER_DAY` | 20 / 60 000 / 1 000 000 | `dispatcher._tenant` |
 | `AI_TIMEOUT_SECONDS` | 90 | `dispatcher._run` |
@@ -247,7 +247,7 @@ I/O boundaries (HTTP transport, LLM vendor, JWKS).
 | Finnhub/FMP mapping and errors; FMP fallback logging | `test_finnhub.py`, `test_fmp.py` | `httpx.MockTransport` |
 | `current_user` (Clerk JWT: valid, expired, wrong issuer or key, missing claims, HS256) | `test_auth.py` | JWKS client → local RSA key |
 | `Settings` safety guard, `ConfigError` without values | `test_config.py` | none |
-| Encryption, masking, token hashing | `test_crypto.py` | none |
+| Encryption, masking, token hashing, key rotation | `test_crypto.py`, `test_rotate_keys.py` | none |
 | Migrations match models; readiness | `test_db.py` | `ScriptDirectory.get_heads` / `schema_is_current` |
 | Buy plans: create, execute, cancel, cooling-off (fake clock), concurrency, re-check drift | `test_safety.py` | `get_clock` override |
 | PAPI period against a given clock | `test_targets.py` | none |

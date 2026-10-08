@@ -34,7 +34,8 @@ class Settings(BaseSettings):
     # optional: company descriptions, financial statements, price targets, dividends
     fmp_api_key: str = ""
 
-    # encrypts user-supplied AI keys at rest (Fernet key; generate with app.crypto.new_key())
+    # encrypts user-supplied AI keys at rest (Fernet key; generate with app.crypto.new_key()).
+    # Comma-separated during a rotation: the first key encrypts, every key decrypts (docs/RUNBOOK.md).
     fernet_key: str = ""
 
     # AI via ModelDispatcher: optional server keys (users can bring their own instead)
@@ -76,12 +77,17 @@ class Settings(BaseSettings):
         """Production must be able to store user AI keys; a bad key should stop startup, not a save."""
         if self.auth_mode == "clerk" and not self.fernet_key:
             raise ValueError("AUTH_MODE=clerk needs FERNET_KEY (encrypts user AI keys); generate one with app.crypto.new_key()")
-        if self.fernet_key:
+        for key in self.fernet_keys:
             try:
-                Fernet(self.fernet_key.encode())
+                Fernet(key.encode())
             except ValueError as e:
                 raise ValueError("FERNET_KEY is not a valid Fernet key (32 url-safe base64 bytes)") from e
         return self
+
+    @property
+    def fernet_keys(self) -> list[str]:
+        """Newest first; more than one only while rotating."""
+        return [k.strip() for k in self.fernet_key.split(",") if k.strip()]
 
     @property
     def clerk_parties(self) -> set[str]:

@@ -115,9 +115,9 @@ MoatMine/
 │   │   ├── portfolio.py                          # Portfolio valuation shared by the API, the AI tools, the MCP server and the…
 │   │   ├── ratelimit.py                          # Per-user request limits for the routes that spend paid market-data and AI…
 │   │   ├── research.py                           # Research helpers shared by the API, AI tools and MCP: valuation, news feed,…
+│   │   ├── rotate_keys.py                        # Re-encrypt every stored AI setting with the newest FERNET_KEY (step 2 of a…
 │   │   ├── schemas.py                            # Pydantic request/response models for accounts, holdings, watchlist, notes,…
-│   │   ├── seed.py                               # Demo data for local dev: python -m app.seed [user_id] (default user: dev)
-│   │   └── … 3 more
+│   │   └── … 4 more
 │   ├── migrations/                               # Alembic environment and revisions
 │   │   ├── versions/                             # One file per schema revision
 │   │   │   ├── 0001_baseline_schema.py           # Baseline schema: every table as it stood when Alembic replaced create_all.
@@ -145,12 +145,13 @@ MoatMine/
 │   │   ├── test_research.py                      # Company/earnings/analyst data, news feed and AI news summary
 │   │   ├── test_retry.py                         # Retrying market-API GETs against canned responses (no network, no real…
 │   │   ├── test_risk.py                          # Portfolio risk maths at the boundaries, with numbers you can check by hand.
+│   │   ├── test_rotate_keys.py                   # FERNET_KEY rotation re-encrypts stored AI settings so the old key can be…
 │   │   ├── test_safety.py                        # Safety score, risk profile, buy check, risk maths, stress tests, plans flow
 │   │   ├── test_sources.py                       # Results built from fallback (sample) candles say so, however deep the candles…
 │   │   ├── test_targets.py                       # PAPI evaluation never turns a missing price into a plausible-looking number.
 │   │   ├── test_tools.py                         # The agent's tools hold model-supplied arguments to the same bounds as the…
 │   │   ├── test_valuation.py                     # Fair-value models and quality scores with hand-checkable numbers
-│   │   └── test_worker.py                        # Worker isolates a failing user; failed sector lookups count as Unknown
+│   │   └── … 1 more
 │   ├── .env.example                              # Every backend setting with safe local defaults (AUTH_MODE=dev, mock market…
 │   ├── alembic.ini                               # Alembic CLI config; the database URL comes from app settings
 │   ├── pyproject.toml                            # Ruff and mypy (strict) configuration
@@ -210,6 +211,7 @@ MoatMine/
 │   ├── .structure-notes.toml                     # Hand-written notes for this tree, for files that can't describe themselves
 │   ├── HLD.md                                    # MoatMine — High-Level Design
 │   ├── LLD.md                                    # MoatMine — Low-Level Design
+│   ├── RUNBOOK.md                                # MoatMine runbook
 │   └── STRUCTURE.md                              # Repository structure
 ├── web/                                          # Next.js UI for Vercel; the same code is static-exported for the desktop app
 │   ├── src/                                      # App source
