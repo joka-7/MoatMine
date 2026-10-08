@@ -10,6 +10,7 @@ import time
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.ai.dispatcher import complete
 from app.jsontypes import JSONDict
 from app.market import describe_error
 from app.market.base import MarketProvider
@@ -84,8 +85,6 @@ async def news_summary(db: Session, user: str, provider: MarketProvider, symbol:
     hit = _cache.get(digest)
     if hit and time.time() - hit[0] < _TTL:
         return {**hit[1], "cached": True}
-    from app.ai.dispatcher import complete  # lazy: dispatcher -> tools -> research
-
     r = await complete(db, user, f"Stock: {symbol}\nNews from the last {days} days:\n{lines}", system=_SUMMARY_SYSTEM)
     out = {"symbol": symbol, **_parse_json(r["content"]), "model": r["model"], "count": len(items)}
     _cache[digest] = (time.time(), out)

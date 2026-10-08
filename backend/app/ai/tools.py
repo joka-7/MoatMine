@@ -6,8 +6,10 @@ No tool places trades.
 
 import json
 import time
+from collections.abc import Awaitable, Callable
 from dataclasses import replace
 
+from model_dispatcher import Tool, ToolRegistry, ToolSpec
 from pydantic import BaseModel, Field, ValidationError
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
@@ -134,6 +136,22 @@ TOOL_SPECS: list[JSONDict] = [
         },
     },
 ]
+
+
+def registry(db: Session, user: str, used: list[str]) -> ToolRegistry:
+    """Every tool as a ModelDispatcher ToolRegistry for one user's chat turn; `used` collects the names called."""
+    reg = ToolRegistry()
+
+    def handler(name: str) -> Callable[[JSONDict], Awaitable[str]]:
+        async def run(args: JSONDict) -> str:
+            used.append(name)
+            return await run_tool(name, dict(args), db, user)
+
+        return run
+
+    for spec in TOOL_SPECS:
+        reg.register(Tool(spec=ToolSpec(spec["name"], spec["description"], spec["parameters"]), ahandler=handler(spec["name"])))
+    return reg
 
 
 def openai_tools() -> list[JSONDict]:

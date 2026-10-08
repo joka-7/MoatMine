@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.ai.dispatcher import VENDORS, available, chat
 from app.ai.settings_store import SUPPORTED, load_ai_settings, masked, save_ai_settings
+from app.ai.tools import registry
 from app.auth import current_user
 from app.crypto import new_mcp_token
 from app.db import get_db
@@ -51,8 +52,10 @@ def models(user: str = Depends(current_user), db: Session = Depends(get_db)) -> 
 
 @router.post("/chat")
 async def chat_endpoint(body: ChatIn, user: str = Depends(current_user), db: Session = Depends(get_db)) -> JSONDict:
-    return await chat(db, user, [m.model_dump() for m in body.messages], requested=body.model,
-                      context=agent_context(db, user, body.symbol))
+    used: list[str] = []
+    out = await chat(db, user, [m.model_dump() for m in body.messages], registry(db, user, used),
+                     requested=body.model, context=agent_context(db, user, body.symbol))
+    return {**out, "tools_used": used}
 
 
 # --- AI settings: ModelPicker's AgentConfig + favorite external app + external agent ---

@@ -9,6 +9,7 @@ from datetime import UTC, datetime
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.ai.dispatcher import complete
 from app.analytics import annual_volatility_pct
 from app.cache import ttl_cache
 from app.crises import CRISES, HISTORY_START, _ts, bad_times, crisis_stats
@@ -268,8 +269,6 @@ _ANALYZER_SYSTEM = (
 
 
 async def ai_analysis(db: Session, user: str, provider: MarketProvider, symbol: str) -> JSONDict:
-    from app.ai.dispatcher import complete  # lazy: dispatcher -> tools -> safety service
-
     report = await stock_safety(provider, symbol)
     payload = {
         "symbol": symbol,

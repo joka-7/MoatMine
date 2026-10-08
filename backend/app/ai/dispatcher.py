@@ -15,7 +15,6 @@ that vendor; "external" uses only the user's external agent.
 from __future__ import annotations
 
 import re
-from collections.abc import Awaitable, Callable
 from typing import Protocol
 
 from model_dispatcher import (
@@ -33,9 +32,7 @@ from model_dispatcher import (
     TenantContext,
     TenantId,
     TenantQuota,
-    Tool,
     ToolRegistry,
-    ToolSpec,
 )
 from model_dispatcher.byok import adispatch_with_timeout, credential_metadata
 from model_dispatcher.providers import AnthropicProvider, GeminiProvider, GroqProvider, OpenAIProvider
@@ -43,7 +40,6 @@ from model_dispatcher.providers.base import ModelProvider
 from sqlalchemy.orm import Session
 
 from app.ai.settings_store import load_ai_settings
-from app.ai.tools import TOOL_SPECS, run_tool
 from app.config import get_settings
 from app.errors import DispatchError
 from app.jsontypes import JSONDict
@@ -156,22 +152,6 @@ def _tenant(user: str, metadata: dict[str, str]) -> TenantContext:
     )
 
 
-def _tools(db: Session, user: str, used: list[str]) -> ToolRegistry:
-    reg = ToolRegistry()
-
-    def handler(name: str) -> Callable[[JSONDict], Awaitable[str]]:
-        async def run(args: JSONDict) -> str:
-            used.append(name)
-            return await run_tool(name, dict(args), db, user)
-
-        return run
-
-    for spec in TOOL_SPECS:
-        reg.register(Tool(spec=ToolSpec(spec["name"], spec["description"], spec["parameters"]),
-                          ahandler=handler(spec["name"])))
-    return reg
-
-
 def _served_by(result: RunResult) -> str:
     for step in reversed(result.steps):
         for attempt in reversed(step.attempts):
@@ -197,12 +177,13 @@ async def _run(db: Session, user: str, messages: list[Message], requested: str,
 _ROLES = {"user": Role.USER, "assistant": Role.ASSISTANT, "system": Role.SYSTEM}
 
 
-async def chat(db: Session, user: str, messages: list[JSONDict], requested: str = "auto", context: str = "") -> JSONDict:
+async def chat(db: Session, user: str, messages: list[JSONDict], tools: ToolRegistry,
+               requested: str = "auto", context: str = "") -> JSONDict:
+    """One agent turn with tool use. The caller supplies the tools (see app.ai.tools.registry)."""
     convo = [Message(role=Role.SYSTEM, content=SYSTEM_PROMPT + (f"\n{context}" if context else ""))]
     convo += [Message(role=_ROLES[m["role"]], content=m["content"]) for m in messages]
-    used: list[str] = []
-    content, model = await _run(db, user, convo, requested, _tools(db, user, used))
-    return {"model": model, "content": content, "tools_used": used}
+    content, model = await _run(db, user, convo, requested, tools)
+    return {"model": model, "content": content}
 
 
 async def complete(db: Session, user: str, prompt: str, system: str = "") -> JSONDict:

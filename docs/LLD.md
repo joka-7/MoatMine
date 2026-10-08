@@ -140,9 +140,9 @@ Web: `NEXT_PUBLIC_API_URL` and `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` (`web/src/lib
     (`MARKET_PROVIDER=mock`) or by passing a fake provider straight to a service.
 - **AI.** `dispatcher.provider_factory` and `external_factory` are module-level factories. Tests
   monkeypatch them (`tests/conftest.py` `fake_ai`).
-  - `dispatcher` imports `tools` at module level. `research.py`, `safety/service.py` and
-    `routers/safety.py` import the dispatcher lazily inside functions to break the cycle
-    (ARC-04 / BACKLOG #17).
+  - `dispatcher` is transport only: `routers/ai.py` builds the tool registry
+    (`app.ai.tools.registry`) and passes it to `dispatcher.chat`. Domain modules (`research.py`,
+    `safety/service.py`) import `dispatcher.complete` normally, with no import cycle.
 - **Logging.** Configured only in the entry points: `app/main.py` at import, and the
   `__main__` blocks of `app/worker.py` and `app/seed.py`.
 
