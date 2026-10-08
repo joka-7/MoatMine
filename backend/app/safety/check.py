@@ -42,6 +42,31 @@ class Book:
     cash: float = 0.0  # part of total_value; a buy is paid from it first
 
 
+@dataclass(frozen=True)
+class Breach:
+    rule: str  # "position_size" | "sector"
+    subject: str  # symbol or sector
+    pct: float  # share of the book
+    limit: float
+
+    @property
+    def message(self) -> str:
+        return f"{self.subject} is {self.pct:.1f}% of your portfolio — above your {self.limit:g}% limit"
+
+
+def portfolio_breaches(rules: Rules, book: Book) -> list[Breach]:
+    """Holdings and sectors over the user's concentration limits, as a share of the whole book (cash included).
+
+    Holdings whose sector is unknown aren't grouped into a pretend "Unknown" sector.
+    """
+    total = book.total_value
+    if not total:
+        return []
+    by_symbol = [Breach("position_size", s, v / total * 100, rules.max_position_pct) for s, v in book.by_symbol.items()]
+    by_sector = [Breach("sector", s, v / total * 100, rules.max_sector_pct) for s, v in book.by_sector.items() if s != "Unknown"]
+    return [b for b in by_symbol + by_sector if b.pct > b.limit]
+
+
 def _r(rule: str, status: str, message: str) -> JSONDict:
     return {"rule": rule, "status": status, "message": message}
 

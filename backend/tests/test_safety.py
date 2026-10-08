@@ -171,6 +171,19 @@ def test_check_warns_need_note_and_cooling_off(kw, rule):
     assert any(c["rule"] == rule and c["status"] == "warn" for c in r["checks"])
 
 
+@pytest.mark.parametrize("book, expected", [
+    # 10,000 book, limits 10% / 30%: AAA 1,500 = 15% breaks the position limit, Tech 3,500 = 35% the sector limit
+    (chk.Book(total_value=10_000, by_symbol={"AAA": 1_500, "BBB": 900}, by_sector={"Tech": 3_500, "Unknown": 5_000}),
+     [("position_size", "AAA", 15.0), ("sector", "Tech", 35.0)]),
+    (chk.Book(total_value=10_000, by_symbol={"AAA": 1_000}, by_sector={"Tech": 3_000}), []),  # exactly at the limits
+    (chk.Book(total_value=0, by_symbol={}, by_sector={}), []),  # empty book
+])
+def test_portfolio_breaches(book, expected):
+    got = chk.portfolio_breaches(RULES, book)
+    assert [(b.rule, b.subject, round(b.pct, 1)) for b in got] == expected
+    assert all(f"above your {b.limit:g}% limit" in b.message for b in got)
+
+
 # ---------------- risk maths ----------------
 
 

@@ -17,7 +17,7 @@ from app.market.base import MarketProvider
 from app.market.sources import source_label, track_sources
 from app.models import RiskProfile, Target
 from app.portfolio import BookMode, portfolio_snapshot
-from app.safety.check import Book, Candidate, Rules, check_buy
+from app.safety.check import Book, Candidate, Rules, check_buy, portfolio_breaches
 from app.safety.moat import moat_metrics
 from app.safety.profile import DEFAULT_RULES, RULE_KEYS
 from app.safety.risk import align, beta, daily_returns, portfolio_risk, stress_scenarios
@@ -203,16 +203,7 @@ async def portfolio_risk_report(db: Session, user: str, provider: MarketProvider
     bench = closes.pop(BENCHMARK, None)
     out = portfolio_risk(values, snap["totals"]["cash"], closes, bench, sectors)
 
-    breaches = []
-    total = out["total_value"]
-    for s, v in values.items():
-        pct = v / total * 100 if total else 0
-        if pct > rules.max_position_pct:
-            breaches.append({"rule": "position_size", "subject": s, "message": f"{s} is {pct:.1f}% of the portfolio (limit {rules.max_position_pct:g}%)"})
-    for sec, pct in out["sectors"].items():
-        if sec != "Unknown" and pct > rules.max_sector_pct:
-            breaches.append({"rule": "sector", "subject": sec, "message": f"{sec} is {pct:.1f}% of the portfolio (limit {rules.max_sector_pct:g}%)"})
-    out["breaches"] = breaches
+    out["breaches"] = [{"rule": b.rule, "subject": b.subject, "message": b.message} for b in portfolio_breaches(rules, book)]
     out["rules"] = {k: getattr(rules, k) for k in RULE_KEYS}
     out["data_source"] = source_label(provider.name, used)
     out["mode"] = mode
