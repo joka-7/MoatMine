@@ -6,6 +6,7 @@ import { Account, api, ApiError, BuyPlan, CheckResult, RiskProfile, SafetyAnalys
 import { useApi } from "@/lib/useApi";
 import MoatCard from "./MoatCard";
 import { CheckView, GradeBadge, ScoreRing } from "./SafetyBits";
+import { isSampleData } from "@/lib/dataSource";
 
 function fmtFact(v: unknown) {
   if (v == null) return "—";
@@ -44,7 +45,7 @@ export default function SafetyPanel({ symbol }: { symbol: string }) {
                 {!profile.saved && <> · <Link href="/risk-profile" style={{ textDecoration: "underline" }}>set your profile</Link></>}
               </div>
             )}
-            {r && <div className="sub" style={{ fontSize: 11, marginTop: 4 }}>Based on {r.coverage_pct}% of the model{r.data_source.startsWith("mock") ? " · sample data" : ""}</div>}
+            {r && <div className="sub" style={{ fontSize: 11, marginTop: 4 }}>Based on {r.coverage_pct}% of the model{isSampleData(r.data_source) ? " · sample data" : ""}</div>}
           </div>
         </div>
         <div className="card span2">

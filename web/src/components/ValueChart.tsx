@@ -4,6 +4,7 @@ import { AreaSeries, ColorType, UTCTimestamp, createChart, IChartApi } from "lig
 import { useEffect, useRef, useState } from "react";
 import { apiWithHeaders } from "@/lib/api";
 import type { BookMode } from "@/lib/useBookMode";
+import { isSampleData } from "@/lib/dataSource";
 
 const SPANS = [30, 90, 180, 365, 1095] as const;
 const LABEL: Record<number, string> = { 30: "1M", 90: "3M", 180: "6M", 365: "1Y", 1095: "3Y" };
@@ -57,7 +58,7 @@ export default function ValueChart({ mode }: { mode: BookMode }) {
         </div>
       </div>
       {points && !points.length ? <div className="empty">Add holdings to see value over time.</div> : <div ref={el} style={{ height: 260 }} />}
-      <div className="sub" style={{ fontSize: 12 }}>Current quantities priced historically{source.startsWith("mock") ? " (sample data, not real prices)" : ""}. Scroll to zoom, drag to pan.</div>
+      <div className="sub" style={{ fontSize: 12 }}>Current quantities priced historically{isSampleData(source) ? " (sample data, not real prices)" : ""}. Scroll to zoom, drag to pan.</div>
     </div>
   );
 }

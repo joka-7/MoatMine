@@ -103,6 +103,7 @@ cd web
 cp .env.example .env.local
 npm install && npm run dev        # http://localhost:3000
 npm run lint                      # ESLint (config in eslint.config.mjs)
+npm test                          # vitest unit tests (src/**/*.test.ts[x])
 
 # Desktop (needs Rust + Tauri system deps: https://tauri.app/start/prerequisites/)
 cd desktop
@@ -113,7 +114,7 @@ npm run build   # static-exports web/ and bundles installers (.msi/.dmg/.deb/.Ap
 
 **CI** (`.github/workflows/ci.yml`) runs on every push to `main` and every PR, in three parallel jobs:
 - backend: `ruff`, `mypy --strict` and `pytest`, on Python 3.12
-- web: `tsc`, `npm run lint` (ESLint: Next.js rules plus typescript-eslint strict), `npm run build` and `npm run build:desktop`
+- web: `tsc`, `npm run lint` (ESLint: Next.js rules plus typescript-eslint strict), `npm test` (vitest), `npm run build` and `npm run build:desktop`
 - desktop: `cargo check` for the Tauri shell
 
 It checks out the `.ai` submodule. If that repo isn't readable with the default token, add a `SUBMODULE_TOKEN` secret.

@@ -64,7 +64,9 @@ for user in all users with targets, watch items or a risk profile (sorted):
         commit; created += n
     except Exception:
         rollback; log with user_id; continue
-_emit: insert only if no *unread* alert with the same (user, dedupe_key)
+_emit: insert only if no *unread* alert with the same (user, dedupe_key), inside a savepoint;
+       the unique partial index rejects a duplicate from an overlapping pass (counted as not new)
+record_heartbeat(finished_at, duration, created, failed)   # only for a pass that wasn't stopped
 ```
 
 **Plan state machine** (`app/routers/safety.py`):
@@ -74,14 +76,14 @@ create:  verdict block → blocked
          verdict warn  → note must be ≥ 20 chars (else 422) → cooling_off until now + cooling_off_hours
          verdict pass  → ready
 cooling_off is shown as ready once available_at has passed (_plan_out)
-execute: must be ready → re-check → block ⇒ status blocked, 409
+execute: must be ready → claim: UPDATE … SET status='executing' WHERE status = observed
+         (rowcount ≠ 1 ⇒ 409: a concurrent request got there first)
+         → re-check → block ⇒ status blocked, 409
+                    → drifted pass→warn ⇒ note ≥ 20 chars: cooling_off again, 409; else cancelled, 409
          → paper: pay_for_paper_buy (409 if cash is short) → holding + thesis note → executed
+         any error before that releases the claim back to the observed status
 cancel:  any status except executed
 ```
-
-Known gaps, tracked in `.ai-reviews/BACKLOG.md`:
-- Execution is not atomic (#18).
-- A re-check that has drifted to `warn` still executes (#19).
 
 **Startup config guard** (`app/config.py`):
 
@@ -252,7 +254,5 @@ I/O boundaries (HTTP transport, LLM vendor, JWKS).
 | Beta, correlation, portfolio risk and stress scenarios at the boundaries | `test_risk.py` | none |
 | Paper cash, failed quotes, value history over gaps | `test_portfolio.py` | none |
 | Upstream retry and backoff | `test_retry.py` | `httpx.MockTransport` |
+| Web: sample-data detection, `useApi` superseded responses, Ratios sample label, UI copy never promising safety | `web/src/**/*.test.ts[x]` (vitest + Testing Library, jsdom) | `@/lib/api` / `@/lib/useApi` mocked |
 | Chat, tools, MCP, settings, news summary | `test_api.py`, `test_research.py` | ModelDispatcher `MockProvider` |
-
-Known gaps:
-- No web unit tests (`QA-09`).

@@ -5,6 +5,7 @@ import { Bar, BarChart, Cell, ReferenceLine, ResponsiveContainer, Tooltip, XAxis
 import { Valuation } from "@/lib/api";
 import { money, num, pct, tone } from "@/lib/format";
 import { useApi } from "@/lib/useApi";
+import { isSampleData } from "@/lib/dataSource";
 
 const FIELDS: { key: string; label: string; hint: string; def: number | "" }[] = [
   { key: "discount_rate", label: "Discount rate %", hint: "your required return", def: 9 },
@@ -159,7 +160,7 @@ export default function ValuationPanel({ symbol }: { symbol: string }) {
             const x = v?.inputs[k];
             return <KV key={k} label={label} value={x == null ? "—" : kind === "money" ? money(x) : kind === "pct" ? `${num(x)}%` : num(x, 0)} />;
           })}
-          {v && <div className="sub" style={{ fontSize: 11, marginTop: 6 }}>Source: {v.data_source}{v.data_source.startsWith("mock") ? " (sample data)" : ""}</div>}
+          {v && <div className="sub" style={{ fontSize: 11, marginTop: 6 }}>Source: {v.data_source}{isSampleData(v.data_source) ? " (sample data)" : ""}</div>}
         </div>
       </div>
       {v && <div className="sub" style={{ fontSize: 12 }}>{v.disclaimer}</div>}

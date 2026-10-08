@@ -7,6 +7,7 @@ import { PortfolioRisk, StressReport } from "@/lib/api";
 import { money, num, pct } from "@/lib/format";
 import { useApi } from "@/lib/useApi";
 import { useBookMode } from "@/lib/useBookMode";
+import { isSampleData } from "@/lib/dataSource";
 
 const TT = { background: "#14171c", border: "1px solid #262a32", borderRadius: 8 };
 
@@ -47,7 +48,7 @@ export default function RiskPage() {
       {mode === "paper" && <PaperNotice />}
       {error && <div className="err" style={{ marginBottom: 16 }}>{error}</div>}
       {r && r.holdings_count === 0 && <div className="card empty" style={{ marginBottom: 16 }}>Add holdings to see portfolio risk.</div>}
-      {r?.data_source.startsWith("mock") && <div className="sub" style={{ fontSize: 12, marginBottom: 12 }}>Risk numbers below use sample price data, not real history.</div>}
+      {isSampleData(r?.data_source) && <div className="sub" style={{ fontSize: 12, marginBottom: 12 }}>Risk numbers below use sample price data, not real history.</div>}
       {!!r?.uncovered_pct && (
         <div className="sub" style={{ fontSize: 12, marginBottom: 12 }}>
           No price history for {r.uncovered_symbols.join(", ")} ({r.uncovered_pct}% of invested value): assumed to move like the rest.
@@ -147,7 +148,7 @@ export default function RiskPage() {
                 </tbody>
               </table>
             </div>
-            <div className="sub" style={{ fontSize: 12, marginTop: 6 }}>* estimated from the stock&apos;s beta (not listed then, or a hypothetical fall). {s.note}{s.data_source.startsWith("mock") ? " Sample data." : ""}</div>
+            <div className="sub" style={{ fontSize: 12, marginTop: 6 }}>* estimated from the stock&apos;s beta (not listed then, or a hypothetical fall). {s.note}{isSampleData(s.data_source) ? " Sample data." : ""}</div>
           </>
         )}
       </div>

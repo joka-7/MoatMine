@@ -5,6 +5,7 @@ import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAx
 import { BadTimes } from "@/lib/api";
 import { date, pct } from "@/lib/format";
 import { useApi } from "@/lib/useApi";
+import { isSampleData } from "@/lib/dataSource";
 
 const TT = { background: "#14171c", border: "1px solid #262a32", borderRadius: 8 };
 const AX = { stroke: "#8b909a", fontSize: 11, tickLine: false, axisLine: false } as const;
@@ -121,7 +122,7 @@ export default function BadTimesPanel({ symbol }: { symbol: string }) {
       </div>
       {d && (
         <div className="sub" style={{ fontSize: 12 }}>
-          {d.note} Source: {d.data_source}{d.data_source.startsWith("mock") ? " (sample data, not real history)" : ""}.
+          {d.note} Source: {d.data_source}{isSampleData(d.data_source) ? " (sample data, not real history)" : ""}.
         </div>
       )}
     </div>

@@ -5,6 +5,7 @@ import { Bar, BarChart, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from 
 import { Ratios } from "@/lib/api";
 import { num } from "@/lib/format";
 import { useApi } from "@/lib/useApi";
+import { isSampleData } from "@/lib/dataSource";
 
 const GROUPS: { title: string; keys: [string, string, string?][] }[] = [
   { title: "Valuation", keys: [["pe", "P/E"], ["forward_pe", "Fwd P/E"], ["pb", "P/B"], ["ps", "P/S"], ["peg", "PEG"], ["eps", "EPS"]] },
@@ -58,7 +59,7 @@ export default function RatiosPanel({ symbol }: { symbol: string }) {
           {PRICE.map(([k, label, unit]) => <Cellv key={k} label={label} v={data?.price[k]} unit={unit} />)}
         </div>
       </div>
-      {data?.data_source.startsWith("mock") && <div className="sub" style={{ fontSize: 11, marginTop: 6 }}>Price &amp; risk figures use sample data, not real prices.</div>}
+      {isSampleData(data?.data_source) && <div className="sub" style={{ fontSize: 11, marginTop: 6 }}>Price &amp; risk figures use sample data, not real prices.</div>}
       {bars.length > 0 && (
         <div style={{ height: 160, marginTop: 14 }}>
           <ResponsiveContainer>

@@ -239,6 +239,7 @@ MoatMine/
 │   │   │   ├── Nav.tsx                           # Side navigation
 │   │   │   ├── NewsFeed.tsx                      # News across holdings and watchlist, filterable
 │   │   │   ├── PriceChart.tsx                    # Candles/line chart with ranges, SMAs and volume; labels sample data
+│   │   │   ├── RatiosPanel.test.tsx
 │   │   │   ├── RatiosPanel.tsx                   # Provider ratios plus price/risk stats over a chosen lookback
 │   │   │   ├── ResearchPanels.tsx                # Company card, earnings, dividends, analysts and news panels
 │   │   │   ├── SafetyBits.tsx                    # Grade badge, score ring and safety-check result view
@@ -246,11 +247,15 @@ MoatMine/
 │   │   │   ├── SymbolSearch.tsx                  # Debounced ticker search with a results dropdown
 │   │   │   ├── ValuationPanel.tsx                # Fair-value models with editable assumptions
 │   │   │   └── ValueChart.tsx                    # Holdings value over time for one book
-│   │   └── lib/                                  # API client, formatters and hooks
-│   │       ├── api.ts                            # API client (Clerk or dev token), error type, and the response types mirrored…
-│   │       ├── format.ts                         # Money, number, percent, date and tone formatters (en-US)
-│   │       ├── useApi.ts                         # Fetch hook; ignores responses from superseded requests
-│   │       └── useBookMode.ts                    # Shared real/paper choice, remembered in localStorage
+│   │   ├── lib/                                  # API client, formatters and hooks
+│   │   │   ├── api.ts                            # API client (Clerk or dev token), error type, and the response types mirrored…
+│   │   │   ├── dataSource.test.ts
+│   │   │   ├── dataSource.ts
+│   │   │   ├── format.ts                         # Money, number, percent, date and tone formatters (en-US)
+│   │   │   ├── useApi.test.ts
+│   │   │   ├── useApi.ts                         # Fetch hook; ignores responses from superseded requests
+│   │   │   └── useBookMode.ts                    # Shared real/paper choice, remembered in localStorage
+│   │   └── copy.test.ts
 │   ├── .env.example                              # API URL and (optional) Clerk publishable key
 │   ├── .gitignore                                # Next.js build output and local env files
 │   ├── README.md                                 # How the web app is built, configured and exported for desktop
@@ -258,7 +263,8 @@ MoatMine/
 │   ├── next.config.ts                            # Vercel build vs static export for Tauri (swaps @clerk/nextjs for @clerk/react)
 │   ├── package-lock.json                         # Pinned npm dependencies
 │   ├── package.json                              # Next.js 15 / React 19 app; scripts for dev, build and build:desktop
-│   └── tsconfig.json                             # TypeScript config (strict)
+│   ├── tsconfig.json                             # TypeScript config (strict)
+│   └── vitest.config.mts
 ├── .ai                                           # The ogen-ai submodule: shared AI-assistant rules, agents and skills (don't…
 ├── .gitignore                                    # Virtualenvs, build output, local databases and env files
 ├── .gitmodules                                   # Points .ai at github.com/joka-7/ogen-ai
