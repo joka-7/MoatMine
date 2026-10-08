@@ -76,3 +76,17 @@ jobs:
       # debug builds serve devUrl, so this doesn't need web/out
       - run: cargo check --locked
         working-directory: desktop/src-tauri
+
+  docs:
+    name: Docs (repo map is current)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          token: ${{ secrets.SUBMODULE_TOKEN || github.token }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      # fails with a diff when docs/STRUCTURE.md or the README tree no longer match the files
+      - run: python .ai/skills/repo_tree/gen_tree.py --project . --check

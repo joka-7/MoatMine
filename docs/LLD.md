@@ -1,0 +1,219 @@
+# MoatMine — Low-Level Design
+
+Contracts and the logic that isn't obvious, as built. Each section names the
+[HLD](HLD.md) decision it implements rather than repeating it.
+
+## Class / interface contracts
+
+| Contract | Kind | Implementations / users | Implements (HLD) |
+|---|---|---|---|
+| `MarketProvider` (`app/market/base.py`) | `Protocol`: `quote`, `candles`, `metrics`, `news`, `profile`, `search`, `company`, `earnings`, `recommendations`, `price_target`, `dividends`, `splits`, `fundamentals`, `history` | `MockProvider`, `FinnhubProvider`, `RoutedProvider` (primary + optional `FMPProvider`) | Static view: market data; NFR: runs without keys |
+| `Quote`, `Candle`, `NewsItem` | `TypedDict` | Returned by every provider | Data validation / I/O |
+| `Rules`, `Candidate`, `Book` (`app/safety/check.py`) | frozen dataclasses | Input to the pure `check_buy` | Functional: buy check |
+| `StockFacts` (`app/safety/score.py`) | frozen dataclass | Input to the pure `safety_score` | Functional: safety score |
+| `Assumptions` (`app/valuation.py`) | dataclass | Input to the pure `estimate` | Functional: research |
+| `BookMode = Literal["real", "paper"]` (`app/portfolio.py`) | type | Every portfolio-shaped function, route and tool | Functional: real and paper books |
+| `JSONDict` (`app/jsontypes.py`) | alias, `dict[str, Any]` | Report and provider dicts. The only `Any` in the app | Data validation / I/O |
+| ORM models (`app/models.py`) | SQLAlchemy 2.0 `Mapped` | Routers and services through a `Session` | Data storage |
+
+The business logic takes a `MarketProvider` argument. The concrete provider comes from the
+`get_provider()` composition point (see DI wiring).
+
+## Pseudocode
+
+**Buy check sizing** (`check_buy`, `app/safety/check.py`). A buy is paid from the book's cash
+first, and only the remainder counts as new money:
+
+```
+after_total = book.total_value + amount - min(amount, max(book.cash, 0))
+position %  = (book.by_symbol[symbol] + amount) / after_total
+sector %    = (book.by_sector[sector] + amount) / after_total
+fail  if score < min_safety_score, distress flag, penny flag (unless allowed), position % > limit
+warn  if no score, sector % > limit, volatility > limit, market cap < minimum, price > 1.15 × fair value
+verdict = block if any fail, else warn if any warn, else pass
+```
+
+**Data-source labelling** (`app/market/sources.py`):
+
+```
+track_sources():  push a new set onto a ContextVar stack; yield it; pop
+note_source(s):   add s to every set on the stack   (nested trackers all see it)
+source_label(name, used) = "mock-fallback" if "mock-fallback" in used else name
+```
+
+`FinnhubProvider.candles` calls `note_source("mock-fallback")` when it falls back. The stack
+lives in a ContextVar, and `asyncio.gather` children share the parent's sets, so concurrent
+requests never see each other's sources.
+
+**Worker pass** (`app/worker.py`):
+
+```
+for user in all users with targets, watch items or a risk profile (sorted):
+    try:
+        n = alerts_for_user(user)    # risk-rule concentration (real book), PAPI targets (real book), watch levels
+        commit; created += n
+    except Exception:
+        rollback; log with user_id; continue
+_emit: insert only if no *unread* alert with the same (user, dedupe_key)
+```
+
+**Plan state machine** (`app/routers/safety.py`):
+
+```
+create:  verdict block → blocked
+         verdict warn  → note must be ≥ 20 chars (else 422) → cooling_off until now + cooling_off_hours
+         verdict pass  → ready
+cooling_off is shown as ready once available_at has passed (_plan_out)
+execute: must be ready → re-check → block ⇒ status blocked, 409
+         → paper: pay_for_paper_buy (409 if cash is short) → holding + thesis note → executed
+cancel:  any status except executed
+```
+
+Known gaps, tracked in `.ai-reviews/BACKLOG.md`:
+- Execution is not atomic (#18).
+- A re-check that has drifted to `warn` still executes (#19).
+
+**Startup config guard** (`app/config.py`):
+
+```
+Settings._auth_is_safe:
+    dev   and DATABASE_URL starts with "postgres"     → error
+    clerk and (no CLERK_JWKS_URL or no CLERK_ISSUER)  → error
+get_settings(): ValidationError → ConfigError(reasons only, no values), raised from None
+```
+
+## I/O schemas
+
+Request bodies are the Pydantic models in `app/schemas.py`, plus three defined in routers:
+- `ProfileIn`, `CheckIn`, `PlanIn` in `routers/safety.py`
+- `AISettingsIn` in `routers/ai.py`
+
+Important ones:
+
+| Endpoint | Request | Response (key fields) |
+|---|---|---|
+| `GET /portfolio?mode=real\|paper` | — | `{mode, accounts[], holdings[{symbol, quantity, avg_cost, price, value, pnl, pnl_pct, weight_pct, stale}], totals{cash, invested_value, net_worth, cost, pnl, pnl_pct, day_change}}` |
+| `POST /safety/check` | `{symbol, amount \| quantity, mode}` (exactly one of amount/quantity) | `{verdict, risky, requires_note, cooling_off_hours, checks[{rule, status, message}], mode, safety{score, grade, flags}, price}` |
+| `GET /safety/portfolio?mode=` | — | `{mode, total_value, volatility_pct, beta, var95_1d, var95_1m, max_drawdown_pct, sectors{}, correlation{symbols, matrix}, breaches[], rules{}, data_source}` |
+| `GET /safety/stress?mode=` | — | `{mode, total_value, loss_limit_pct, betas{}, scenarios[{key, name, kind, change, change_pct, worst[], holdings[], breaches_limit}], data_source, note, as_of}` |
+| `POST /plans` / `POST /plans/{id}/execute` | `{account_id, symbol, quantity, note}` | `{id, status, verdict, available_at, check, executed_holding_id, …}`; 409 = blocked or short of cash, 422 = reason needed |
+| `GET /stocks/{s}/candles` | `resolution, start, end` | `Candle[]` + header `X-Data-Source` |
+| `GET /health` / `GET /health/ready` | — | `{ok}` / `{ok, database}` (ready returns 503 if the DB is unreachable or behind) |
+| `POST /ai/chat` | `{messages[{role, content}], model, symbol?}` | `{model, content, tools_used[]}`, or ModelDispatcher's error payload with its HTTP status |
+
+Agent and MCP tools are listed in `TOOL_SPECS` (`app/ai/tools.py`) as JSON Schema. The
+portfolio-shaped tools take `mode`.
+
+## Config keys
+
+Read in `app/config.py` `Settings`, through `get_settings()` (cached once per process).
+
+| Key | Default | Read by |
+|---|---|---|
+| `DATABASE_URL` | `sqlite:///./moatmine.db` | `app/db.py` (engine; `postgres://` is rewritten to `postgresql+psycopg://`) |
+| `AUTH_MODE` | `dev` (`dev`\|`clerk`) | `app/auth.py` |
+| `CLERK_JWKS_URL`, `CLERK_ISSUER` | `""` (required in clerk mode) | `app/auth.py` |
+| `CORS_ORIGINS`, `CORS_ORIGIN_REGEX` | localhost:3000 + Tauri origins | `app/main.py` |
+| `MARKET_PROVIDER` | `mock` | `app/market/__init__.py` `get_provider` (finnhub only when `FINNHUB_API_KEY` is set) |
+| `FINNHUB_API_KEY`, `FMP_API_KEY` | `""` | `get_provider` |
+| `FERNET_KEY` | `""` (required to save AI keys) | `app/crypto.py` |
+| `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GEMINI_API_KEY`, `GROQ_API_KEY` | `""` | `app/ai/dispatcher.py` (server keys) |
+| `AI_REQUESTS_PER_MIN`, `AI_TOKENS_PER_MIN`, `AI_TOKENS_PER_DAY` | 20 / 60 000 / 1 000 000 | `dispatcher._tenant` |
+| `AI_TIMEOUT_SECONDS` | 90 | `dispatcher._run` |
+| `WORKER_INTERVAL_SECONDS` | 300 | `app/worker.py` |
+| `LOG_LEVEL`, `LOG_FORMAT` | `INFO`, `text` (`json` in `render.yaml`) | `app/log_config.py` via the entry points |
+
+Web: `NEXT_PUBLIC_API_URL` and `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` (`web/src/lib/api.ts`).
+
+## DI wiring
+
+- **Database session.** `get_db` (`app/db.py`) is a FastAPI dependency in every router. Two other
+  places open `SessionLocal()` directly:
+  - the worker;
+  - the MCP server, because MCP tools run outside FastAPI's dependency system.
+- **Current user.** `current_user` (`app/auth.py`) is a dependency on every user-scoped route.
+- **Market provider.** `get_provider()` is an `lru_cache` singleton built from settings. Routes,
+  tools and the worker call it and pass the provider down to services as a `MarketProvider`
+  argument.
+  - It is not a FastAPI `Depends` (ARC-10 / BACKLOG #40). Tests swap it by environment
+    (`MARKET_PROVIDER=mock`) or by passing a fake provider straight to a service.
+- **AI.** `dispatcher.provider_factory` and `external_factory` are module-level factories. Tests
+  monkeypatch them (`tests/conftest.py` `fake_ai`).
+  - `dispatcher` imports `tools` at module level. `research.py`, `safety/service.py` and
+    `routers/safety.py` import the dispatcher lazily inside functions to break the cycle
+    (ARC-04 / BACKLOG #17).
+- **Logging.** Configured only in the entry points: `app/main.py` at import, and the
+  `__main__` blocks of `app/worker.py` and `app/seed.py`.
+
+## Error contract
+
+The package's own errors form one hierarchy rooted at `MoatMineError` (`app/errors.py`):
+- `ConfigError`: settings are invalid or unsafe. Raised at startup, never caught.
+- `InsufficientPaperCashError`: raised by `pay_for_paper_buy`. The routers map it to HTTP 409.
+
+Other errors:
+- **ModelDispatcher failures** become `DispatchError(status, payload)` (`app/ai/dispatcher.py`).
+  This sits **outside** the hierarchy. Routers return it through `dispatch_error_response`.
+  BACKLOG #13 proposes folding it into the hierarchy behind one exception handler.
+- **HTTP errors** use FastAPI `HTTPException`:
+  - 401: auth failed. Clerk failures say only `invalid token`.
+  - 404: not found or not owned.
+  - 409: state conflict.
+  - 422: validation.
+- **Provider errors** propagate as `httpx` errors. Where a fallback is deliberate, it is caught
+  narrowly and logged with `describe_error` (type and status, never the message, because the
+  message contains the URL):
+  - FMP falls back to the primary provider;
+  - a failed quote marks the holding stale;
+  - a failed sector lookup counts as `Unknown`;
+  - failed candles leave volatility unknown for target alerts.
+
+## Logging plan
+
+- **Setup** (`app/log_config.py`): one `dictConfig`. JSON lines in production; text with extras
+  appended locally.
+  - Every record gets `request_id`: the caller's `X-Request-ID` if it is well formed, otherwise
+    a UUID. `app/main.py` `tag_request` sets it and echoes it in the response header.
+  - The `httpx`, `httpcore` and `alembic` loggers run at WARNING.
+  - Every formatted line passes through `redact` (`token=`, `apikey=`, `api_key=`).
+- **WARNING** for every degraded path, with `symbol` and `status_code`/`error` in `extra`:
+  - FMP fallback;
+  - failed quote or news call;
+  - failed sector lookup;
+  - candles falling back to sample data;
+  - candles failing in `risk_by_symbol`;
+  - a worker pass with failed users.
+- **ERROR (`logger.exception`):**
+  - a worker failure for one user, with `user_id` (an opaque auth id, not PII);
+  - a whole worker pass failing;
+  - readiness finding the database unreachable.
+- **INFO:** each worker pass's alert count, and seed progress.
+- **DEBUG:** Finnhub endpoints the plan doesn't include.
+- **Never logged:** request or response bodies, API keys, tokens, or portfolio contents.
+- **Not implemented:** an error sink such as Sentry, and metrics.
+
+## Unit test plan
+
+Tests follow arrange–act–assert, with parametrized cases per contract. Mocks sit only at true
+I/O boundaries (HTTP transport, LLM vendor, JWKS).
+
+| Contract | Tests | Boundary faked |
+|---|---|---|
+| `check_buy`, `safety_score`, risk/stress, moat, profile | `test_safety.py` (hand-checkable numbers, including cash-funded sizing) | none (pure) |
+| `estimate` and the valuation models | `test_valuation.py` | none (pure) |
+| `crisis_stats`, `worst_drawdowns` | `test_crises.py` | none (pure) |
+| Real/paper books across snapshot, risk, stress, history, check, worker, agent tools; paper cash | `test_portfolio.py` | none (SQLite + mock provider) |
+| Data-source labelling (nested, concurrent) | `test_sources.py`, `test_finnhub.py` | `httpx.MockTransport` |
+| Finnhub/FMP mapping and errors; FMP fallback logging | `test_finnhub.py`, `test_fmp.py` | `httpx.MockTransport` |
+| `current_user` (Clerk JWT: valid, expired, wrong issuer or key, missing claims, HS256) | `test_auth.py` | JWKS client → local RSA key |
+| `Settings` safety guard, `ConfigError` without values | `test_config.py` | none |
+| Encryption, masking, token hashing | `test_crypto.py` | none |
+| Migrations match models; readiness | `test_db.py` | `ScriptDirectory.get_heads` / `schema_is_current` |
+| Worker isolation; sector failure tolerance | `test_worker.py` | a provider wrapper that raises for one symbol |
+| Logging redaction, formatters, request id | `test_log_config.py` | none |
+| Chat, tools, MCP, settings, news summary | `test_api.py`, `test_research.py` | ModelDispatcher `MockProvider` |
+
+Known gaps:
+- `QA-06`/`QA-07`: the plans scenario is still one long test that uses the wall clock.
+- No web unit tests (`QA-09`).
+- No direct tests for the `cache.py` TTL logic (`QA-08`).
