@@ -48,6 +48,14 @@ export default function RiskPage() {
       {error && <div className="err" style={{ marginBottom: 16 }}>{error}</div>}
       {r && r.holdings_count === 0 && <div className="card empty" style={{ marginBottom: 16 }}>Add holdings to see portfolio risk.</div>}
       {r?.data_source.startsWith("mock") && <div className="sub" style={{ fontSize: 12, marginBottom: 12 }}>Risk numbers below use sample price data, not real history.</div>}
+      {!!r?.uncovered_pct && (
+        <div className="sub" style={{ fontSize: 12, marginBottom: 12 }}>
+          No price history for {r.uncovered_symbols.join(", ")} ({r.uncovered_pct}% of invested value): assumed to move like the rest.
+        </div>
+      )}
+      {r?.window_limited_by && (
+        <div className="sub" style={{ fontSize: 12, marginBottom: 12 }}>{r.window_limited_by} has a short history, so these numbers cover only the last {r.days} trading days.</div>
+      )}
 
       {!!r?.breaches.length && (
         <div className="card" style={{ marginBottom: 16, borderColor: "color-mix(in srgb, var(--down) 40%, var(--line))" }}>

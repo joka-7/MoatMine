@@ -188,6 +188,7 @@ export type RiskProfile = RiskRules & { saved: boolean; level: RiskLevel; answer
 export type Question = { id: string; text: string; options: string[] };
 export type PortfolioRisk = {
   mode: "real" | "paper";
+  uncovered_pct: number; uncovered_symbols: string[]; window_limited_by: string | null;
   total_value: number; invested_value: number; cash_pct: number; days: number; volatility_pct: number | null; beta: number | null;
   var95_1d: number | null; var95_1m: number | null; max_drawdown_pct: number | null; top_position_pct: number | null;
   effective_holdings: number | null; holdings_count: number; sectors: Record<string, number>;

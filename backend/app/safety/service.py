@@ -202,6 +202,10 @@ async def portfolio_risk_report(db: Session, user: str, provider: MarketProvider
     _, closes = align(series)
     bench = closes.pop(BENCHMARK, None)
     out = portfolio_risk(values, snap["totals"]["cash"], closes, bench, sectors)
+    # the aligned window is the shortest history; say which holding cut it if it's much shorter than the market's
+    held = {s: len(series[s]) for s in syms if series[s]}
+    shortest = min(held, key=lambda s: held[s]) if held else None
+    out["window_limited_by"] = shortest if shortest and held[shortest] < 0.9 * len(series[BENCHMARK]) else None
 
     out["breaches"] = [{"rule": b.rule, "subject": b.subject, "message": b.message} for b in portfolio_breaches(rules, book)]
     out["rules"] = {k: getattr(rules, k) for k in RULE_KEYS}

@@ -209,6 +209,18 @@ def test_portfolio_risk_concentration_and_cash():
     assert r["correlation"]["symbols"] == ["A", "B"] and r["correlation"]["matrix"][0][0] == 1.0
 
 
+def test_portfolio_risk_doesnt_treat_unpriced_holdings_as_cash():
+    # A alternates +1% / -1%; B has no history. Both 500, no cash: risk must equal A's own, not half of it.
+    a = [100.0]
+    for i in range(40):
+        a.append(a[-1] * (1.01 if i % 2 == 0 else 0.99))
+    both = risk.portfolio_risk({"A": 500, "B": 500}, 0, {"A": a}, None, {})
+    only_a = risk.portfolio_risk({"A": 1000}, 0, {"A": a}, None, {})
+    assert both["volatility_pct"] == only_a["volatility_pct"] > 0
+    assert both["uncovered_pct"] == 50.0 and both["uncovered_symbols"] == ["B"]
+    assert risk.portfolio_risk({"B": 500}, 0, {}, None, {})["volatility_pct"] is None  # nothing priced: unknown, not zero
+
+
 def test_stress_scenarios_use_actual_fall_then_beta():
     out = risk.stress_scenarios(
         values={"A": 1000, "B": 1000}, cash=2000, betas={"A": 1.5, "B": None},

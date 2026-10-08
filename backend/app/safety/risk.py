@@ -58,14 +58,19 @@ def portfolio_risk(values: dict[str, float], cash: float, closes: dict[str, list
     """Risk of the current holdings, as if held through the price history given.
 
     `closes` must already be aligned (same days, same order) including the benchmark if given.
+    Holdings with no price history are assumed to move like the ones that have it (weights are
+    renormalised over the covered holdings) rather than like cash, which would understate risk;
+    `uncovered_pct` says how much of the invested value that assumption covers.
     """
     invested = sum(values.values())
     total = invested + cash
     weights = {s: v / invested for s, v in values.items()} if invested else {}
     rets = {s: daily_returns(closes[s]) for s in weights if s in closes}
     n = min((len(r) for r in rets.values()), default=0)
+    covered = sum(weights[s] for s in rets)
+    invested_share = invested / total if total else 0
 
-    port = [sum(weights[s] * rets[s][i] for s in rets) * (invested / total if total else 0) for i in range(n)]
+    port = [sum(weights[s] / covered * rets[s][i] for s in rets) * invested_share for i in range(n)] if covered else []
     sd = pstdev(port) if len(port) > 1 else None
     bench_rets = daily_returns(bench)[:n] if bench else None
 
@@ -99,6 +104,8 @@ def portfolio_risk(values: dict[str, float], cash: float, closes: dict[str, list
         "top_position_pct": round(max(values.values()) / total * 100, 2) if values and total else None,
         "effective_holdings": round(1 / hhi, 1) if hhi else None,
         "holdings_count": len(values),
+        "uncovered_pct": round((1 - covered) * 100, 2) if weights else 0.0,
+        "uncovered_symbols": sorted(s for s in weights if s not in rets),
         "sectors": dict(sorted(((k, round(v, 2)) for k, v in sector_pct.items()), key=lambda kv: -kv[1])),
         "correlation": {"symbols": top, "matrix": corr},
         "avg_correlation": round(mean(off_diag), 2) if off_diag else None,
