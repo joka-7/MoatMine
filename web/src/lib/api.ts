@@ -2,6 +2,7 @@
 
 import { getToken } from "@clerk/nextjs";
 import type { AgentConfig, ExternalChatProviderId } from "modeldispatcher-browser-agent";
+import type { components } from "./api-schema";
 
 // One client for web (Vercel) and desktop (Tauri): both call the Render API.
 const DEFAULT_API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
@@ -74,11 +75,15 @@ export async function apiWithHeaders<T = unknown>(
 }
 
 // ---------- types mirrored from the API ----------
+// Routes with a response model take their types from api-schema.ts, generated from the API's
+// OpenAPI schema (npm run gen:api; CI fails on drift). The rest are still mirrored by hand.
 
-export type Quote = { symbol: string; price: number; change: number; change_pct: number; prev_close: number; ts: number };
-export type Candle = { t: number; o: number; h: number; l: number; c: number; v: number };
+type Schemas = components["schemas"];
+
+export type Quote = Schemas["QuoteOut"];
+export type Candle = Schemas["CandleOut"];
 export type NewsItem = { headline: string; summary: string; url: string; source: string; datetime: number; image: string };
-export type Account = { id: number; name: string; broker: string; currency: string; cash: number };
+export type Account = Schemas["AccountOut"];
 export type HoldingRow = {
   id: number; account_id: number; symbol: string; quantity: number; avg_cost: number; price: number;
   value: number; cost: number; pnl: number; pnl_pct: number; day_change_pct: number; weight_pct: number;
@@ -91,27 +96,20 @@ export type Portfolio = {
   totals: { cash: number; invested_value: number; net_worth: number; cost: number; pnl: number; pnl_pct: number; day_change: number; unpriced: string[] };
 };
 export type WatchRow = { id: number; symbol: string; note: string; alert_above: number | null; alert_below: number | null; quote: Quote | null };
-export type Note = { id: number; symbol: string; kind: "note" | "news" | "thesis" | "link"; title: string; body: string; url: string; created_at: string };
+export type Note = Schemas["NoteOut"];
 
 export type Intent = "growth" | "income" | "speculation" | "hedge" | "retirement" | "custom";
-export type Target = {
-  id: number; name: string; symbol: string | null;
-  profit_target: number | null; profit_min: number | null; profit_max: number | null;
-  amount_target: number | null; amount_min: number | null; amount_max: number | null;
-  period_target_days: number | null; period_min_days: number | null; period_max_days: number | null;
-  intent: Intent; intent_note: string;
-  risk_target: number | null; risk_min: number | null; risk_max: number | null;
-};
+export type Target = Schemas["TargetOut"];
 export type CheckStatus = "ok" | "reached" | "below_min" | "above_max" | "unset" | "no_data";
 export type Check = { value: number | null; target: number | null; min: number | null; max: number | null; status: CheckStatus; progress_pct: number | null };
 export type Evaluation = {
   target_id: number; name: string; symbol: string | null; breaches: string[];
   checks: { profit: Check; amount: Check; period: Check; intent: Check & { intent: Intent; note: string } };
 };
-export type Alert = { id: number; source: string; symbol: string | null; message: string; read: boolean; created_at: string };
-export type Ratios = { fundamental: Record<string, number | null>; price: Record<string, number | null>; data_source: string };
+export type Alert = Schemas["AlertOut"];
+export type Ratios = Schemas["RatiosOut"];
 export type ChatMsg = { role: "user" | "assistant"; content: string; meta?: string };
-export type ModelChoice = { id: string; label: string; available: boolean };
+export type ModelChoice = Schemas["ModelChoiceOut"];
 
 // ---------- research ----------
 
@@ -156,7 +154,7 @@ export type BadTimes = {
 // ---------- safety ----------
 
 export type Grade = "A" | "B" | "C" | "D" | "F";
-export type SafetyFlag = { code: string; severity: "high" | "medium"; message: string };
+export type SafetyFlag = Schemas["SafetyFlagOut"];
 export type SafetyArea = { key: string; name: string; score: number | null; grade: Grade | null; weight: number };
 export type SafetyReport = {
   symbol: string; score: number | null; grade: Grade | null; coverage_pct: number; sector: string | null; data_source: string;
@@ -173,12 +171,8 @@ export type MoatMetrics = {
   series: { year: number; roic_pct: number | null; gross_margin_pct: number | null; revenue: number }[];
 };
 export type SafetyAnalysis = { symbol: string; overview: string; areas: { name: string; comment: string }[]; fit: string; improve: string; model: string };
-export type CheckItem = { rule: string; status: "pass" | "warn" | "fail"; message: string };
-export type CheckResult = {
-  symbol: string; amount: number; price?: number; verdict: "pass" | "warn" | "block"; risky: boolean;
-  requires_note: boolean; cooling_off_hours: number; checks: CheckItem[];
-  safety: { score: number | null; grade: Grade | null; flags: SafetyFlag[] };
-};
+export type CheckItem = Schemas["CheckItemOut"];
+export type CheckResult = Schemas["CheckResultOut"];
 export type RiskRules = {
   max_position_pct: number; max_sector_pct: number; min_safety_score: number; max_volatility_pct: number;
   max_drawdown_pct: number; min_market_cap_m: number; allow_penny_stocks: boolean; cooling_off_hours: number;
@@ -200,11 +194,7 @@ export type StressScenario = {
   worst: { symbol: string; change_pct: number; change: number; basis: string }[];
 };
 export type StressReport = { mode: "real" | "paper"; total_value: number; loss_limit_pct: number; scenarios: StressScenario[]; note: string; data_source: string };
-export type BuyPlan = {
-  id: number; account_id: number; symbol: string; quantity: number; price: number; amount: number; note: string;
-  verdict: "pass" | "warn" | "block"; status: "blocked" | "cooling_off" | "ready" | "executing" | "executed" | "cancelled";
-  available_at: string; created_at: string; check: CheckResult; executed_holding_id: number | null;
-};
+export type BuyPlan = Schemas["PlanOut"];
 
 // ---------- AI settings (ModelDispatcher AgentConfig shape) ----------
 

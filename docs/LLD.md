@@ -96,6 +96,10 @@ get_settings(): ValidationError → ConfigError(reasons only, no values), raised
 
 ## I/O schemas
 
+Response models (`QuoteOut`, `CandleOut`, `RatiosOut`, `CheckResultOut`, `PlanOut`, `ChatOut`,
+`ModelChoiceOut`, plus the `*Out` models for stored records) are in `app/schemas.py`; the web's
+types for them are generated (`web/openapi.json` → `web/src/lib/api-schema.ts`).
+
 Request bodies are the Pydantic models in `app/schemas.py`, plus three defined in routers:
 - `ProfileIn`, `CheckIn`, `PlanIn` in `routers/safety.py`
 - `AISettingsIn` in `routers/ai.py`

@@ -35,6 +35,10 @@ jobs:
       - run: ruff check .
       - run: mypy
       - run: pytest -q
+      - name: OpenAPI schema matches the routes
+        run: |
+          python -m app.openapi_spec ../web/openapi.json
+          git diff --exit-code ../web/openapi.json || { echo "::error::web/openapi.json is stale: run 'python -m app.openapi_spec ../web/openapi.json' in backend/ and 'npm run gen:api' in web/"; exit 1; }
 
   web:
     name: Web (tsc, build, static export)
@@ -55,6 +59,10 @@ jobs:
       - run: npm ci
       - run: npx tsc --noEmit
       - run: npm run lint
+      - name: Generated API types match openapi.json
+        run: |
+          npm run gen:api
+          git diff --exit-code src/lib/api-schema.ts || { echo "::error::src/lib/api-schema.ts is stale: run 'npm run gen:api'"; exit 1; }
       - run: npm test
       - run: npm run build
       - run: npm run build:desktop

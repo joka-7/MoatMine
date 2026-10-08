@@ -252,3 +252,17 @@ def test_missing_market_price_is_a_502(client):
     finally:
         app.dependency_overrides.clear()
     assert r.status_code == 502 and r.json() == {"detail": "no price for GONE"}
+
+
+@pytest.mark.parametrize(("path", "method", "schema"), [
+    ("/plans", "post", "PlanOut"),
+    ("/safety/check", "post", "CheckResultOut"),
+    ("/stocks/{symbol}/quote", "get", "QuoteOut"),
+    ("/stocks/{symbol}/ratios", "get", "RatiosOut"),
+    ("/ai/chat", "post", "ChatOut"),
+])
+def test_openapi_documents_response_models(path, method, schema):
+    from app.main import app
+
+    ok = next(v for k, v in app.openapi()["paths"][path][method]["responses"].items() if k.startswith("2"))
+    assert ok["content"]["application/json"]["schema"]["$ref"].endswith(f"/{schema}")

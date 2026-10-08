@@ -97,6 +97,7 @@ python -m app.seed      # demo data for user "dev"
 uvicorn app.main:app --reload
 pytest                  # tests
 ruff check . && mypy    # lint + strict type check (config in pyproject.toml)
+python -m app.openapi_spec ../web/openapi.json   # after changing a response model; then `npm run gen:api` in web/
 
 # Web
 cd web

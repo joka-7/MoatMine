@@ -127,3 +127,93 @@ class ChatIn(BaseModel):
     # "external" uses only the user's external agent endpoint
     model: str = "auto"
     symbol: str | None = None  # optional page context
+
+
+# ---- response shapes for routes whose bodies are built as dicts (also the source of web/src/lib/api-schema.ts) ----
+
+Verdict = Literal["pass", "warn", "block"]
+Grade = Literal["A", "B", "C", "D", "F"]
+
+
+class QuoteOut(BaseModel):
+    symbol: str
+    price: float
+    change: float
+    change_pct: float
+    prev_close: float
+    ts: int
+
+
+class CandleOut(BaseModel):
+    t: int
+    o: float
+    h: float
+    l: float  # noqa: E741
+    c: float
+    v: float
+
+
+class RatiosOut(BaseModel):
+    fundamental: dict[str, float | None]
+    price: dict[str, float | None]
+    data_source: str
+
+
+class ModelChoiceOut(BaseModel):
+    id: str
+    label: str
+    available: bool
+
+
+class ChatOut(BaseModel):
+    model: str
+    content: str
+    tools_used: list[str]
+
+
+class SafetyFlagOut(BaseModel):
+    code: str
+    severity: Literal["high", "medium"]
+    message: str
+
+
+class CheckItemOut(BaseModel):
+    rule: str
+    status: Literal["pass", "warn", "fail"]
+    message: str
+
+
+class CheckSafetyOut(BaseModel):
+    score: float | None
+    grade: Grade | None
+    flags: list[SafetyFlagOut]
+
+
+class CheckResultOut(BaseModel):
+    symbol: str
+    amount: float
+    price: float | None = None
+    # None on plans saved before checks recorded which book they were sized against
+    mode: Literal["real", "paper"] | None = None
+    verdict: Verdict
+    risky: bool
+    requires_note: bool
+    cooling_off_hours: int
+    checks: list[CheckItemOut]
+    safety: CheckSafetyOut
+
+
+class PlanOut(BaseModel):
+    id: int
+    account_id: int
+    symbol: str
+    quantity: float
+    price: float
+    amount: float
+    note: str
+    verdict: Verdict
+    status: Literal["blocked", "cooling_off", "ready", "executing", "executed", "cancelled"]
+    available_at: str
+    created_at: str
+    check: CheckResultOut
+    executed_holding_id: int | None

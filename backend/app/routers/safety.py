@@ -29,6 +29,7 @@ from app.safety.service import (
     stock_safety,
     stress_report,
 )
+from app.schemas import CheckResultOut, PlanOut
 
 router = APIRouter(tags=["safety"])
 
@@ -126,7 +127,7 @@ async def _amount(body: CheckIn, provider: MarketProvider) -> tuple[float, float
     return body.quantity * price, price
 
 
-@router.post("/safety/check")
+@router.post("/safety/check", response_model=CheckResultOut)
 async def safety_check(body: CheckIn, user: str = Depends(current_user), db: Session = Depends(get_db), provider: MarketProvider = Depends(get_provider)) -> JSONDict:
     amount, price = await _amount(body, provider)
     out = await check_for(db, user, provider, body.symbol, amount, body.mode)
@@ -179,13 +180,13 @@ def _own_plan(db: Session, plan_id: int, user: str) -> BuyPlan:
     return p
 
 
-@router.get("/plans")
+@router.get("/plans", response_model=list[PlanOut])
 def list_plans(user: str = Depends(current_user), db: Session = Depends(get_db), now: Clock = Depends(get_clock)) -> list[JSONDict]:
     rows = db.scalars(select(BuyPlan).where(BuyPlan.user_id == user).order_by(BuyPlan.created_at.desc()).limit(100)).all()
     return [_plan_out(p, now()) for p in rows]
 
 
-@router.post("/plans", status_code=201)
+@router.post("/plans", response_model=PlanOut, status_code=201)
 async def create_plan(body: PlanIn, user: str = Depends(current_user), db: Session = Depends(get_db),
                       provider: MarketProvider = Depends(get_provider), clock: Clock = Depends(get_clock)) -> JSONDict:
     acc = await asyncio.to_thread(db.get, Account, body.account_id)
@@ -223,7 +224,7 @@ def _claim(db: Session, p: BuyPlan, observed: str) -> None:
         raise HTTPException(409, "plan is already being executed or has changed")
 
 
-@router.post("/plans/{plan_id}/execute")
+@router.post("/plans/{plan_id}/execute", response_model=PlanOut)
 async def execute_plan(
     plan_id: int,
     user: str = Depends(current_user),
@@ -298,7 +299,7 @@ def _send_back_through_warn_flow(db: Session, p: BuyPlan, recheck: JSONDict, now
         raise HTTPException(409, {"message": f"This buy now breaks some of your rules, so it waits {hours}h before it can run.", "check": recheck})
 
 
-@router.post("/plans/{plan_id}/cancel")
+@router.post("/plans/{plan_id}/cancel", response_model=PlanOut)
 def cancel_plan(plan_id: int, user: str = Depends(current_user), db: Session = Depends(get_db), now: Clock = Depends(get_clock)) -> JSONDict:
     p = _own_plan(db, plan_id, user)
     if p.status == "executed":

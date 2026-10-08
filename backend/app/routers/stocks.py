@@ -17,7 +17,7 @@ from app.models import StockNote
 from app.ratelimit import rate_limited
 from app.research import news_feed, news_summary, valuation
 from app.research import ratios as research_ratios
-from app.schemas import NoteIn, NoteOut
+from app.schemas import CandleOut, NoteIn, NoteOut, QuoteOut, RatiosOut
 from app.valuation import Assumptions
 
 # every market-data route spends the server's provider quota: signed-in users only, rate-limited
@@ -36,12 +36,12 @@ async def search(q: str = Query(min_length=1), provider: MarketProvider = Depend
     return await provider.search(q)
 
 
-@router.get("/{symbol}/quote")
+@router.get("/{symbol}/quote", response_model=QuoteOut)
 async def quote(symbol: str, provider: MarketProvider = Depends(get_provider)) -> Quote:
     return await provider.quote(_sym(symbol))
 
 
-@router.get("/{symbol}/candles")
+@router.get("/{symbol}/candles", response_model=list[CandleOut])
 async def candles(
     symbol: str,
     response: Response,
@@ -69,7 +69,7 @@ async def profile(symbol: str, provider: MarketProvider = Depends(get_provider))
     return await provider.profile(_sym(symbol))
 
 
-@router.get("/{symbol}/ratios")
+@router.get("/{symbol}/ratios", response_model=RatiosOut)
 async def ratios(symbol: str, lookback_days: int = Query(365, ge=30, le=3650), provider: MarketProvider = Depends(get_provider)) -> JSONDict:
     return await research_ratios(provider, _sym(symbol), lookback_days)
 

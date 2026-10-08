@@ -198,9 +198,13 @@ sequenceDiagram
     `routers/stocks.py`.
   - Symbols are upper-cased at the edge.
   - Every record lookup checks ownership (`_own` helpers).
-- **Responses are JSON.** Most domain results are plain dicts typed as `JSONDict`; few routes
-  declare `response_model` (ARC-07 / BACKLOG #25). The web client mirrors the shapes by hand in
-  `web/src/lib/api.ts`.
+- **Responses are JSON.** Accounts, holdings' notes, targets, alerts, watch items, quotes, candles,
+  ratios, the safety check, buy plans, the chat reply and the model picker declare a
+  `response_model` (`app/schemas.py`). `python -m app.openapi_spec` writes the OpenAPI schema to
+  `web/openapi.json`; `npm run gen:api` turns it into `web/src/lib/api-schema.ts`, which
+  `web/src/lib/api.ts` uses for those routes. CI regenerates both and fails on drift. The deeper
+  reports (stock safety, valuation, crises, portfolio risk, stress, research) are still plain
+  `JSONDict`s mirrored by hand in `api.ts`.
 - **Provider responses are mapped defensively** (`.get` with defaults). A failed FMP call falls
   back to the primary provider. A failed quote marks the holding `stale` and prices it at cost.
 - **Upstream retries:** Finnhub and FMP GETs retry 429/5xx and connection errors up to 3 attempts
