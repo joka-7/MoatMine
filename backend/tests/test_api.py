@@ -206,9 +206,10 @@ def test_mcp_requires_token_and_serves_tools(client, alice_account):
     assert "AAPL" in res["result"]["content"][0]["text"]
 
 
-def test_missing_market_price_is_a_502(client, monkeypatch):
+def test_missing_market_price_is_a_502(client):
     from app.errors import MarketDataError
-    from app.routers import stocks
+    from app.main import app
+    from app.market import get_provider
 
     class _NoPrice:
         name = "no-price"
@@ -216,6 +217,9 @@ def test_missing_market_price_is_a_502(client, monkeypatch):
         async def quote(self, symbol):
             raise MarketDataError(f"no price for {symbol}")
 
-    monkeypatch.setattr(stocks, "get_provider", lambda: _NoPrice())
-    r = client.get("/stocks/GONE/quote")
+    app.dependency_overrides[get_provider] = _NoPrice
+    try:
+        r = client.get("/stocks/GONE/quote")
+    finally:
+        app.dependency_overrides.clear()
     assert r.status_code == 502 and r.json() == {"detail": "no price for GONE"}

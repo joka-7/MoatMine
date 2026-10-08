@@ -331,6 +331,7 @@ def test_execute_plan_runs_once_under_concurrent_requests(client):
     import asyncio
 
     from app.db import SessionLocal
+    from app.market import get_provider
     from app.routers.safety import execute_plan
 
     who, acc = _plan_user(client, "double-click")
@@ -340,7 +341,7 @@ def test_execute_plan_runs_once_under_concurrent_requests(client):
     async def attempt() -> str:
         with SessionLocal() as db:
             try:
-                await execute_plan(plan["id"], "double-click", db)
+                await execute_plan(plan["id"], "double-click", db, get_provider())
                 return "executed"
             except Exception as e:  # HTTPException 409 for the loser
                 return type(e).__name__

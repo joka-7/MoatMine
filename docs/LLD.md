@@ -133,11 +133,13 @@ Web: `NEXT_PUBLIC_API_URL` and `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` (`web/src/lib
   - the worker;
   - the MCP server, because MCP tools run outside FastAPI's dependency system.
 - **Current user.** `current_user` (`app/auth.py`) is a dependency on every user-scoped route.
-- **Market provider.** `get_provider()` is an `lru_cache` singleton built from settings. Routes,
-  tools and the worker call it and pass the provider down to services as a `MarketProvider`
-  argument.
-  - It is not a FastAPI `Depends` (ARC-10 / BACKLOG #40). Tests swap it by environment
-    (`MARKET_PROVIDER=mock`) or by passing a fake provider straight to a service.
+- **Market provider.** `get_provider()` is an `lru_cache` singleton built from settings. Every route
+  receives it as `provider: MarketProvider = Depends(get_provider)` and passes it down to services
+  as a `MarketProvider` argument.
+  - Tests swap it with `app.dependency_overrides[get_provider]`, or pass a fake straight to a
+    service.
+  - Agent tools, the MCP server and the worker run outside FastAPI's dependency system and call
+    `get_provider()` themselves.
 - **AI.** `dispatcher.provider_factory` and `external_factory` are module-level factories. Tests
   monkeypatch them (`tests/conftest.py` `fake_ai`).
   - `dispatcher` is transport only: `routers/ai.py` builds the tool registry

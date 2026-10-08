@@ -11,6 +11,7 @@ from app.db import get_db
 from app.errors import InsufficientPaperCashError
 from app.jsontypes import JSONDict
 from app.market import get_provider
+from app.market.base import MarketProvider
 from app.models import Account, Holding
 from app.portfolio import (
     PAPER_BROKER,
@@ -66,7 +67,7 @@ def delete_account(account_id: int, user: str = Depends(current_user), db: Sessi
 
 
 @router.post("/holdings", status_code=201)
-async def add_holding(body: HoldingIn, user: str = Depends(current_user), db: Session = Depends(get_db)) -> JSONDict:
+async def add_holding(body: HoldingIn, user: str = Depends(current_user), db: Session = Depends(get_db), provider: MarketProvider = Depends(get_provider)) -> JSONDict:
     """Record a position. Always runs the safety check against the user's risk rules.
 
     Real accounts record what was actually bought (at the cost the user enters) and return the
@@ -77,9 +78,9 @@ async def add_holding(body: HoldingIn, user: str = Depends(current_user), db: Se
     acc = _own(db, Account, body.account_id, user)
     fields = body.model_dump(exclude_none=True)
     if is_paper(acc):
-        fields["avg_cost"] = (await get_provider().quote(body.symbol))["price"]
+        fields["avg_cost"] = (await provider.quote(body.symbol))["price"]
     cost = body.quantity * fields["avg_cost"]
-    check = await check_for(db, user, get_provider(), body.symbol, cost, book_mode_of(acc))
+    check = await check_for(db, user, provider, body.symbol, cost, book_mode_of(acc))
     if is_paper(acc) and check["verdict"] == "block":
         raise HTTPException(409, {"message": "Blocked by your risk rules. Use a buy plan or change your profile.", "check": check})
     try:
@@ -106,19 +107,19 @@ def update_holding(holding_id: int, body: HoldingUpdate, user: str = Depends(cur
 
 
 @router.delete("/holdings/{holding_id}", status_code=204)
-async def delete_holding(holding_id: int, user: str = Depends(current_user), db: Session = Depends(get_db)) -> None:
+async def delete_holding(holding_id: int, user: str = Depends(current_user), db: Session = Depends(get_db), provider: MarketProvider = Depends(get_provider)) -> None:
     """Remove a position. For paper, that is a sale at the live quote: the proceeds go back to its cash."""
     h = _own(db, Holding, holding_id, user)
     if is_paper(h.account):
-        price = (await get_provider().quote(h.symbol))["price"]
+        price = (await provider.quote(h.symbol))["price"]
         h.account.cash = round(h.account.cash + h.quantity * price, 2)
     db.delete(h)
     db.commit()
 
 
 @router.get("/portfolio")
-async def get_portfolio(mode: BookMode = "real", user: str = Depends(current_user), db: Session = Depends(get_db)) -> JSONDict:
-    return await portfolio_snapshot(db, user, get_provider(), mode)
+async def get_portfolio(mode: BookMode = "real", user: str = Depends(current_user), db: Session = Depends(get_db), provider: MarketProvider = Depends(get_provider)) -> JSONDict:
+    return await portfolio_snapshot(db, user, provider, mode)
 
 
 @router.get("/portfolio/history")
@@ -127,6 +128,7 @@ async def portfolio_history(
     mode: BookMode = "real",
     user: str = Depends(current_user),
     db: Session = Depends(get_db),
+    provider: MarketProvider = Depends(get_provider),
 ) -> list[JSONDict]:
     """Daily market value of one book's current holdings (quantities held constant) — for the value-over-time chart."""
     holdings = holdings_in_book(db, user, mode)
@@ -134,7 +136,6 @@ async def portfolio_history(
         return []
     end = int(time.time())
     start = end - days * 86400
-    provider = get_provider()
     syms = sorted({h.symbol for h in holdings})
     series = await asyncio.gather(*(provider.candles(s, "D", start, end) for s in syms))
     qty: dict[str, float] = {}

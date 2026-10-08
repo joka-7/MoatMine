@@ -12,6 +12,7 @@ from app.db import get_db
 from app.errors import InsufficientPaperCashError
 from app.jsontypes import JSONDict
 from app.market import get_provider
+from app.market.base import MarketProvider
 from app.models import Account, BuyPlan, Holding, StockNote
 from app.portfolio import BookMode, book_mode_of, pay_for_paper_buy
 from app.safety.profile import LEVELS, QUESTIONS, level_from_answers
@@ -85,14 +86,14 @@ def write_profile(body: ProfileIn, user: str = Depends(current_user), db: Sessio
 
 
 @router.get("/stocks/{symbol}/safety")
-async def safety(symbol: str) -> JSONDict:
-    return await stock_safety(get_provider(), _sym(symbol))
+async def safety(symbol: str, provider: MarketProvider = Depends(get_provider)) -> JSONDict:
+    return await stock_safety(provider, _sym(symbol))
 
 
 @router.post("/stocks/{symbol}/safety/analyze")
-async def safety_analyze(symbol: str, user: str = Depends(current_user), db: Session = Depends(get_db)) -> JSONDict:
+async def safety_analyze(symbol: str, user: str = Depends(current_user), db: Session = Depends(get_db), provider: MarketProvider = Depends(get_provider)) -> JSONDict:
     """AI analyzer: explains each area grade and how the stock fits the user's risk rules."""
-    return await ai_analysis(db, user, get_provider(), _sym(symbol))
+    return await ai_analysis(db, user, provider, _sym(symbol))
 
 
 class CheckIn(BaseModel):
@@ -113,8 +114,8 @@ class CheckIn(BaseModel):
         return self
 
 
-async def _amount(body: CheckIn) -> tuple[float, float]:
-    price = (await get_provider().quote(body.symbol))["price"]
+async def _amount(body: CheckIn, provider: MarketProvider) -> tuple[float, float]:
+    price = (await provider.quote(body.symbol))["price"]
     if body.amount is not None:
         return body.amount, price
     if body.quantity is None:  # CheckIn already requires exactly one of them
@@ -123,21 +124,21 @@ async def _amount(body: CheckIn) -> tuple[float, float]:
 
 
 @router.post("/safety/check")
-async def safety_check(body: CheckIn, user: str = Depends(current_user), db: Session = Depends(get_db)) -> JSONDict:
-    amount, price = await _amount(body)
-    out = await check_for(db, user, get_provider(), body.symbol, amount, body.mode)
+async def safety_check(body: CheckIn, user: str = Depends(current_user), db: Session = Depends(get_db), provider: MarketProvider = Depends(get_provider)) -> JSONDict:
+    amount, price = await _amount(body, provider)
+    out = await check_for(db, user, provider, body.symbol, amount, body.mode)
     out["price"] = price
     return out
 
 
 @router.get("/safety/portfolio")
-async def portfolio_risk(mode: BookMode = "real", user: str = Depends(current_user), db: Session = Depends(get_db)) -> JSONDict:
-    return await portfolio_risk_report(db, user, get_provider(), mode)
+async def portfolio_risk(mode: BookMode = "real", user: str = Depends(current_user), db: Session = Depends(get_db), provider: MarketProvider = Depends(get_provider)) -> JSONDict:
+    return await portfolio_risk_report(db, user, provider, mode)
 
 
 @router.get("/safety/stress")
-async def stress(mode: BookMode = "real", user: str = Depends(current_user), db: Session = Depends(get_db)) -> JSONDict:
-    return await stress_report(db, user, get_provider(), mode)
+async def stress(mode: BookMode = "real", user: str = Depends(current_user), db: Session = Depends(get_db), provider: MarketProvider = Depends(get_provider)) -> JSONDict:
+    return await stress_report(db, user, provider, mode)
 
 
 # ---------------- buy plans: check → (note + cooling-off) → execute ----------------
@@ -183,12 +184,12 @@ def list_plans(user: str = Depends(current_user), db: Session = Depends(get_db))
 
 
 @router.post("/plans", status_code=201)
-async def create_plan(body: PlanIn, user: str = Depends(current_user), db: Session = Depends(get_db)) -> JSONDict:
+async def create_plan(body: PlanIn, user: str = Depends(current_user), db: Session = Depends(get_db), provider: MarketProvider = Depends(get_provider)) -> JSONDict:
     acc = db.get(Account, body.account_id)
     if not acc or acc.user_id != user:
         raise HTTPException(404, "account not found")
-    price = (await get_provider().quote(body.symbol))["price"]
-    check = await check_for(db, user, get_provider(), body.symbol, body.quantity * price, book_mode_of(acc))
+    price = (await provider.quote(body.symbol))["price"]
+    check = await check_for(db, user, provider, body.symbol, body.quantity * price, book_mode_of(acc))
     if check["requires_note"] and len(body.note.strip()) < 20:
         raise HTTPException(422, {"message": "This buy breaks some of your rules. Write why you still want it (20+ characters).", "check": check})
 
@@ -220,7 +221,12 @@ def _claim(db: Session, p: BuyPlan, observed: str) -> None:
 
 
 @router.post("/plans/{plan_id}/execute")
-async def execute_plan(plan_id: int, user: str = Depends(current_user), db: Session = Depends(get_db)) -> JSONDict:
+async def execute_plan(
+    plan_id: int,
+    user: str = Depends(current_user),
+    db: Session = Depends(get_db),
+    provider: MarketProvider = Depends(get_provider),
+) -> JSONDict:
     p = _own_plan(db, plan_id, user)
     out = _plan_out(p)
     if out["status"] != "ready":
@@ -231,7 +237,7 @@ async def execute_plan(plan_id: int, user: str = Depends(current_user), db: Sess
     observed = p.status  # "ready", or "cooling_off" whose wait is over
     _claim(db, p, observed)
     try:
-        return await _execute_claimed(db, user, p, acc)
+        return await _execute_claimed(db, user, p, acc, provider)
     except Exception:  # release the claim unless the attempt already moved the plan to a final state
         db.rollback()
         db.refresh(p)
@@ -241,10 +247,10 @@ async def execute_plan(plan_id: int, user: str = Depends(current_user), db: Sess
         raise
 
 
-async def _execute_claimed(db: Session, user: str, p: BuyPlan, acc: Account) -> JSONDict:
+async def _execute_claimed(db: Session, user: str, p: BuyPlan, acc: Account, provider: MarketProvider) -> JSONDict:
     # re-check at execution time: prices and the portfolio may have moved during cooling-off
-    price = (await get_provider().quote(p.symbol))["price"]
-    recheck = await check_for(db, user, get_provider(), p.symbol, p.quantity * price, book_mode_of(acc))
+    price = (await provider.quote(p.symbol))["price"]
+    recheck = await check_for(db, user, provider, p.symbol, p.quantity * price, book_mode_of(acc))
     if recheck["verdict"] == "block":
         p.status, p.check_json, p.verdict = "blocked", json.dumps(recheck), "block"
         db.commit()

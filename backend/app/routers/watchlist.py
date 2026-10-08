@@ -7,6 +7,7 @@ from app.auth import current_user
 from app.db import get_db
 from app.jsontypes import JSONDict
 from app.market import get_provider
+from app.market.base import MarketProvider
 from app.models import WatchItem
 from app.portfolio import quotes_for
 from app.schemas import WatchIn, WatchOut
@@ -15,9 +16,9 @@ router = APIRouter(prefix="/watchlist", tags=["watchlist"])
 
 
 @router.get("")
-async def list_watch(user: str = Depends(current_user), db: Session = Depends(get_db)) -> list[JSONDict]:
+async def list_watch(user: str = Depends(current_user), db: Session = Depends(get_db), provider: MarketProvider = Depends(get_provider)) -> list[JSONDict]:
     items = db.scalars(select(WatchItem).where(WatchItem.user_id == user).order_by(WatchItem.symbol)).all()
-    quotes = await quotes_for(get_provider(), {i.symbol for i in items})
+    quotes = await quotes_for(provider, {i.symbol for i in items})
     return [{**WatchOut.model_validate(i).model_dump(), "quote": quotes.get(i.symbol)} for i in items]
 
 

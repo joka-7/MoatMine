@@ -8,6 +8,7 @@ from app.auth import current_user
 from app.db import get_db
 from app.jsontypes import JSONDict
 from app.market import get_provider
+from app.market.base import MarketProvider
 from app.models import Alert, Target
 from app.portfolio import portfolio_snapshot
 from app.schemas import AlertOut, TargetIn, TargetOut
@@ -52,10 +53,9 @@ def delete_target(target_id: int, user: str = Depends(current_user), db: Session
 
 
 @router.get("/targets/evaluate")
-async def evaluate_targets(user: str = Depends(current_user), db: Session = Depends(get_db)) -> list[JSONDict]:
+async def evaluate_targets(user: str = Depends(current_user), db: Session = Depends(get_db), provider: MarketProvider = Depends(get_provider)) -> list[JSONDict]:
     """Live PAPI values vs MAMI bounds for every target. Targets track real money only."""
     targets = db.scalars(select(Target).where(Target.user_id == user)).all()
-    provider = get_provider()
     snap = await portfolio_snapshot(db, user, provider, "real")
     risks = await risk_by_symbol(provider, {h["symbol"] for h in snap["holdings"]})
     return [evaluate(t, snap, risks) for t in targets]
