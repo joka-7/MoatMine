@@ -227,9 +227,9 @@ I/O boundaries (HTTP transport, LLM vendor, JWKS).
 | Migrations match models; readiness | `test_db.py` | `ScriptDirectory.get_heads` / `schema_is_current` |
 | Worker isolation; sector failure tolerance | `test_worker.py` | a provider wrapper that raises for one symbol |
 | Logging redaction, formatters, request id | `test_log_config.py` | none |
+| TTL cache expiry, eviction order, lock pruning (fake clock) | `test_cache.py` | none |
 | Chat, tools, MCP, settings, news summary | `test_api.py`, `test_research.py` | ModelDispatcher `MockProvider` |
 
 Known gaps:
 - `QA-06`/`QA-07`: the plans scenario is still one long test that uses the wall clock.
 - No web unit tests (`QA-09`).
-- No direct tests for the `cache.py` TTL logic (`QA-08`).

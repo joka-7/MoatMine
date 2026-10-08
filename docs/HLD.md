@@ -144,7 +144,8 @@ sequenceDiagram
     `alembic upgrade head` as a pre-deploy step for both services. A Postgres advisory lock in
     `migrations/env.py` makes concurrent runs safe.
 - **Cache: in-process only**, so each instance has its own:
-  - `app/cache.py` `ttl_cache` holds safety reports (10 min) and sector lookups (1 h).
+  - `app/cache.py` `ttl_cache` holds safety reports (10 min) and sector lookups (1 h). At 2,000
+    entries it drops expired entries first, then the oldest, and prunes idle per-key locks.
   - `app/research.py` keeps its own news-summary cache (`_TTL = 3600`).
   - ModelDispatcher's quota store is `InMemoryQuotaStore` (`app/ai/dispatcher.py`).
   - Running more than one API instance would split caches and quotas. Nothing coordinates them.
