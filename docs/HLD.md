@@ -214,7 +214,8 @@ sequenceDiagram
 - **AI tool arguments** come from the model: `run_tool` validates them against the same bounds
   as the HTTP routes and returns the errors to the model. The write tools (`WRITE_TOOLS`) act only
   on a symbol the user named in their latest chat message, so text the model read elsewhere can't
-  change the user's data; MCP callers have no chat message and can't write.
+  change the user's data (tickers of up to three letters count only capitalised or with a `$`,
+  since "it", "on" or "a" are ordinary words); MCP callers have no chat message and can't write.
 - **Chat messages** may only have the `user` or `assistant` role; the server owns the system prompt.
 - **External agent URLs** must be `https://` and resolve only to public addresses
   (`settings_store.check_public_https_url`). Checked when saved and again before every request

@@ -52,7 +52,19 @@ def test_run_tool_write_tools_need_the_user_to_name_the_symbol(client, user_said
 
 @pytest.mark.parametrize(
     ("symbol", "text", "named"),
-    [("AAPL", "buy aapl?", True), ("BRK.B", "and BRK.B", True), ("AAPL", "AAPLX", False), ("", "anything", False)],
+    [
+        ("AAPL", "buy aapl?", True),
+        ("BRK.B", "and BRK.B", True),
+        ("AAPL", "AAPLX", False),
+        ("", "anything", False),
+        # short tickers that are everyday words need capitals or a $: "is it a good time" names nothing
+        ("IT", "is it a good time to buy?", False),
+        ("A", "is it a good time to buy?", False),
+        ("ON", "carry on", False),
+        ("IT", "watch IT for me", True),
+        ("IT", "watch $it for me", True),
+        ("ALL", "add ALL", True),
+    ],
 )
 def test_user_named(symbol, text, named):
     assert user_named(symbol, text) is named
@@ -62,3 +74,8 @@ def test_tool_specs_match_the_readme():
     readme = (Path(__file__).resolve().parents[2] / "README.md").read_text()
     missing = [s["name"] for s in TOOL_SPECS if f"`{s['name']}`" not in readme]
     assert not missing, f"README's AI agent row doesn't list {missing}"
+
+
+def test_run_tool_write_gate_ignores_the_case_the_model_sends(client):
+    # "it" from the model must not match the word "it" in the user's sentence
+    assert "error" in _run("save_note", {"symbol": "it", "title": "t", "body": "b"}, "is it a good time to buy?")

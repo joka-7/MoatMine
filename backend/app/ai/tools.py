@@ -164,8 +164,18 @@ WRITE_TOOLS = {spec["name"] for spec in TOOL_SPECS if not spec["read_only"]}
 
 
 def user_named(symbol: str, user_said: str) -> bool:
-    """Whether the user's own message names this ticker (as a whole word, any case)."""
-    return bool(symbol) and re.search(rf"(?<![A-Za-z0-9]){re.escape(symbol)}(?![A-Za-z0-9])", user_said, re.IGNORECASE) is not None
+    """Whether the user's own message names this ticker as a whole word.
+
+    Tickers of up to three letters are often ordinary words ("it", "on", "a", "all"), so for them
+    only a capitalised or $-prefixed mention counts ("IT", "$it"); longer ones match in any case.
+    """
+    if not symbol:
+        return False
+    word = rf"(?<![A-Za-z0-9.]){re.escape(symbol)}(?![A-Za-z0-9])"
+    if len(symbol) > 3:
+        return re.search(word, user_said, re.IGNORECASE) is not None
+    return (re.search(word, user_said) is not None
+            or re.search(rf"\${re.escape(symbol)}(?![A-Za-z0-9])", user_said, re.IGNORECASE) is not None)
 
 
 async def run_tool(name: str, args: JSONDict, db: Session, user: str, user_said: str = "") -> str:
@@ -176,7 +186,7 @@ async def run_tool(name: str, args: JSONDict, db: Session, user: str, user_said:
     model read elsewhere (a news headline, a filing) must not be able to change the user's data.
     Callers without a user message (MCP) can't write at all.
     """
-    if name in WRITE_TOOLS and not user_named((args.get("symbol") or "").strip(), user_said):
+    if name in WRITE_TOOLS and not user_named((args.get("symbol") or "").strip().upper(), user_said):
         out: object = {"error": "write tools only act on a symbol the user named in their own message; ask them first"}
         return json.dumps(out)
     try:
