@@ -20,8 +20,10 @@ from collections.abc import Callable
 from datetime import UTC, date, datetime
 from typing import Protocol
 
+import httpx2
 from model_dispatcher import (
     CompletionRequest,
+    CompletionResponse,
     GatewaySettings,
     InMemoryQuotaStore,
     Message,
@@ -42,7 +44,7 @@ from model_dispatcher.providers import AnthropicProvider, GeminiProvider, GroqPr
 from model_dispatcher.providers.base import ModelProvider
 from sqlalchemy.orm import Session
 
-from app.ai.settings_store import load_ai_settings
+from app.ai.settings_store import check_public_https_url, load_ai_settings
 from app.config import get_settings
 from app.errors import DispatchError
 from app.jsontypes import JSONDict
@@ -92,10 +94,30 @@ def provider_factory(vendor: str, model: str, api_key: str | None, tier: ModelTi
     return cls(model=model, api_key=api_key, tier=tier)
 
 
+async def _refuse_private_hosts(request: httpx2.Request) -> None:
+    # re-checked on every request, not just when the URL was saved: the host may now resolve
+    # elsewhere, and URLs saved before the check existed were never vetted
+    await asyncio.to_thread(check_public_https_url, str(request.url))
+
+
+class _ExternalAgentProvider(OpenAIProvider):
+    """OpenAI-compatible provider for a user-supplied URL: never follows redirects (a public host
+    could otherwise bounce the request to an internal address) and refuses non-public hosts."""
+
+    async def acomplete(self, request: CompletionRequest, *, api_key: str | None = None) -> CompletionResponse:
+        import openai
+
+        async with httpx2.AsyncClient(follow_redirects=False, timeout=get_settings().ai_timeout_seconds,
+                                      event_hooks={"request": [_refuse_private_hosts]}) as http:
+            client = openai.AsyncOpenAI(api_key=api_key or self._api_key, base_url=self._base_url, http_client=http)
+            response = await client.chat.completions.create(**self._build_kwargs(request))
+        return self._to_response(response)
+
+
 def external_factory(base_url: str, model: str) -> ModelProvider:
     """The user's own agent, reached as an OpenAI-compatible endpoint."""
-    return OpenAIProvider(model=model or "default", base_url=base_url, name=f"{EXTERNAL}:{model or 'default'}",
-                          tier=ModelTier.STANDARD)
+    return _ExternalAgentProvider(model=model or "default", base_url=base_url, name=f"{EXTERNAL}:{model or 'default'}",
+                                  tier=ModelTier.STANDARD)
 
 
 class DailyTokenBudget:

@@ -216,7 +216,9 @@ sequenceDiagram
   change the user's data; MCP callers have no chat message and can't write.
 - **Chat messages** may only have the `user` or `assistant` role; the server owns the system prompt.
 - **External agent URLs** must be `https://` and resolve only to public addresses
-  (`settings_store.check_public_https_url`), checked when saved.
+  (`settings_store.check_public_https_url`). Checked when saved and again before every request
+  (`dispatcher._ExternalAgentProvider`), which also never follows redirects, so a public host
+  can't bounce the call to an internal one.
 - **Clerk tokens** must come from an origin in `CLERK_AUTHORIZED_PARTIES` (the `azp` claim) when it is set.
 
 ## Integration test strategy
