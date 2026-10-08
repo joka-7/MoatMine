@@ -12,10 +12,7 @@ const nextConfig: NextConfig = {
         trailingSlash: true,
         // @clerk/nextjs's App Router provider carries a Server Action, which a static export can't
         // ship. The export gets @clerk/react (what @clerk/nextjs wraps) with the same client API.
-        webpack: (config) => {
-          config.resolve.alias = { ...config.resolve.alias, "@clerk/nextjs$": "@clerk/react" };
-          return config;
-        },
+        turbopack: { resolveAlias: { "@clerk/nextjs": "@clerk/react" } },
       }
     : {}),
 };

@@ -1,6 +1,6 @@
 # MoatMine web
 
-The MoatMine UI: Next.js 15 (App Router) with React 19. It is one codebase built two ways:
+The MoatMine UI: Next.js 16 (App Router, Turbopack) with React 19. It is one codebase built two ways:
 
 - `npm run build` is the Vercel deployment.
 - `npm run build:desktop` is a static export to `out/` that the Tauri app in `../desktop` loads.

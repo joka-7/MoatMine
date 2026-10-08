@@ -88,7 +88,7 @@
 "web/.gitignore" = "Next.js build output and local env files"
 "web/README.md" = "How the web app is built, configured and exported for desktop"
 "web/next.config.ts" = "Vercel build vs static export for Tauri (swaps @clerk/nextjs for @clerk/react)"
-"web/package.json" = "Next.js 15 / React 19 app; scripts for dev, build and build:desktop"
+"web/package.json" = "Next.js 16 / React 19 app; scripts for dev, build and build:desktop"
 "web/package-lock.json" = "Pinned npm dependencies"
 "web/tsconfig.json" = "TypeScript config (strict)"
 "web/src/app/layout.tsx" = "Root layout: auth shell, side nav, main area"

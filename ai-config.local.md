@@ -7,7 +7,7 @@ guaranteed in UI copy or prompts; it's risk control and information, not financi
 ### Layout
 - `backend/` — FastAPI on Render (`app/`), SQLAlchemy models, background worker (`app/worker.py`),
   MCP server at `/mcp`. Market data via `app/market/` (mock | finnhub, optional FMP).
-- `web/` — Next.js 15 on Vercel. Same UI is static-exported (`npm run build:desktop`) for desktop.
+- `web/` — Next.js 16 on Vercel. Same UI is static-exported (`npm run build:desktop`) for desktop.
 - `desktop/` — Tauri v2 shell over `web/out`, calling the same Render API.
 - `.ai/` — ogen-ai submodule (this config). Don't edit files under `.ai/` from this repo.
 

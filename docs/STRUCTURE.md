@@ -267,7 +267,7 @@ MoatMine/
 │   ├── next.config.ts                            # Vercel build vs static export for Tauri (swaps @clerk/nextjs for @clerk/react)
 │   ├── openapi.json                              # The API's OpenAPI schema (python -m app.openapi_spec); CI fails if it is stale
 │   ├── package-lock.json                         # Pinned npm dependencies
-│   ├── package.json                              # Next.js 15 / React 19 app; scripts for dev, build and build:desktop
+│   ├── package.json                              # Next.js 16 / React 19 app; scripts for dev, build and build:desktop
 │   ├── tsconfig.json                             # TypeScript config (strict)
 │   └── vitest.config.mts                         # Vitest: jsdom, React plugin, the @/ alias; tests are src/**/*.test.ts[x]
 ├── .ai                                           # The ogen-ai submodule: shared AI-assistant rules, agents and skills (don't…
