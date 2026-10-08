@@ -144,6 +144,7 @@ MoatMine/
 │   │   ├── test_ratelimit.py
 │   │   ├── test_research.py                      # Company/earnings/analyst data, news feed and AI news summary
 │   │   ├── test_retry.py                         # Retrying market-API GETs against canned responses (no network, no real…
+│   │   ├── test_risk.py                          # Portfolio risk maths at the boundaries, with numbers you can check by hand.
 │   │   ├── test_safety.py                        # Safety score, risk profile, buy check, risk maths, stress tests, plans flow
 │   │   ├── test_sources.py                       # Results built from fallback (sample) candles say so, however deep the candles…
 │   │   ├── test_targets.py                       # PAPI evaluation never turns a missing price into a plausible-looking number.

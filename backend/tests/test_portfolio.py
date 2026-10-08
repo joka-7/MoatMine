@@ -7,8 +7,10 @@ import pytest
 
 from app.ai.tools import run_tool
 from app.db import SessionLocal
-from app.market.base import Candle
-from app.portfolio import held_value_by_day
+from app.errors import InsufficientPaperCashError, MarketDataError
+from app.market.base import Candle, Quote
+from app.models import Account
+from app.portfolio import held_value_by_day, pay_for_paper_buy, quotes_for
 from tests.conftest import auth
 
 P = auth("pat")
@@ -206,3 +208,31 @@ def test_held_value_by_day(series, expected):
     # 2 A and 1 B held throughout
     got = held_value_by_day(series, {"A": 2, "B": 1})
     assert [(p["t"] // D, p["value"]) for p in got] == expected
+
+
+@pytest.mark.parametrize(("broker", "cash", "cost", "left"), [
+    ("paper", 1_000.0, 999.99, 0.01),
+    ("paper", 1_000.0, 1_000.0, 0.0),  # exactly all of it
+    ("paper", 1_000.0, 1_000.01, InsufficientPaperCashError),
+    ("manual", 0.0, 5_000.0, 0.0),  # real accounts record trades already paid at the broker
+])
+def test_pay_for_paper_buy(broker, cash, cost, left):
+    acc = Account(user_id="u", name="A", broker=broker, cash=cash)
+    if left is InsufficientPaperCashError:
+        with pytest.raises(InsufficientPaperCashError):
+            pay_for_paper_buy(acc, cost)
+        assert acc.cash == cash  # untouched on refusal
+    else:
+        pay_for_paper_buy(acc, cost)
+        assert acc.cash == left
+
+
+def test_quotes_for_drops_failed_symbols():
+    class _Half:
+        async def quote(self, symbol: str) -> Quote:
+            if symbol == "BAD":
+                raise MarketDataError("no price")
+            return {"symbol": symbol, "price": 1.0, "change": 0.0, "change_pct": 0.0, "prev_close": 1.0, "ts": 0}
+
+    got = asyncio.run(quotes_for(_Half(), {"GOOD", "BAD"}))  # type: ignore[arg-type]
+    assert set(got) == {"GOOD"}

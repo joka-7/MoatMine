@@ -248,6 +248,10 @@ I/O boundaries (HTTP transport, LLM vendor, JWKS).
 | Worker isolation; sector failure tolerance; loss-limit alert; heartbeat; SIGTERM; unread-alert index | `test_worker.py` | provider wrappers (one raises, one falls) |
 | Logging redaction, formatters, request id | `test_log_config.py` | none |
 | TTL cache expiry, eviction order, lock pruning (fake clock) | `test_cache.py` | none |
+| Price ratios (returns, volatility, drawdown, SMA, RSI) by hand | `test_analytics.py` | none |
+| Beta, correlation, portfolio risk and stress scenarios at the boundaries | `test_risk.py` | none |
+| Paper cash, failed quotes, value history over gaps | `test_portfolio.py` | none |
+| Upstream retry and backoff | `test_retry.py` | `httpx.MockTransport` |
 | Chat, tools, MCP, settings, news summary | `test_api.py`, `test_research.py` | ModelDispatcher `MockProvider` |
 
 Known gaps:
