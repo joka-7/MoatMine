@@ -4,6 +4,7 @@ Read-heavy by design; the only writes are adding to the watchlist and saving a s
 No tool places trades.
 """
 
+import asyncio
 import json
 import time
 from collections.abc import Awaitable, Callable
@@ -197,7 +198,7 @@ async def _run(name: str, args: JSONDict, db: Session, user: str) -> object:
         case "get_bad_times":
             out = await bad_times(p, sym)
         case "get_risk_profile":
-            out = profile_dict(get_profile(db, user))
+            out = profile_dict(await asyncio.to_thread(get_profile, db, user))
         case "get_safety_score":
             out = await stock_safety(p, sym)
         case "safety_check":
@@ -212,25 +213,26 @@ async def _run(name: str, args: JSONDict, db: Session, user: str) -> object:
         case "get_targets_status":
             snap = await portfolio_snapshot(db, user, p)
             risks = await risk_by_symbol(p, {h["symbol"] for h in snap["holdings"]})
-            out = [evaluate(t, snap, risks) for t in db.scalars(select(Target).where(Target.user_id == user)).all()]
+            targets = await asyncio.to_thread(lambda: db.scalars(select(Target).where(Target.user_id == user)).all())
+            out = [evaluate(t, snap, risks) for t in targets]
         case "get_watchlist":
-            items = db.scalars(select(WatchItem).where(WatchItem.user_id == user)).all()
+            items = await asyncio.to_thread(lambda: db.scalars(select(WatchItem).where(WatchItem.user_id == user)).all())
             q = await quotes_for(p, {i.symbol for i in items})
             out = [{"symbol": i.symbol, "note": i.note, "quote": q.get(i.symbol)} for i in items]
         case "get_notes":
-            notes = db.scalars(select(StockNote).where(StockNote.user_id == user, StockNote.symbol == sym)).all()
+            notes = await asyncio.to_thread(lambda: db.scalars(select(StockNote).where(StockNote.user_id == user, StockNote.symbol == sym)).all())
             out = [{"kind": n.kind, "title": n.title, "body": n.body[:2000]} for n in notes]
         case "add_to_watchlist":
             db.add(WatchItem(user_id=user, symbol=sym, note=args.get("note", "")))
             try:
-                db.commit()
+                await asyncio.to_thread(db.commit)
                 out = {"ok": True, "symbol": sym}
             except IntegrityError:
-                db.rollback()
+                await asyncio.to_thread(db.rollback)
                 out = {"ok": False, "error": f"{sym} already on watchlist"}
         case "save_note":
             db.add(StockNote(user_id=user, symbol=sym, kind="note", title=args["title"][:200], body=args["body"]))
-            db.commit()
+            await asyncio.to_thread(db.commit)
             out = {"ok": True}
         case _:
             out = {"error": f"unknown tool {name}"}

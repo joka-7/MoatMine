@@ -70,8 +70,9 @@ async def quotes_for(provider: MarketProvider, symbols: set[str]) -> dict[str, Q
 
 async def portfolio_snapshot(db: Session, user_id: str, provider: MarketProvider, mode: BookMode = "real") -> JSONDict:
     """Accounts, priced holdings and totals for one book (real money by default, or paper)."""
-    accounts = accounts_in_book(db, user_id, mode)
-    holdings = holdings_in_book(db, user_id, mode)
+    # sync SQLAlchemy session: run the queries off the event loop
+    accounts = await asyncio.to_thread(accounts_in_book, db, user_id, mode)
+    holdings = await asyncio.to_thread(holdings_in_book, db, user_id, mode)
     quotes = await quotes_for(provider, {h.symbol for h in holdings})
 
     rows: list[JSONDict] = []

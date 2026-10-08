@@ -36,6 +36,13 @@ def _emit(db: Session, user: str, source: str, ref_id: int, symbol: str | None, 
     return True
 
 
+def _users_to_check(db: Session) -> tuple[set[str], set[str]]:
+    """(users with a risk profile, every user with targets, watch items or a profile)."""
+    profiled = set(db.scalars(select(RiskProfile.user_id)).all())
+    others = set(db.scalars(select(Target.user_id)).all()) | set(db.scalars(select(WatchItem.user_id)).all())
+    return profiled, others | profiled
+
+
 async def run_once() -> int:
     """One pass over every user; returns the number of new alerts.
 
@@ -45,15 +52,14 @@ async def run_once() -> int:
     provider = get_provider()
     created = failed = 0
     with SessionLocal() as db:
-        profiled = set(db.scalars(select(RiskProfile.user_id)).all())
-        users = set(db.scalars(select(Target.user_id)).all()) | set(db.scalars(select(WatchItem.user_id)).all()) | profiled
+        profiled, users = await asyncio.to_thread(_users_to_check, db)
         for user in sorted(users):
             try:
                 n = await _alerts_for_user(db, user, provider, user in profiled)
-                db.commit()
+                await asyncio.to_thread(db.commit)
                 created += n
             except Exception:  # isolation boundary: log, drop this user's pass, keep going
-                db.rollback()
+                await asyncio.to_thread(db.rollback)
                 failed += 1
                 logger.exception("worker: alerts failed for one user", extra={"user_id": user})
     if failed:
@@ -65,39 +71,40 @@ async def _alerts_for_user(db: Session, user: str, provider: MarketProvider, pro
     created = 0
     if profiled:
         created += await _risk_rule_alerts(db, user, provider)
-    targets = db.scalars(select(Target).where(Target.user_id == user)).all()
+    targets = await asyncio.to_thread(lambda: db.scalars(select(Target).where(Target.user_id == user)).all())
     if targets:
         snap = await portfolio_snapshot(db, user, provider, "real")
         risks = await risk_by_symbol(provider, {h["symbol"] for h in snap["holdings"]})
         for t in targets:
             for key, msg in breach_messages(evaluate(t, snap, risks)):
-                created += _emit(db, user, "target", t.id, t.symbol, key, msg)
+                created += await asyncio.to_thread(_emit, db, user, "target", t.id, t.symbol, key, msg)
 
-    watch = db.scalars(
+    watch = await asyncio.to_thread(lambda: db.scalars(
         select(WatchItem).where(
             WatchItem.user_id == user, (WatchItem.alert_above.isnot(None)) | (WatchItem.alert_below.isnot(None))
         )
-    ).all()
+    ).all())
     quotes = await quotes_for(provider, {w.symbol for w in watch})
     for w in watch:
         q = quotes.get(w.symbol)
         if not q:
             continue
         if w.alert_above is not None and q["price"] >= w.alert_above:
-            created += _emit(db, user, "watch", w.id, w.symbol, f"watch:{w.id}:above", f"{w.symbol} at {q['price']} ≥ {w.alert_above}")
+            created += await asyncio.to_thread(_emit, db, user, "watch", w.id, w.symbol, f"watch:{w.id}:above", f"{w.symbol} at {q['price']} ≥ {w.alert_above}")
         if w.alert_below is not None and q["price"] <= w.alert_below:
-            created += _emit(db, user, "watch", w.id, w.symbol, f"watch:{w.id}:below", f"{w.symbol} at {q['price']} ≤ {w.alert_below}")
+            created += await asyncio.to_thread(_emit, db, user, "watch", w.id, w.symbol, f"watch:{w.id}:below", f"{w.symbol} at {q['price']} ≤ {w.alert_below}")
     return created
 
 
 async def _risk_rule_alerts(db: Session, user: str, provider: MarketProvider) -> int:
     """Position and sector concentration of the real-money book against the user's risk profile."""
     _, book, _ = await book_for(db, user, provider, "real")
-    breaches = portfolio_breaches(rules_for(db, user), book)
-    return sum(
-        _emit(db, user, "risk", 0, b.subject if b.rule == "position_size" else None, f"risk:{b.rule.replace('_size', '')}:{b.subject}", b.message)
+    breaches = portfolio_breaches(await asyncio.to_thread(rules_for, db, user), book)
+    return sum([
+        await asyncio.to_thread(_emit, db, user, "risk", 0, b.subject if b.rule == "position_size" else None,
+                                f"risk:{b.rule.replace('_size', '')}:{b.subject}", b.message)
         for b in breaches
-    )
+    ])
 
 
 async def main(once: bool) -> None:

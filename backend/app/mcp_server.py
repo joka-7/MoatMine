@@ -5,6 +5,7 @@ Create a token in Settings → AI → "MCP access", then point your client at
   https://<render-app>/mcp/   with header  Authorization: Bearer <token>
 """
 
+import asyncio
 from collections.abc import Mapping
 
 from mcp.server.mcpserver import Context, MCPServer
@@ -39,11 +40,14 @@ def _user_for_token(token: str | None) -> str | None:
 
 
 async def _call(ctx: Context, name: str, **args: object) -> str:
-    user = _user_for_token(_token_from(ctx.headers))
+    user = await asyncio.to_thread(_user_for_token, _token_from(ctx.headers))
     if not user:
         return '{"error": "unauthorized"}'
-    with SessionLocal() as db:
+    db = await asyncio.to_thread(SessionLocal)
+    try:
         return await run_tool(name, args, db, user)
+    finally:
+        await asyncio.to_thread(db.close)
 
 
 @mcp.tool(description="User's accounts, holdings with P/L and weights, and totals. mode: 'real' (default) or 'paper'.")
@@ -154,7 +158,7 @@ class _BearerGate:
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] == "http":
             headers = {k.decode().lower(): v.decode() for k, v in scope.get("headers", [])}
-            if not _user_for_token(_token_from(headers)):
+            if not await asyncio.to_thread(_user_for_token, _token_from(headers)):
                 await JSONResponse({"error": "invalid or missing MCP token"}, status_code=401)(scope, receive, send)
                 return
         await self.app(scope, receive, send)

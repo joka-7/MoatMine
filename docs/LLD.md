@@ -132,6 +132,10 @@ Web: `NEXT_PUBLIC_API_URL` and `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` (`web/src/lib
   places open `SessionLocal()` directly:
   - the worker;
   - the MCP server, because MCP tools run outside FastAPI's dependency system.
+- **Blocking database access.** The session is synchronous SQLAlchemy. Async code (routes, services,
+  agent tools, MCP, worker) runs every query, commit, flush and lazy relationship load through
+  `asyncio.to_thread`, so a slow Postgres round-trip doesn't stall other requests on the event
+  loop. Sync (`def`) routes already run in FastAPI's threadpool.
 - **Current user.** `current_user` (`app/auth.py`) is a dependency on every user-scoped route.
 - **Market provider.** `get_provider()` is an `lru_cache` singleton built from settings. Every route
   receives it as `provider: MarketProvider = Depends(get_provider)` and passes it down to services

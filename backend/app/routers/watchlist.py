@@ -1,3 +1,5 @@
+import asyncio
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
@@ -17,7 +19,7 @@ router = APIRouter(prefix="/watchlist", tags=["watchlist"])
 
 @router.get("")
 async def list_watch(user: str = Depends(current_user), db: Session = Depends(get_db), provider: MarketProvider = Depends(get_provider)) -> list[JSONDict]:
-    items = db.scalars(select(WatchItem).where(WatchItem.user_id == user).order_by(WatchItem.symbol)).all()
+    items = await asyncio.to_thread(lambda: db.scalars(select(WatchItem).where(WatchItem.user_id == user).order_by(WatchItem.symbol)).all())
     quotes = await quotes_for(provider, {i.symbol for i in items})
     return [{**WatchOut.model_validate(i).model_dump(), "quote": quotes.get(i.symbol)} for i in items]
 

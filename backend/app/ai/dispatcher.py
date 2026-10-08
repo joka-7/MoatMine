@@ -14,6 +14,7 @@ that vendor; "external" uses only the user's external agent.
 
 from __future__ import annotations
 
+import asyncio
 import re
 from typing import Protocol
 
@@ -162,7 +163,7 @@ def _served_by(result: RunResult) -> str:
 
 async def _run(db: Session, user: str, messages: list[Message], requested: str,
                tools: ToolRegistry | None) -> tuple[str, str]:
-    registry, metadata = _registry(db, user, requested)
+    registry, metadata = await asyncio.to_thread(_registry, db, user, requested)  # reads the user's AI settings
     request = CompletionRequest(messages=tuple(messages), tenant=TenantId(user))
     try:
         result = await adispatch_with_timeout(

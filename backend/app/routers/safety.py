@@ -1,3 +1,4 @@
+import asyncio
 import json
 from datetime import UTC, datetime, timedelta
 from typing import Self
@@ -185,7 +186,7 @@ def list_plans(user: str = Depends(current_user), db: Session = Depends(get_db))
 
 @router.post("/plans", status_code=201)
 async def create_plan(body: PlanIn, user: str = Depends(current_user), db: Session = Depends(get_db), provider: MarketProvider = Depends(get_provider)) -> JSONDict:
-    acc = db.get(Account, body.account_id)
+    acc = await asyncio.to_thread(db.get, Account, body.account_id)
     if not acc or acc.user_id != user:
         raise HTTPException(404, "account not found")
     price = (await provider.quote(body.symbol))["price"]
@@ -204,7 +205,7 @@ async def create_plan(body: PlanIn, user: str = Depends(current_user), db: Sessi
                 note=body.note.strip(), verdict=check["verdict"], check_json=json.dumps(check), status=status,
                 available_at=available)
     db.add(p)
-    db.commit()
+    await asyncio.to_thread(db.commit)
     return _plan_out(p)
 
 
@@ -227,24 +228,28 @@ async def execute_plan(
     db: Session = Depends(get_db),
     provider: MarketProvider = Depends(get_provider),
 ) -> JSONDict:
-    p = _own_plan(db, plan_id, user)
+    p = await asyncio.to_thread(_own_plan, db, plan_id, user)
     out = _plan_out(p)
     if out["status"] != "ready":
         raise HTTPException(409, f"plan is {out['status']}" + (f" until {out['available_at']}" if out["status"] == "cooling_off" else ""))
-    acc = db.get(Account, p.account_id)
+    acc = await asyncio.to_thread(db.get, Account, p.account_id)
     if acc is None:
         raise HTTPException(404, "account not found")
     observed = p.status  # "ready", or "cooling_off" whose wait is over
-    _claim(db, p, observed)
+    await asyncio.to_thread(_claim, db, p, observed)
     try:
         return await _execute_claimed(db, user, p, acc, provider)
     except Exception:  # release the claim unless the attempt already moved the plan to a final state
-        db.rollback()
-        db.refresh(p)
-        if p.status == "executing":
-            p.status = observed
-            db.commit()
+        await asyncio.to_thread(_release, db, p, observed)
         raise
+
+
+def _release(db: Session, p: BuyPlan, observed: str) -> None:
+    db.rollback()
+    db.refresh(p)
+    if p.status == "executing":
+        p.status = observed
+        db.commit()
 
 
 async def _execute_claimed(db: Session, user: str, p: BuyPlan, acc: Account, provider: MarketProvider) -> JSONDict:
@@ -253,21 +258,21 @@ async def _execute_claimed(db: Session, user: str, p: BuyPlan, acc: Account, pro
     recheck = await check_for(db, user, provider, p.symbol, p.quantity * price, book_mode_of(acc))
     if recheck["verdict"] == "block":
         p.status, p.check_json, p.verdict = "blocked", json.dumps(recheck), "block"
-        db.commit()
+        await asyncio.to_thread(db.commit)
         raise HTTPException(409, {"message": "The buy no longer passes your rules.", "check": recheck})
     if recheck["verdict"] == "warn" and p.verdict != "warn":
-        _send_back_through_warn_flow(db, p, recheck)
+        await asyncio.to_thread(_send_back_through_warn_flow, db, p, recheck)
     try:
         pay_for_paper_buy(acc, p.quantity * price)
     except InsufficientPaperCashError as e:
         raise HTTPException(409, {"message": str(e), "check": recheck}) from e
     h = Holding(user_id=user, account_id=p.account_id, symbol=p.symbol, quantity=p.quantity, avg_cost=price)
     db.add(h)
-    db.flush()
+    await asyncio.to_thread(db.flush)
     if p.note:
         db.add(StockNote(user_id=user, symbol=p.symbol, kind="thesis", title=f"Why I bought ({p.quantity:g} @ {price:.2f})", body=p.note))
     p.status, p.price, p.executed_holding_id = "executed", price, h.id
-    db.commit()
+    await asyncio.to_thread(db.commit)
     return _plan_out(p)
 
 

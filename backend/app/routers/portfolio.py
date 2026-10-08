@@ -75,7 +75,7 @@ async def add_holding(body: HoldingIn, user: str = Depends(current_user), db: Se
     buy now: priced at the live quote whatever avg_cost says, refused if the rules block it,
     and paid for from the account's cash.
     """
-    acc = _own(db, Account, body.account_id, user)
+    acc = await asyncio.to_thread(_own, db, Account, body.account_id, user)
     fields = body.model_dump(exclude_none=True)
     if is_paper(acc):
         fields["avg_cost"] = (await provider.quote(body.symbol))["price"]
@@ -89,7 +89,7 @@ async def add_holding(body: HoldingIn, user: str = Depends(current_user), db: Se
         raise HTTPException(409, {"message": str(e), "check": check}) from e
     h = Holding(user_id=user, **fields)
     db.add(h)
-    db.commit()
+    await asyncio.to_thread(db.commit)
     return {"id": h.id, "check": check}
 
 
@@ -109,12 +109,13 @@ def update_holding(holding_id: int, body: HoldingUpdate, user: str = Depends(cur
 @router.delete("/holdings/{holding_id}", status_code=204)
 async def delete_holding(holding_id: int, user: str = Depends(current_user), db: Session = Depends(get_db), provider: MarketProvider = Depends(get_provider)) -> None:
     """Remove a position. For paper, that is a sale at the live quote: the proceeds go back to its cash."""
-    h = _own(db, Holding, holding_id, user)
-    if is_paper(h.account):
+    h = await asyncio.to_thread(_own, db, Holding, holding_id, user)
+    acc = await asyncio.to_thread(lambda: h.account)  # lazy relationship load is a query too
+    if is_paper(acc):
         price = (await provider.quote(h.symbol))["price"]
-        h.account.cash = round(h.account.cash + h.quantity * price, 2)
-    db.delete(h)
-    db.commit()
+        acc.cash = round(acc.cash + h.quantity * price, 2)
+    await asyncio.to_thread(db.delete, h)
+    await asyncio.to_thread(db.commit)
 
 
 @router.get("/portfolio")
@@ -131,7 +132,7 @@ async def portfolio_history(
     provider: MarketProvider = Depends(get_provider),
 ) -> list[JSONDict]:
     """Daily market value of one book's current holdings (quantities held constant) — for the value-over-time chart."""
-    holdings = holdings_in_book(db, user, mode)
+    holdings = await asyncio.to_thread(holdings_in_book, db, user, mode)
     if not holdings:
         return []
     end = int(time.time())

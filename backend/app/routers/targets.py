@@ -1,3 +1,4 @@
+import asyncio
 from collections.abc import Sequence
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -55,7 +56,7 @@ def delete_target(target_id: int, user: str = Depends(current_user), db: Session
 @router.get("/targets/evaluate")
 async def evaluate_targets(user: str = Depends(current_user), db: Session = Depends(get_db), provider: MarketProvider = Depends(get_provider)) -> list[JSONDict]:
     """Live PAPI values vs MAMI bounds for every target. Targets track real money only."""
-    targets = db.scalars(select(Target).where(Target.user_id == user)).all()
+    targets = await asyncio.to_thread(lambda: db.scalars(select(Target).where(Target.user_id == user)).all())
     snap = await portfolio_snapshot(db, user, provider, "real")
     risks = await risk_by_symbol(provider, {h["symbol"] for h in snap["holdings"]})
     return [evaluate(t, snap, risks) for t in targets]

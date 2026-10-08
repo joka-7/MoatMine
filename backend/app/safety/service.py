@@ -183,7 +183,7 @@ async def check_for(
         symbol=symbol, amount=amount, sector=report["sector"], price=f["price"], fair_value=f["fair_value"],
         market_cap_m=f["market_cap_m"], volatility_pct=f["volatility_pct"], safety=report,
     )
-    out = check_buy(rules_for(db, user), cand, book)
+    out = check_buy(await asyncio.to_thread(rules_for, db, user), cand, book)
     out["mode"] = mode
     out["safety"] = {"score": report["score"], "grade": report["grade"], "flags": report["flags"]}
     return out
@@ -195,7 +195,7 @@ async def check_for(
 async def portfolio_risk_report(db: Session, user: str, provider: MarketProvider, mode: BookMode = "real") -> JSONDict:
     snap, book, sectors = await book_for(db, user, provider, mode)
     values = book.by_symbol
-    rules = rules_for(db, user)
+    rules = await asyncio.to_thread(rules_for, db, user)
     now = int(time.time())
     syms = sorted(values)
     with track_sources() as used:
@@ -241,7 +241,7 @@ async def stress_report(db: Session, user: str, provider: MarketProvider, mode: 
 
     scenarios = stress_scenarios(values, snap["totals"]["cash"], betas, crisis_dd, bench_dd,
                                  [(k, n) for k, n, *_ in CRISES])
-    limit = rules_for(db, user).max_drawdown_pct
+    limit = (await asyncio.to_thread(rules_for, db, user)).max_drawdown_pct
     for sc in scenarios:
         sc["breaches_limit"] = sc["change_pct"] < limit
     return {
@@ -274,7 +274,7 @@ async def ai_analysis(db: Session, user: str, provider: MarketProvider, symbol: 
         "symbol": symbol,
         "score": report["score"], "grade": report["grade"], "coverage_pct": report["coverage_pct"],
         "areas": report["areas"], "flags": report["flags"], "facts": report["facts"], "sector": report["sector"],
-        "user_rules": profile_dict(get_profile(db, user)),
+        "user_rules": profile_dict(await asyncio.to_thread(get_profile, db, user)),
     }
     r = await complete(db, user, json.dumps(payload, default=str), system=_ANALYZER_SYSTEM)
     text = r["content"]

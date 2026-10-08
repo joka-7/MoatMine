@@ -30,8 +30,8 @@ async def valuation(provider: MarketProvider, symbol: str, a: Assumptions) -> JS
 
 async def news_feed(db: Session, user: str, provider: MarketProvider, days: int = 7, limit: int = 60) -> list[JSONDict]:
     """Merged, de-duplicated news for everything the user holds or watches, newest first."""
-    held = set(db.scalars(select(Holding.symbol).where(Holding.user_id == user)).all())
-    watched = set(db.scalars(select(WatchItem.symbol).where(WatchItem.user_id == user)).all())
+    held = set(await asyncio.to_thread(lambda: db.scalars(select(Holding.symbol).where(Holding.user_id == user)).all()))
+    watched = set(await asyncio.to_thread(lambda: db.scalars(select(WatchItem.symbol).where(WatchItem.user_id == user)).all()))
     syms = sorted(held | watched)[:25]  # stay inside provider rate limits
     results = await asyncio.gather(*(provider.news(s, days) for s in syms), return_exceptions=True)
     seen: set[str] = set()
