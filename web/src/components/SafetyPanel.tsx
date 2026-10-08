@@ -2,10 +2,11 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { api, ApiError, BuyPlan, CheckResult, Portfolio, RiskProfile, SafetyAnalysis, SafetyReport } from "@/lib/api";
+import { Account, api, ApiError, BuyPlan, CheckResult, RiskProfile, SafetyAnalysis, SafetyReport } from "@/lib/api";
 import { useApi } from "@/lib/useApi";
 import MoatCard from "./MoatCard";
 import { CheckView, GradeBadge, ScoreRing } from "./SafetyBits";
+import { isSampleData } from "@/lib/dataSource";
 
 function fmtFact(v: unknown) {
   if (v == null) return "—";
@@ -44,7 +45,7 @@ export default function SafetyPanel({ symbol }: { symbol: string }) {
                 {!profile.saved && <> · <Link href="/risk-profile" style={{ textDecoration: "underline" }}>set your profile</Link></>}
               </div>
             )}
-            {r && <div className="sub" style={{ fontSize: 11, marginTop: 4 }}>Based on {r.coverage_pct}% of the model{r.data_source.startsWith("mock") ? " · sample data" : ""}</div>}
+            {r && <div className="sub" style={{ fontSize: 11, marginTop: 4 }}>Based on {r.coverage_pct}% of the model{isSampleData(r.data_source) ? " · sample data" : ""}</div>}
           </div>
         </div>
         <div className="card span2">
@@ -96,26 +97,28 @@ export default function SafetyPanel({ symbol }: { symbol: string }) {
 
       <div className="card">
         <h2>How the score is built</h2>
-        <table>
-          <thead><tr><th>Component</th><th className="n">Value</th><th className="n">Points</th><th>Scale</th></tr></thead>
-          <tbody>
-            {r?.components.map((c) => (
-              <tr key={c.name} style={{ opacity: c.points == null ? 0.5 : 1 }}>
-                <td>{c.name}</td>
-                <td className="n">{fmtFact(c.value)}</td>
-                <td className="n">{c.points == null ? "no data" : `${c.points}/${c.max}`}</td>
-                <td className="sub" style={{ fontSize: 12 }}>{c.note}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <div className="scroll-x">
+          <table>
+            <thead><tr><th>Component</th><th className="n">Value</th><th className="n">Points</th><th>Scale</th></tr></thead>
+            <tbody>
+              {r?.components.map((c) => (
+                <tr key={c.name} style={{ opacity: c.points == null ? 0.5 : 1 }}>
+                  <td>{c.name}</td>
+                  <td className="n">{fmtFact(c.value)}</td>
+                  <td className="n">{c.points == null ? "no data" : `${c.points}/${c.max}`}</td>
+                  <td className="sub" style={{ fontSize: 12 }}>{c.note}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );
 }
 
 export function BuyCheck({ symbol }: { symbol: string }) {
-  const { data: p } = useApi<Portfolio>("/portfolio");
+  const { data: accounts } = useApi<Account[]>("/accounts");
   const [account, setAccount] = useState("");
   const [qty, setQty] = useState("");
   const [check, setCheck] = useState<CheckResult | null>(null);
@@ -125,7 +128,9 @@ export function BuyCheck({ symbol }: { symbol: string }) {
 
   const run = async () => {
     setMsg(null); setPlan(null);
-    try { setCheck(await api<CheckResult>("/safety/check", { method: "POST", json: { symbol, quantity: +qty } })); }
+    // size the buy against the book it would land in: paper accounts never count toward real money
+    const paper = accounts?.find((a) => a.id === +account)?.broker === "paper";
+    try { setCheck(await api<CheckResult>("/safety/check", { method: "POST", json: { symbol, quantity: +qty, mode: paper ? "paper" : "real" } })); }
     catch (e) { setMsg((e as Error).message); }
   };
   const makePlan = async () => {
@@ -143,9 +148,9 @@ export function BuyCheck({ symbol }: { symbol: string }) {
       <h2>Check a buy</h2>
       <div className="row">
         <label className="f">Account
-          <select value={account} onChange={(e) => setAccount(e.target.value)}>
+          <select value={account} onChange={(e) => { setAccount(e.target.value); setCheck(null); }}>
             <option value="">—</option>
-            {p?.accounts.map((a) => <option key={a.id} value={a.id}>{a.name}{a.broker === "paper" ? " (paper)" : ""}</option>)}
+            {accounts?.map((a) => <option key={a.id} value={a.id}>{a.name}{a.broker === "paper" ? " (paper)" : ""}</option>)}
           </select>
         </label>
         <label className="f">Shares<input type="number" min="0" step="any" value={qty} onChange={(e) => { setQty(e.target.value); setCheck(null); }} /></label>

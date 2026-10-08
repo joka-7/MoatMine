@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import AiSettingsCard from "@/components/AiSettingsCard";
-import { api, apiBase, authToken } from "@/lib/api";
+import { api, apiBase, CLERK_PUBLISHABLE_KEY, devToken } from "@/lib/api";
 import { date } from "@/lib/format";
 import { useApi } from "@/lib/useApi";
 
@@ -23,11 +23,12 @@ function Connection() {
   const [url, setUrl] = useState("");
   const [token, setToken] = useState("");
   const [status, setStatus] = useState<string>("");
-  useEffect(() => { setUrl(apiBase()); setToken(authToken()); }, []);
+  useEffect(() => { setUrl(apiBase()); setToken(devToken()); }, []);
   const save = async () => {
     localStorage.setItem("moatmine.api", url);
-    localStorage.setItem("moatmine.token", token);
-    try { const h = await api<{ market_provider: string }>("/health"); setStatus(`Connected · market data: ${h.market_provider}`); }
+    if (!CLERK_PUBLISHABLE_KEY) localStorage.setItem("moatmine.token", token);
+    // an authenticated call, so a wrong token fails here too, not just a wrong URL
+    try { await api("/safety/profile"); setStatus("Connected and signed in"); }
     catch (e) { setStatus(`Failed: ${(e as Error).message}`); }
   };
   return (
@@ -35,7 +36,11 @@ function Connection() {
       <h2>Connection</h2>
       <div className="grid" style={{ gap: 10 }}>
         <label className="f">API URL (Render)<input value={url} onChange={(e) => setUrl(e.target.value)} /></label>
-        <label className="f">Dev user token <span>(replaced by sign-in when AUTH_MODE=clerk)</span><input value={token} onChange={(e) => setToken(e.target.value)} /></label>
+        {CLERK_PUBLISHABLE_KEY ? (
+          <div className="sub" style={{ fontSize: 12 }}>Signed in with Clerk.</div>
+        ) : (
+          <label className="f">Dev user token <span>(local dev mode only; production signs in with Clerk)</span><input value={token} onChange={(e) => setToken(e.target.value)} /></label>
+        )}
         <div className="row" style={{ alignItems: "center" }}>
           <span className="sub">{status}</span>
           <button className="btn primary" onClick={save}>Save & test</button>
@@ -57,7 +62,7 @@ function McpTokens() {
       </div>
       {fresh && (
         <div className="card" style={{ background: "var(--bg)", marginBottom: 10 }}>
-          <div className="sub" style={{ fontSize: 12 }}>Copy now. It won't be shown again.</div>
+          <div className="sub" style={{ fontSize: 12 }}>Copy now. It won&apos;t be shown again.</div>
           <code style={{ wordBreak: "break-all" }}>{fresh}</code>
         </div>
       )}

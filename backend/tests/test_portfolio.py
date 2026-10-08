@@ -1,0 +1,238 @@
+"""Paper (practice) and real-money accounts are separate books everywhere money is measured."""
+
+import asyncio
+import json
+
+import pytest
+
+from app.ai.tools import run_tool
+from app.db import SessionLocal
+from app.errors import InsufficientPaperCashError, MarketDataError
+from app.market.base import Candle, Quote
+from app.models import Account
+from app.portfolio import held_value_by_day, pay_for_paper_buy, quotes_for
+from tests.conftest import auth
+
+P = auth("pat")
+
+
+@pytest.fixture(scope="module")
+def two_books(client):
+    """Real: 100k cash + 1 AAPL. Paper: 0 cash + 500 MSFT, i.e. 100% in one stock."""
+    real = client.post("/accounts", json={"name": "Broker", "broker": "manual", "cash": 100_000}, headers=P).json()["id"]
+    paper = client.post("/accounts", json={"name": "Practice", "broker": "paper", "cash": 0}, headers=P).json()["id"]
+    client.put("/safety/profile", json={"level": "growth", "max_position_pct": 8, "max_sector_pct": 100,
+                                        "min_safety_score": 0, "max_volatility_pct": 300, "min_market_cap_m": 0,
+                                        "allow_penny_stocks": True, "cooling_off_hours": 0}, headers=P)
+    client.post("/holdings", json={"account_id": real, "symbol": "AAPL", "quantity": 1, "avg_cost": 100}, headers=P)
+    # recorded straight into the DB: the paper book's own rules would (rightly) block this buy
+    from app.models import Holding
+
+    with SessionLocal() as db:
+        db.add(Holding(user_id="pat", account_id=paper, symbol="MSFT", quantity=500, avg_cost=300))
+        db.commit()
+    return {"real": real, "paper": paper}
+
+
+@pytest.mark.parametrize(
+    ("query", "symbols", "cash"),
+    [("", {"AAPL"}, 100_000), ("?mode=real", {"AAPL"}, 100_000), ("?mode=paper", {"MSFT"}, 0)],
+)
+def test_portfolio_snapshot_counts_one_book(client, two_books, query, symbols, cash):
+    p = client.get(f"/portfolio{query}", headers=P).json()
+    assert {h["symbol"] for h in p["holdings"]} == symbols
+    assert p["totals"]["cash"] == cash
+    assert p["totals"]["net_worth"] == pytest.approx(p["totals"]["invested_value"] + cash)
+    assert {a["broker"] == "paper" for a in p["accounts"]} == {p["mode"] == "paper"}
+
+
+def test_portfolio_snapshot_rejects_unknown_mode(client, two_books):
+    assert client.get("/portfolio?mode=both", headers=P).status_code == 422
+
+
+@pytest.mark.parametrize(("mode", "symbols"), [("real", {"AAPL"}), ("paper", {"MSFT"})])
+def test_risk_and_stress_use_one_book(client, two_books, mode, symbols):
+    r = client.get(f"/safety/portfolio?mode={mode}", headers=P).json()
+    assert r["mode"] == mode and r["holdings_count"] == 1
+    assert {b["subject"] for b in r["breaches"] if b["rule"] == "position_size"} == ({"MSFT"} if mode == "paper" else set())
+    s = client.get(f"/safety/stress?mode={mode}", headers=P).json()
+    worst = {w["symbol"] for sc in s["scenarios"] for w in sc["worst"]}
+    assert s["mode"] == mode and worst == symbols
+
+
+def test_history_uses_one_book(client, two_books):
+    real = client.get("/portfolio/history?days=30", headers=P).json()
+    paper = client.get("/portfolio/history?days=30&mode=paper", headers=P).json()
+    # 1 AAPL is worth a few hundred; 500 MSFT is worth six figures
+    assert max(x["value"] for x in real) < 1_000 < min(x["value"] for x in paper)
+
+
+@pytest.mark.parametrize(("mode", "verdict"), [("real", "pass"), ("paper", "block")])
+def test_safety_check_sizes_against_the_target_book(client, two_books, mode, verdict):
+    # 2,000 of MSFT is ~2% of the 100k real book; the paper book is already all MSFT, so it stays ~100% there
+    r = client.post("/safety/check", json={"symbol": "MSFT", "amount": 2_000, "mode": mode}, headers=P).json()
+    pos = next(c for c in r["checks"] if c["rule"] == "position_size")
+    assert r["mode"] == mode and (pos["status"] == "fail") is (verdict == "block")
+
+
+def test_worker_ignores_paper_concentration(client, two_books):
+    from app.worker import run_once
+
+    asyncio.run(run_once())
+    alerts = client.get("/alerts?unread_only=true", headers=P).json()
+    assert not any("MSFT" in a["message"] for a in alerts)
+
+
+@pytest.mark.parametrize(
+    ("tool", "args", "expect"),
+    [
+        ("get_portfolio", {}, lambda o: {h["symbol"] for h in o["holdings"]} == {"AAPL"}),
+        ("get_portfolio", {"mode": "paper"}, lambda o: {h["symbol"] for h in o["holdings"]} == {"MSFT"}),
+        ("get_portfolio_risk", {"mode": "paper"}, lambda o: o["mode"] == "paper" and o["holdings_count"] == 1),
+        ("get_stress_test", {"mode": "real"}, lambda o: o["mode"] == "real"),
+        ("safety_check", {"symbol": "MSFT", "amount": 2_000, "mode": "paper"}, lambda o: o["mode"] == "paper"),
+    ],
+)
+def test_agent_tools_take_a_book_mode(two_books, tool, args, expect):
+    with SessionLocal() as db:
+        out = json.loads(asyncio.run(run_tool(tool, args, db, "pat")))
+    assert expect(out), out
+
+
+@pytest.mark.parametrize(
+    ("broker", "cash", "qty", "status", "paid"),
+    [
+        ("paper", 1_000, 2, 201, True),  # 2 × the live quote is paid from paper cash
+        ("paper", 1_000, 20, 409, False),  # 20 × the quote > 1,000: refused, nothing changes
+        ("manual", 0, 20, 201, False),  # real accounts record broker trades; cash is the user's to edit
+    ],
+)
+def test_pay_for_paper_buy_on_add_holding(client, broker, cash, qty, status, paid):
+    who = auth(f"cashier-{broker}-{qty}")
+    loose = {"level": "growth", "max_position_pct": 100, "max_sector_pct": 100, "min_safety_score": 0,
+             "max_volatility_pct": 300, "min_market_cap_m": 0, "allow_penny_stocks": True, "cooling_off_hours": 0}
+    client.put("/safety/profile", json=loose, headers=who)
+    acc = client.post("/accounts", json={"name": "A", "broker": broker, "cash": cash}, headers=who).json()["id"]
+    price = client.get("/stocks/AAPL/quote").json()["price"]
+    r = client.post("/holdings", json={"account_id": acc, "symbol": "AAPL", "quantity": qty, "avg_cost": 100}, headers=who)
+    assert r.status_code == status, r.text
+    accounts = {a["id"]: a for a in client.get("/accounts", headers=who).json()}
+    assert accounts[acc]["cash"] == pytest.approx(cash - qty * price if paid else cash, abs=0.01)
+    held = client.get(f"/portfolio?mode={'paper' if broker == 'paper' else 'real'}", headers=who).json()["holdings"]
+    assert len(held) == (1 if status == 201 else 0)
+
+
+def test_pay_for_paper_buy_on_plan_execute(client):
+    who = auth("planner-cash")
+    loose = {"level": "growth", "max_position_pct": 100, "max_sector_pct": 100, "min_safety_score": 0,
+             "max_volatility_pct": 300, "min_market_cap_m": 0, "allow_penny_stocks": True, "cooling_off_hours": 0}
+    client.put("/safety/profile", json=loose, headers=who)
+    acc = client.post("/accounts", json={"name": "P", "broker": "paper", "cash": 10}, headers=who).json()["id"]
+    plan = client.post("/plans", json={"account_id": acc, "symbol": "MSFT", "quantity": 1,
+                                       "note": "Practice buy to test the paper cash balance."}, headers=who).json()
+    assert plan["status"] == "ready", plan
+    r = client.post(f"/plans/{plan['id']}/execute", headers=who)
+    assert r.status_code == 409 and "paper cash" in r.json()["detail"]["message"]
+    assert client.get("/portfolio?mode=paper", headers=who).json()["holdings"] == []
+
+
+LOOSE_RULES = {"level": "growth", "max_position_pct": 100, "max_sector_pct": 100, "min_safety_score": 0,
+               "max_volatility_pct": 300, "min_market_cap_m": 0, "allow_penny_stocks": True, "cooling_off_hours": 0}
+
+
+def _paper_account(client, who: dict[str, str], cash: float, broker: str = "paper") -> int:
+    client.put("/safety/profile", json=LOOSE_RULES, headers=who)
+    acc: int = client.post("/accounts", json={"name": "P", "broker": broker, "cash": cash}, headers=who).json()["id"]
+    return acc
+
+
+@pytest.mark.parametrize(("start", "change"), [("paper", "manual"), ("manual", "paper")])
+def test_update_account_cannot_move_between_books(client, start, change):
+    who = auth(f"switcher-{start}")
+    acc = _paper_account(client, who, 1_000, broker=start)
+    r = client.put(f"/accounts/{acc}", json={"name": "P", "broker": change, "cash": 1_000}, headers=who)
+    assert r.status_code == 409
+
+
+def test_broker_is_normalised_so_paper_spelling_counts(client):
+    who = auth("caps-paper")
+    _paper_account(client, who, 5_000, broker=" Paper ")
+    assert client.get("/portfolio?mode=paper", headers=who).json()["totals"]["cash"] == 5_000
+    assert client.get("/portfolio", headers=who).json()["totals"]["cash"] == 0
+
+
+def test_paper_add_holding_prices_at_the_quote_not_the_typed_cost(client):
+    who = auth("zero-cost")
+    acc = _paper_account(client, who, 1_000)
+    price = client.get("/stocks/MSFT/quote").json()["price"]
+    r = client.post("/holdings", json={"account_id": acc, "symbol": "MSFT", "quantity": 1000, "avg_cost": 0}, headers=who)
+    assert r.status_code == 409  # 1000 × the real price is far more than 1,000 cash
+    r = client.post("/holdings", json={"account_id": acc, "symbol": "MSFT", "quantity": 1, "avg_cost": 0}, headers=who)
+    assert r.status_code == 201
+    book = client.get("/portfolio?mode=paper", headers=who).json()
+    assert book["holdings"][0]["avg_cost"] == price and book["totals"]["cash"] == pytest.approx(1_000 - price, abs=0.01)
+
+
+def test_paper_holdings_resize_only_through_buys_and_sell_back_on_delete(client):
+    who = auth("resizer")
+    acc = _paper_account(client, who, 10_000)
+    hid = client.post("/holdings", json={"account_id": acc, "symbol": "AAPL", "quantity": 2, "avg_cost": 1}, headers=who).json()["id"]
+    assert client.patch(f"/holdings/{hid}", json={"quantity": 100_000}, headers=who).status_code == 409
+    assert client.patch(f"/holdings/{hid}", json={"avg_cost": 1}, headers=who).status_code == 409
+    price = client.get("/stocks/AAPL/quote").json()["price"]
+    assert client.delete(f"/holdings/{hid}", headers=who).status_code == 204
+    assert client.get("/portfolio?mode=paper", headers=who).json()["totals"]["cash"] == pytest.approx(10_000, abs=0.01)
+    assert price > 0
+
+
+D = 86400
+
+
+def _bars(*closes: tuple[int, float]) -> list[Candle]:
+    return [{"t": day * D + 3600, "o": c, "h": c, "l": c, "c": c, "v": 0} for day, c in closes]
+
+
+@pytest.mark.parametrize(
+    ("series", "expected"),
+    [
+        # B skips day 2: its day-1 close carries forward instead of the total dropping to A alone
+        ({"A": _bars((1, 10), (2, 11), (3, 12)), "B": _bars((1, 100), (3, 90))}, [(1, 120), (2, 122), (3, 114)]),
+        # B lists on day 2: the series starts once both have a price
+        ({"A": _bars((1, 10), (2, 11), (3, 12)), "B": _bars((2, 100), (3, 90))}, [(2, 122), (3, 114)]),
+        # a symbol with no bars is left out rather than zeroing the whole series
+        ({"A": _bars((1, 10), (2, 11)), "B": []}, [(1, 20), (2, 22)]),
+        ({"A": [], "B": []}, []),
+    ],
+)
+def test_held_value_by_day(series, expected):
+    # 2 A and 1 B held throughout
+    got = held_value_by_day(series, {"A": 2, "B": 1})
+    assert [(p["t"] // D, p["value"]) for p in got] == expected
+
+
+@pytest.mark.parametrize(("broker", "cash", "cost", "left"), [
+    ("paper", 1_000.0, 999.99, 0.01),
+    ("paper", 1_000.0, 1_000.0, 0.0),  # exactly all of it
+    ("paper", 1_000.0, 1_000.01, InsufficientPaperCashError),
+    ("manual", 0.0, 5_000.0, 0.0),  # real accounts record trades already paid at the broker
+])
+def test_pay_for_paper_buy(broker, cash, cost, left):
+    acc = Account(user_id="u", name="A", broker=broker, cash=cash)
+    if left is InsufficientPaperCashError:
+        with pytest.raises(InsufficientPaperCashError):
+            pay_for_paper_buy(acc, cost)
+        assert acc.cash == cash  # untouched on refusal
+    else:
+        pay_for_paper_buy(acc, cost)
+        assert acc.cash == left
+
+
+def test_quotes_for_drops_failed_symbols():
+    class _Half:
+        async def quote(self, symbol: str) -> Quote:
+            if symbol == "BAD":
+                raise MarketDataError("no price")
+            return {"symbol": symbol, "price": 1.0, "change": 0.0, "change_pct": 0.0, "prev_close": 1.0, "ts": 0}
+
+    got = asyncio.run(quotes_for(_Half(), {"GOOD", "BAD"}))  # type: ignore[arg-type]
+    assert set(got) == {"GOOD"}

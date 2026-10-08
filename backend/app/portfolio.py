@@ -1,26 +1,83 @@
-"""Portfolio valuation shared by the API, the AI tools, the MCP server and the worker."""
+"""Portfolio valuation shared by the API, the AI tools, the MCP server and the worker.
+
+Paper (practice) accounts and real accounts are two separate books: every total, risk number,
+stress test, alert and position-size check is computed for one book only, so practice money
+never makes the real portfolio look bigger or more diversified than it is.
+"""
 
 import asyncio
+import logging
+from collections.abc import Awaitable, Callable
+from typing import Literal
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.market.base import MarketProvider
+from app.cache import ttl_cache
+from app.errors import InsufficientPaperCashError
+from app.jsontypes import JSONDict
+from app.market import describe_error
+from app.market.base import Candle, MarketProvider, Quote
 from app.models import Account, Holding
 
+logger = logging.getLogger(__name__)
 
-async def quotes_for(provider: MarketProvider, symbols: set[str]) -> dict[str, dict]:
+BookMode = Literal["real", "paper"]
+PAPER_BROKER = "paper"
+
+
+def is_paper(account: Account) -> bool:
+    return account.broker == PAPER_BROKER
+
+
+def book_mode_of(account: Account) -> BookMode:
+    return "paper" if is_paper(account) else "real"
+
+
+def pay_for_paper_buy(account: Account, cost: float) -> None:
+    """Take a paper buy's cost out of the paper account's cash.
+
+    Real accounts are left alone: they record trades that already happened at the broker, and the
+    user keeps their cash figure in step with the broker statement.
+
+    Raises:
+        InsufficientPaperCashError: the paper account can't cover the cost.
+    """
+    if not is_paper(account):
+        return
+    if cost > account.cash + 1e-9:
+        raise InsufficientPaperCashError(f"{account.name} has {account.cash:,.2f} paper cash; this buy costs {cost:,.2f}")
+    account.cash = round(account.cash - cost, 2)
+
+
+def accounts_in_book(db: Session, user_id: str, mode: BookMode) -> list[Account]:
+    paper = Account.broker == PAPER_BROKER
+    q = select(Account).where(Account.user_id == user_id, paper if mode == "paper" else ~paper)
+    return list(db.scalars(q.order_by(Account.id)).all())
+
+
+def holdings_in_book(db: Session, user_id: str, mode: BookMode) -> list[Holding]:
+    ids = [a.id for a in accounts_in_book(db, user_id, mode)]
+    return list(db.scalars(select(Holding).where(Holding.user_id == user_id, Holding.account_id.in_(ids))).all())
+
+
+async def quotes_for(provider: MarketProvider, symbols: set[str]) -> dict[str, Quote]:
     syms = sorted(symbols)
     results = await asyncio.gather(*(provider.quote(s) for s in syms), return_exceptions=True)
-    return {s: q for s, q in zip(syms, results) if not isinstance(q, Exception)}
+    for s, q in zip(syms, results, strict=True):
+        if isinstance(q, BaseException):  # the holding is then marked stale and priced at cost
+            logger.warning("quote failed", extra={"symbol": s, **describe_error(q)})
+    return {s: q for s, q in zip(syms, results, strict=True) if not isinstance(q, BaseException)}
 
 
-async def portfolio_snapshot(db: Session, user_id: str, provider: MarketProvider) -> dict:
-    accounts = db.scalars(select(Account).where(Account.user_id == user_id)).all()
-    holdings = db.scalars(select(Holding).where(Holding.user_id == user_id)).all()
+async def portfolio_snapshot(db: Session, user_id: str, provider: MarketProvider, mode: BookMode = "real") -> JSONDict:
+    """Accounts, priced holdings and totals for one book (real money by default, or paper)."""
+    # sync SQLAlchemy session: run the queries off the event loop
+    accounts = await asyncio.to_thread(accounts_in_book, db, user_id, mode)
+    holdings = await asyncio.to_thread(holdings_in_book, db, user_id, mode)
     quotes = await quotes_for(provider, {h.symbol for h in holdings})
 
-    rows = []
+    rows: list[JSONDict] = []
     total_cost = total_value = day_change = 0.0
     for h in holdings:
         q = quotes.get(h.symbol)
@@ -54,6 +111,7 @@ async def portfolio_snapshot(db: Session, user_id: str, provider: MarketProvider
         r["weight_pct"] = round(r["value"] / total_value * 100, 2) if total_value else 0.0
 
     return {
+        "mode": mode,
         "accounts": [
             {"id": a.id, "name": a.name, "broker": a.broker, "currency": a.currency, "cash": a.cash} for a in accounts
         ],
@@ -66,5 +124,52 @@ async def portfolio_snapshot(db: Session, user_id: str, provider: MarketProvider
             "pnl": round(total_value - total_cost, 2),
             "pnl_pct": round((total_value / total_cost - 1) * 100, 2) if total_cost else 0.0,
             "day_change": round(day_change, 2),
+            # holdings without a live quote, valued at what was paid: totals and P/L are incomplete
+            "unpriced": sorted({r["symbol"] for r in rows if r["stale"]}),
         },
     }
+
+
+def held_value_by_day(series: dict[str, list[Candle]], qty: dict[str, float]) -> list[JSONDict]:
+    """Daily value of fixed quantities, from each symbol's daily bars.
+
+    Symbols trade on different days (holidays, listings, gaps in the data), so a day missing for
+    one symbol carries its last close forward instead of dropping it from that day's total.
+    The series starts on the first day every symbol has a price; symbols with no bars at all
+    are left out.
+    """
+    closes = {s: {b["t"] - b["t"] % 86400: b["c"] for b in bars} for s, bars in series.items() if bars}
+    if not closes:
+        return []
+    first = max(min(d) for d in closes.values())
+    last: dict[str, float] = {}
+    out: list[JSONDict] = []
+    for day in sorted(set().union(*closes.values())):
+        for s, by_day in closes.items():
+            if day in by_day:
+                last[s] = by_day[day]
+        if day >= first:
+            out.append({"t": day, "value": round(sum(last[s] * qty[s] for s in closes), 2)})
+    return out
+
+
+CandleFetch = Callable[[MarketProvider, str, int, int], Awaitable[list[Candle]]]
+
+
+async def daily_candles(provider: MarketProvider, symbol: str, start: int, end: int) -> list[Candle]:
+    return await provider.candles(symbol, "D", start, end)
+
+
+# the worker asks for the same day-aligned year of bars every pass; fetch each symbol once a day
+cached_daily_candles: CandleFetch = ttl_cache(24 * 3600)(daily_candles)
+
+
+async def held_value_history(provider: MarketProvider, holdings: list[Holding], days: int, now: int,
+                             fetch: CandleFetch = daily_candles) -> list[JSONDict]:
+    """Daily value over the last `days` of the given holdings at today's quantities."""
+    syms = sorted({h.symbol for h in holdings})
+    series = await asyncio.gather(*(fetch(provider, s, now - days * 86400, now) for s in syms))
+    qty: dict[str, float] = {}
+    for h in holdings:
+        qty[h.symbol] = qty.get(h.symbol, 0) + h.quantity
+    return held_value_by_day(dict(zip(syms, series, strict=True)), qty)

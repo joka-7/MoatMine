@@ -1,17 +1,27 @@
 """Finnhub provider. Free tier covers quote, news, metrics, profile, search.
 
 Note: Finnhub's /stock/candle needs a paid plan on most accounts. If it errors,
-candles fall back to the mock series so charts still render (clearly flagged
-via the `X-Data-Source` header set by the router).
+candles fall back to the mock series so charts still render, and the fallback is
+recorded with app.market.sources so every result built on those bars is labelled
+as sample data.
 """
 
+import asyncio
+import logging
 import time
 from datetime import date, timedelta
+from typing import Any
 
 import httpx
 
+from app.errors import MarketDataError
+from app.jsontypes import JSONDict
 from app.market.base import Candle, NewsItem, Quote
 from app.market.mock import MockProvider
+from app.market.retry import Sleep, get_with_retry
+from app.market.sources import MOCK_FALLBACK, note_source
+
+logger = logging.getLogger(__name__)
 
 BASE = "https://finnhub.io/api/v1"
 
@@ -38,21 +48,26 @@ _METRIC_MAP = {
 class FinnhubProvider:
     name = "finnhub"
 
-    def __init__(self, api_key: str):
-        self._client = httpx.AsyncClient(base_url=BASE, timeout=10, params={"token": api_key})
+    def __init__(self, api_key: str, transport: httpx.AsyncBaseTransport | None = None,
+                 sleep: Sleep = asyncio.sleep):
+        self._sleep = sleep  # injected so tests don't wait out the backoff
+        # the key goes in a header, not the URL, so it can't leak through logged URLs or error messages
+        self._client = httpx.AsyncClient(base_url=BASE, timeout=10, headers={"X-Finnhub-Token": api_key}, transport=transport)
         self._fallback = MockProvider()
-        self.candles_fell_back = False
 
-    async def _get(self, path: str, **params):
-        r = await self._client.get(path, params=params)
-        r.raise_for_status()
+    async def _get(self, path: str, **params: str | int) -> Any:  # raw JSON, mapped by each caller
+        r = await get_with_retry(self._client, path, dict(params), self._sleep)
         return r.json()
 
     async def quote(self, symbol: str) -> Quote:
         d = await self._get("/quote", symbol=symbol)
+        if not d.get("c"):
+            # Finnhub answers unknown or delisted symbols with c=0 rather than an error; a $0 price
+            # would read as a -100% loss and fire false alerts
+            raise MarketDataError(f"no price for {symbol}")
         return {
             "symbol": symbol,
-            "price": d.get("c") or 0.0,
+            "price": d["c"],
             "change": d.get("d") or 0.0,
             "change_pct": d.get("dp") or 0.0,
             "prev_close": d.get("pc") or 0.0,
@@ -64,13 +79,16 @@ class FinnhubProvider:
             d = await self._get("/stock/candle", symbol=symbol, resolution=resolution, **{"from": start, "to": end})
             if d.get("s") != "ok":
                 return []
-            self.candles_fell_back = False
             return [
                 {"t": t, "o": o, "h": h, "l": lo, "c": c, "v": v}
-                for t, o, h, lo, c, v in zip(d["t"], d["o"], d["h"], d["l"], d["c"], d["v"])
+                for t, o, h, lo, c, v in zip(d["t"], d["o"], d["h"], d["l"], d["c"], d["v"], strict=True)
             ]
-        except httpx.HTTPStatusError:
-            self.candles_fell_back = True
+        except httpx.HTTPStatusError as e:
+            logger.warning(
+                "finnhub candles unavailable; using sample data",
+                extra={"symbol": symbol, "status_code": e.response.status_code},
+            )
+            note_source(MOCK_FALLBACK)
             return await self._fallback.candles(symbol, resolution, start, end)
 
     async def metrics(self, symbol: str) -> dict[str, float | None]:
@@ -94,7 +112,7 @@ class FinnhubProvider:
             for n in items[:30]
         ]
 
-    async def profile(self, symbol: str) -> dict:
+    async def profile(self, symbol: str) -> JSONDict:
         p = await self._get("/stock/profile2", symbol=symbol)
         return {
             "symbol": symbol,
@@ -106,7 +124,7 @@ class FinnhubProvider:
             "market_cap": p.get("marketCapitalization"),
         }
 
-    async def search(self, query: str) -> list[dict]:
+    async def search(self, query: str) -> list[JSONDict]:
         d = await self._get("/search", q=query)
         return [{"symbol": r["symbol"], "name": r.get("description", "")} for r in d.get("result", [])[:15]]
 
@@ -116,13 +134,14 @@ class FinnhubProvider:
     # Company descriptions and financial statements aren't in Finnhub's free data; set
     # FMP_API_KEY and the router sends those calls to FMP instead.
 
-    async def _safe(self, path: str, default, **params):
+    async def _safe(self, path: str, default: object, **params: str | int) -> Any:  # raw JSON, or default
         try:
             return await self._get(path, **params)
-        except httpx.HTTPStatusError:
+        except httpx.HTTPStatusError as e:  # expected on plans without this endpoint
+            logger.debug("finnhub endpoint unavailable", extra={"path": path, "status_code": e.response.status_code})
             return default
 
-    async def company(self, symbol: str) -> dict:
+    async def company(self, symbol: str) -> JSONDict:
         p = await self._safe("/stock/profile2", {}, symbol=symbol)
         return {
             "description": "",
@@ -136,7 +155,7 @@ class FinnhubProvider:
             "logo": p.get("logo", ""),
         }
 
-    async def earnings(self, symbol: str) -> list[dict]:
+    async def earnings(self, symbol: str) -> list[JSONDict]:
         rows = await self._safe("/stock/earnings", [], symbol=symbol)
         return [
             {
@@ -148,7 +167,7 @@ class FinnhubProvider:
             for r in rows
         ]
 
-    async def recommendations(self, symbol: str) -> list[dict]:
+    async def recommendations(self, symbol: str) -> list[JSONDict]:
         rows = await self._safe("/stock/recommendation", [], symbol=symbol)
         return [
             {
@@ -159,7 +178,7 @@ class FinnhubProvider:
             for r in rows
         ]
 
-    async def price_target(self, symbol: str) -> dict | None:
+    async def price_target(self, symbol: str) -> JSONDict | None:
         d = await self._safe("/stock/price-target", None, symbol=symbol)
         if not d or d.get("targetMean") is None:
             return None
@@ -168,12 +187,12 @@ class FinnhubProvider:
             "median": d.get("targetMedian"), "updated": d.get("lastUpdated", ""),
         }
 
-    async def dividends(self, symbol: str) -> list[dict]:
+    async def dividends(self, symbol: str) -> list[JSONDict]:
         today = date.today()
         rows = await self._safe("/stock/dividend", [], symbol=symbol, **{"from": str(today - timedelta(days=365 * 5)), "to": str(today)})
         return sorted(({"date": r.get("exDate") or r.get("date", ""), "amount": r.get("amount")} for r in rows), key=lambda r: r["date"], reverse=True)
 
-    async def splits(self, symbol: str) -> list[dict]:
+    async def splits(self, symbol: str) -> list[JSONDict]:
         today = date.today()
         rows = await self._safe("/stock/split", [], symbol=symbol, **{"from": "2000-01-01", "to": str(today)})
         return sorted(
@@ -181,11 +200,11 @@ class FinnhubProvider:
             key=lambda r: r["date"], reverse=True,
         )
 
-    async def fundamentals(self, symbol: str) -> dict:
+    async def fundamentals(self, symbol: str) -> JSONDict:
         m = (await self._safe("/stock/metric", {}, symbol=symbol, metric="all")).get("metric", {})
         prof = await self._safe("/stock/profile2", {}, symbol=symbol)
 
-        def first(*keys):
+        def first(*keys: str) -> Any:  # a raw Finnhub metric value
             for k in keys:
                 if m.get(k) is not None:
                     return m[k]
@@ -194,8 +213,8 @@ class FinnhubProvider:
         price = None
         try:
             price = (await self.quote(symbol))["price"]
-        except httpx.HTTPError:
-            pass
+        except httpx.HTTPError as e:  # fcf_per_share then falls back to Finnhub's own field
+            logger.warning("finnhub quote failed inside fundamentals", extra={"symbol": symbol, "error": type(e).__name__})
         pfcf = first("pfcfShareTTM", "pfcfShareAnnual")
         ev = first("enterpriseValue")
         ev_ebitda = first("evEbitdaTTM", "currentEv/ebitdaTTM")
@@ -214,7 +233,7 @@ class FinnhubProvider:
             "statements": None,
         }
 
-    async def history(self, symbol: str) -> list[dict]:
+    async def history(self, symbol: str) -> list[JSONDict]:
         # Annual statements need FMP (or a paid Finnhub plan); the Moat grade then falls back
         # to the 5-year return-on-investment average in fundamentals()["roic_5y"].
         return []

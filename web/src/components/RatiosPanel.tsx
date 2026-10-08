@@ -5,12 +5,14 @@ import { Bar, BarChart, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from 
 import { Ratios } from "@/lib/api";
 import { num } from "@/lib/format";
 import { useApi } from "@/lib/useApi";
+import { isSampleData } from "@/lib/dataSource";
 
 const GROUPS: { title: string; keys: [string, string, string?][] }[] = [
   { title: "Valuation", keys: [["pe", "P/E"], ["forward_pe", "Fwd P/E"], ["pb", "P/B"], ["ps", "P/S"], ["peg", "PEG"], ["eps", "EPS"]] },
   { title: "Profitability", keys: [["roe", "ROE", "%"], ["roa", "ROA", "%"], ["gross_margin", "Gross margin", "%"], ["net_margin", "Net margin", "%"]] },
   { title: "Health & income", keys: [["debt_to_equity", "Debt/Equity"], ["current_ratio", "Current ratio"], ["dividend_yield", "Div. yield", "%"], ["beta", "Beta"]] },
 ];
+const VALUATION_LABEL: Record<string, string> = Object.fromEntries(GROUPS[0]?.keys.map(([k, label]) => [k, label]) ?? []);
 const PRICE: [string, string, string?][] = [
   ["total_return_pct", "Return", "%"], ["volatility_pct", "Volatility (ann.)", "%"], ["max_drawdown_pct", "Max drawdown", "%"],
   ["sharpe", "Sharpe"], ["sortino", "Sortino"], ["rsi14", "RSI 14"], ["sma50", "SMA 50"], ["sma200", "SMA 200"],
@@ -32,13 +34,13 @@ export default function RatiosPanel({ symbol }: { symbol: string }) {
   const f = data?.fundamental ?? {};
   const bars = (["pe", "forward_pe", "pb", "ps", "peg"] as const)
     .filter((k) => f[k] != null)
-    .map((k) => ({ name: GROUPS[0].keys.find(([kk]) => kk === k)![1], value: f[k] as number }));
+    .map((k) => ({ name: VALUATION_LABEL[k] ?? k, value: f[k] as number }));
 
   return (
     <div className="card">
       <div className="row" style={{ justifyContent: "space-between", marginBottom: 6 }}>
         <h2 style={{ margin: 0 }}>Ratios</h2>
-        <div className="seg" style={{ flex: 0 }}>
+        <div className="seg" style={{ flex: "0 1 auto" }}>
           {LOOKBACK.map((d) => (
             <button key={d} className={`btn sm ${d === lb ? "on" : ""}`} onClick={() => setLb(d)}>{d < 365 ? `${d / 30}M` : `${d / 365}Y`}</button>
           ))}
@@ -57,6 +59,7 @@ export default function RatiosPanel({ symbol }: { symbol: string }) {
           {PRICE.map(([k, label, unit]) => <Cellv key={k} label={label} v={data?.price[k]} unit={unit} />)}
         </div>
       </div>
+      {isSampleData(data?.data_source) && <div className="sub" style={{ fontSize: 11, marginTop: 6 }}>Price &amp; risk figures use sample data, not real prices.</div>}
       {bars.length > 0 && (
         <div style={{ height: 160, marginTop: 14 }}>
           <ResponsiveContainer>

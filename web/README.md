@@ -1,36 +1,29 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# MoatMine web
 
-## Getting Started
+The MoatMine UI: Next.js 16 (App Router, Turbopack) with React 19. It is one codebase built two ways:
 
-First, run the development server:
+- `npm run build` is the Vercel deployment.
+- `npm run build:desktop` is a static export to `out/` that the Tauri app in `../desktop` loads.
+
+Both call the same FastAPI backend (`../backend`).
+
+## Run
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+cp .env.example .env.local   # NEXT_PUBLIC_API_URL, optional NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
+npm install
+npm run dev                  # http://localhost:3000, against the API on :8000
+npx tsc --noEmit             # type check
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Auth
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+- With `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` set, the app sits behind Clerk sign-in and every API call carries Clerk's session token (`authToken()` in `src/lib/api.ts`).
+- Without it, the app runs in local dev mode: the API must run `AUTH_MODE=dev`, and the user id comes from Settings.
+- The static export can't ship `@clerk/nextjs`'s server parts, so `next.config.ts` swaps in `@clerk/react` for that build only.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Where things are
 
-## Learn More
+Pages are in `src/app/<route>/page.tsx`. Shared components are in `src/components/`. The API client, formatters and hooks are in `src/lib/`.
 
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+[`../docs/STRUCTURE.md`](../docs/STRUCTURE.md) has the full file map. [`../docs/screenshots/`](../docs/screenshots/) has every page at desktop and phone width.

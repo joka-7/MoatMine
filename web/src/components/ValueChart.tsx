@@ -2,26 +2,36 @@
 
 import { AreaSeries, ColorType, UTCTimestamp, createChart, IChartApi } from "lightweight-charts";
 import { useEffect, useRef, useState } from "react";
-import { api } from "@/lib/api";
+import { apiWithHeaders } from "@/lib/api";
+import type { BookMode } from "@/lib/useBookMode";
+import { isSampleData } from "@/lib/dataSource";
 
 const SPANS = [30, 90, 180, 365, 1095] as const;
 const LABEL: Record<number, string> = { 30: "1M", 90: "3M", 180: "6M", 365: "1Y", 1095: "3Y" };
 
-export default function ValueChart() {
+export default function ValueChart({ mode }: { mode: BookMode }) {
   const el = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const [days, setDays] = useState<number>(180);
   const [points, setPoints] = useState<{ t: number; value: number }[] | null>(null);
+  const [source, setSource] = useState("");
 
   useEffect(() => {
-    api<{ t: number; value: number }[]>(`/portfolio/history?days=${days}`).then(setPoints).catch(() => setPoints([]));
-  }, [days]);
+    let current = true; // drop the response if days/mode changed before it arrived
+    setPoints(null); // and don't keep drawing the previous book's line meanwhile
+    apiWithHeaders<{ t: number; value: number }[]>(`/portfolio/history?days=${days}&mode=${mode}`)
+      .then(({ data, headers }) => { if (current) { setPoints(data); setSource(headers.get("X-Data-Source") ?? ""); } })
+      .catch(() => { if (current) setPoints([]); });
+    return () => { current = false; };
+  }, [days, mode]);
 
   useEffect(() => {
     if (!el.current || !points?.length) return;
     const chart = createChart(el.current, {
       autoSize: true,
       height: 260,
+      // fixed locale: the default (navigator.language) can be "en-US@posix" on Linux/C locales, which Intl rejects
+      localization: { locale: "en-US" },
       layout: { background: { type: ColorType.Solid, color: "transparent" }, textColor: "#8b909a" },
       grid: { vertLines: { visible: false }, horzLines: { color: "#1d2128" } },
       rightPriceScale: { borderVisible: false },
@@ -41,14 +51,14 @@ export default function ValueChart() {
     <div className="card">
       <div className="row" style={{ justifyContent: "space-between", marginBottom: 8 }}>
         <h2 style={{ margin: 0 }}>Holdings value</h2>
-        <div className="seg" style={{ flex: 0 }}>
+        <div className="seg" style={{ flex: "0 1 auto" }}>
           {SPANS.map((d) => (
             <button key={d} className={`btn sm ${d === days ? "on" : ""}`} onClick={() => setDays(d)}>{LABEL[d]}</button>
           ))}
         </div>
       </div>
       {points && !points.length ? <div className="empty">Add holdings to see value over time.</div> : <div ref={el} style={{ height: 260 }} />}
-      <div className="sub" style={{ fontSize: 12 }}>Current quantities priced historically. Scroll to zoom, drag to pan.</div>
+      <div className="sub" style={{ fontSize: 12 }}>Current quantities priced historically{isSampleData(source) ? " (sample data, not real prices)" : ""}. Scroll to zoom, drag to pan.</div>
     </div>
   );
 }

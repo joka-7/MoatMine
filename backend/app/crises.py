@@ -9,9 +9,11 @@ Uses weekly closes, so depths are slightly shallower than intraday/daily lows.
 
 import asyncio
 import time
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 
+from app.jsontypes import JSONDict
 from app.market.base import Candle, MarketProvider
+from app.market.sources import source_label, track_sources
 
 CRISES = [
     # key, name, start (market peak), end (market trough), short description
@@ -27,14 +29,14 @@ HISTORY_START = "1999-01-01"
 
 
 def _ts(d: str) -> int:
-    return int(datetime.fromisoformat(d).replace(tzinfo=timezone.utc).timestamp())
+    return int(datetime.fromisoformat(d).replace(tzinfo=UTC).timestamp())
 
 
 def _day(t: int) -> str:
-    return datetime.fromtimestamp(t, timezone.utc).date().isoformat()
+    return datetime.fromtimestamp(t, UTC).date().isoformat()
 
 
-def crisis_stats(bars: list[Candle], start: str, end: str) -> dict | None:
+def crisis_stats(bars: list[Candle], start: str, end: str) -> JSONDict | None:
     """Metrics for one window, or None if the stock didn't trade through it."""
     s, e = _ts(start), _ts(end)
     window = [b for b in bars if s <= b["t"] <= e + 7 * 86400]
@@ -56,11 +58,12 @@ def crisis_stats(bars: list[Candle], start: str, end: str) -> dict | None:
     }
 
 
-def worst_drawdowns(bars: list[Candle], n: int = 5, min_depth: float = 10.0) -> list[dict]:
+def worst_drawdowns(bars: list[Candle], n: int = 5, min_depth: float = 10.0) -> list[JSONDict]:
     """Largest non-overlapping peak-to-trough falls of at least `min_depth`%."""
     if len(bars) < 2:
         return []
-    episodes, peak, trough = [], bars[0], None
+    episodes: list[tuple[Candle, Candle, Candle | None]] = []
+    peak, trough = bars[0], None
     for b in bars[1:]:
         if b["c"] >= peak["c"]:
             if trough:  # back at the old high: episode closed
@@ -71,7 +74,7 @@ def worst_drawdowns(bars: list[Candle], n: int = 5, min_depth: float = 10.0) -> 
             trough = b
     if trough:  # still under water
         episodes.append((peak, trough, None))
-    out = []
+    out: list[JSONDict] = []
     for p, t, r in episodes:
         depth = (t["c"] / p["c"] - 1) * 100
         if -depth < min_depth:
@@ -88,7 +91,7 @@ def worst_drawdowns(bars: list[Candle], n: int = 5, min_depth: float = 10.0) -> 
     return sorted(out, key=lambda x: x["depth_pct"])[:n]
 
 
-def _resilience(rows: list[dict]) -> dict:
+def _resilience(rows: list[JSONDict]) -> JSONDict:
     pairs = [(r["stock"]["drawdown_pct"], r["benchmark"]["drawdown_pct"]) for r in rows if r["stock"] and r["benchmark"]]
     if not pairs:
         return {"downside_capture_pct": None, "label": "not enough history", "crises_covered": 0}
@@ -114,13 +117,14 @@ def _resilience(rows: list[dict]) -> dict:
     }
 
 
-async def bad_times(provider: MarketProvider, symbol: str, benchmark: str = "SPY") -> dict:
+async def bad_times(provider: MarketProvider, symbol: str, benchmark: str = "SPY") -> JSONDict:
     end = int(time.time())
     start = _ts(HISTORY_START)
-    stock_bars, bench_bars = await asyncio.gather(
-        provider.candles(symbol, "W", start, end),
-        provider.candles(benchmark, "W", start, end) if benchmark != symbol else asyncio.sleep(0, result=None),
-    )
+    with track_sources() as used:
+        stock_bars, bench_bars = await asyncio.gather(
+            provider.candles(symbol, "W", start, end),
+            provider.candles(benchmark, "W", start, end) if benchmark != symbol else asyncio.sleep(0, result=None),
+        )
     if bench_bars is None:
         bench_bars = stock_bars
     rows = []
@@ -138,7 +142,7 @@ async def bad_times(provider: MarketProvider, symbol: str, benchmark: str = "SPY
         "crises": rows,
         "resilience": _resilience(rows),
         "worst_drawdowns": worst_drawdowns(stock_bars),
-        "data_source": "mock-fallback" if getattr(provider, "candles_fell_back", False) else provider.name,
+        "data_source": source_label(provider.name, used),
         "note": "Weekly closes. Past behaviour in crises does not predict future behaviour.",
         "as_of": date.today().isoformat(),
     }

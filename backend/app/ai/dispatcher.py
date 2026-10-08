@@ -14,11 +14,16 @@ that vendor; "external" uses only the user's external agent.
 
 from __future__ import annotations
 
+import asyncio
 import re
-from collections.abc import Awaitable, Callable
+from collections.abc import Callable
+from datetime import UTC, date, datetime
+from typing import Protocol
 
+import httpx2
 from model_dispatcher import (
     CompletionRequest,
+    CompletionResponse,
     GatewaySettings,
     InMemoryQuotaStore,
     Message,
@@ -26,24 +31,23 @@ from model_dispatcher import (
     ModelGateway,
     ModelTier,
     ProviderRegistry,
-    RoutingPolicy,
     Role,
+    RoutingPolicy,
     RunResult,
     TenantContext,
     TenantId,
     TenantQuota,
-    Tool,
     ToolRegistry,
-    ToolSpec,
 )
 from model_dispatcher.byok import adispatch_with_timeout, credential_metadata
 from model_dispatcher.providers import AnthropicProvider, GeminiProvider, GroqProvider, OpenAIProvider
 from model_dispatcher.providers.base import ModelProvider
 from sqlalchemy.orm import Session
 
-from app.ai.settings_store import load_ai_settings
-from app.ai.tools import TOOL_SPECS, run_tool
+from app.ai.settings_store import check_public_https_url, load_ai_settings
 from app.config import get_settings
+from app.errors import DispatchError
+from app.jsontypes import JSONDict
 
 SYSTEM_PROMPT = (
     "You are MoatMine's investment assistant. The app's purpose is safe, risk-aware investing. "
@@ -56,7 +60,13 @@ SYSTEM_PROMPT = (
 )
 
 # vendor id -> (adapter, settings attribute holding the server key, server default model)
-VENDORS: dict[str, tuple[type[ModelProvider], str, str]] = {
+class _VendorAdapter(Protocol):
+    """How a vendor adapter class is built (model_dispatcher's base class doesn't declare it)."""
+
+    def __call__(self, *, model: str, api_key: str | None, tier: ModelTier) -> ModelProvider: ...
+
+
+VENDORS: dict[str, tuple[_VendorAdapter, str, str]] = {
     "anthropic": (AnthropicProvider, "anthropic_api_key", "claude-sonnet-4-5"),
     "openai": (OpenAIProvider, "openai_api_key", "gpt-4o-mini"),
     "gemini": (GeminiProvider, "gemini_api_key", "gemini-2.0-flash"),
@@ -65,15 +75,6 @@ VENDORS: dict[str, tuple[type[ModelProvider], str, str]] = {
 EXTERNAL = "external"
 
 _QUOTA_STORE = InMemoryQuotaStore()  # per process; shared across requests so per-user limits accumulate
-
-
-class DispatchError(Exception):
-    """A gateway failure carrying the HTTP status and JSON body to send to the client."""
-
-    def __init__(self, status: int, payload: dict):
-        super().__init__(str(payload.get("detail") or payload.get("error") or payload))
-        self.status = status
-        self.payload = payload
 
 
 def tier_for(model: str) -> ModelTier:
@@ -93,14 +94,61 @@ def provider_factory(vendor: str, model: str, api_key: str | None, tier: ModelTi
     return cls(model=model, api_key=api_key, tier=tier)
 
 
+async def _refuse_private_hosts(request: httpx2.Request) -> None:
+    # re-checked on every request, not just when the URL was saved: the host may now resolve
+    # elsewhere, and URLs saved before the check existed were never vetted
+    await asyncio.to_thread(check_public_https_url, str(request.url))
+
+
+class _ExternalAgentProvider(OpenAIProvider):
+    """OpenAI-compatible provider for a user-supplied URL: never follows redirects (a public host
+    could otherwise bounce the request to an internal address) and refuses non-public hosts."""
+
+    async def acomplete(self, request: CompletionRequest, *, api_key: str | None = None) -> CompletionResponse:
+        import openai
+
+        async with httpx2.AsyncClient(follow_redirects=False, timeout=get_settings().ai_timeout_seconds,
+                                      event_hooks={"request": [_refuse_private_hosts]}) as http:
+            client = openai.AsyncOpenAI(api_key=api_key or self._api_key, base_url=self._base_url, http_client=http)
+            response = await client.chat.completions.create(**self._build_kwargs(request))
+        return self._to_response(response)
+
+
 def external_factory(base_url: str, model: str) -> ModelProvider:
     """The user's own agent, reached as an OpenAI-compatible endpoint."""
-    return OpenAIProvider(model=model or "default", base_url=base_url, name=f"{EXTERNAL}:{model or 'default'}",
-                          tier=ModelTier.STANDARD)
+    return _ExternalAgentProvider(model=model or "default", base_url=base_url, name=f"{EXTERNAL}:{model or 'default'}",
+                                  tier=ModelTier.STANDARD)
 
 
-def _registry(db: Session, user: str, requested: str) -> tuple[ProviderRegistry, dict[str, str]]:
+class DailyTokenBudget:
+    """Tokens spent on the server's own AI keys today (UTC), across every user. Per process."""
+
+    def __init__(self, today: Callable[[], date] = lambda: datetime.now(UTC).date()):
+        self._today = today
+        self._day = today()
+        self._used = 0
+
+    def used(self) -> int:
+        if self._today() != self._day:
+            self._day, self._used = self._today(), 0
+        return self._used
+
+    def add(self, tokens: int) -> None:
+        self.used()  # roll over first
+        self._used += tokens
+
+    def exhausted(self, limit: int) -> bool:
+        return limit > 0 and self.used() >= limit
+
+
+# per-user quotas don't stop many accounts together draining the server's keys; this does
+SERVER_BUDGET = DailyTokenBudget()
+
+
+def _registry(db: Session, user: str, requested: str) -> tuple[ProviderRegistry, dict[str, str], set[str]]:
+    """The providers this user may use now, the credential metadata, and which providers run on server keys."""
     s = get_settings()
+    server_keys_allowed = not SERVER_BUDGET.exhausted(s.ai_server_tokens_per_day)
     cfg = load_ai_settings(db, user)
     chosen = [p for p in cfg["config"]["providers"] if p["provider"] in VENDORS]
     user_keys = {p["provider"]: list(p.get("apiKeys") or []) for p in chosen}
@@ -108,15 +156,19 @@ def _registry(db: Session, user: str, requested: str) -> tuple[ProviderRegistry,
     order = [p["provider"] for p in chosen] + [v for v in VENDORS if v not in user_models]
 
     registry = ProviderRegistry()
+    on_server_key: set[str] = set()
     if requested != EXTERNAL:
         for vendor in order:
             if requested not in ("auto", vendor):
                 continue
-            server_key = getattr(s, VENDORS[vendor][1]) or None
+            server_key = (getattr(s, VENDORS[vendor][1]) or None) if server_keys_allowed else None
             if not server_key and not user_keys.get(vendor):
                 continue  # a keyless vendor in the registry would hard-fail the request
             model = user_models.get(vendor) or VENDORS[vendor][2]
-            registry.register(provider_factory(vendor, model, server_key, tier_for(model)))
+            provider = provider_factory(vendor, model, server_key, tier_for(model))
+            registry.register(provider)
+            if not user_keys.get(vendor):  # the user's own key wins when they have one
+                on_server_key.add(provider.name)
 
     metadata = credential_metadata({v: k for v, k in user_keys.items() if k})
     ext = cfg.get("external")
@@ -129,10 +181,11 @@ def _registry(db: Session, user: str, requested: str) -> tuple[ProviderRegistry,
     if not len(registry):
         raise DispatchError(503, {
             "error": "no_provider_available",
-            "detail": "No AI provider available. Add your own key in Settings → AI, or ask the server owner to set one.",
+            "detail": "No AI provider available. Add your own key in Settings → AI, or ask the server owner to set one."
+            + ("" if server_keys_allowed else " The server's shared AI budget for today is used up."),
             "action": "open_ai_settings",
         })
-    return registry, metadata
+    return registry, metadata, on_server_key
 
 
 def _gateway(registry: ProviderRegistry) -> ModelGateway:
@@ -156,22 +209,6 @@ def _tenant(user: str, metadata: dict[str, str]) -> TenantContext:
     )
 
 
-def _tools(db: Session, user: str, used: list[str]) -> ToolRegistry:
-    reg = ToolRegistry()
-
-    def handler(name: str) -> Callable[[dict], Awaitable[str]]:
-        async def run(args: dict) -> str:
-            used.append(name)
-            return await run_tool(name, dict(args), db, user)
-
-        return run
-
-    for spec in TOOL_SPECS:
-        reg.register(Tool(spec=ToolSpec(spec["name"], spec["description"], spec["parameters"]),
-                          ahandler=handler(spec["name"])))
-    return reg
-
-
 def _served_by(result: RunResult) -> str:
     for step in reversed(result.steps):
         for attempt in reversed(step.attempts):
@@ -182,7 +219,7 @@ def _served_by(result: RunResult) -> str:
 
 async def _run(db: Session, user: str, messages: list[Message], requested: str,
                tools: ToolRegistry | None) -> tuple[str, str]:
-    registry, metadata = _registry(db, user, requested)
+    registry, metadata, on_server_key = await asyncio.to_thread(_registry, db, user, requested)  # reads the user's AI settings
     request = CompletionRequest(messages=tuple(messages), tenant=TenantId(user))
     try:
         result = await adispatch_with_timeout(
@@ -191,28 +228,32 @@ async def _run(db: Session, user: str, messages: list[Message], requested: str,
         )
     except ModelDispatcherError as e:
         raise DispatchError(e.http_status, e.to_payload()) from e
-    return result.final_message.content or "", _served_by(result)
+    served = _served_by(result)
+    if served in on_server_key:
+        SERVER_BUDGET.add(result.usage.total_tokens)
+    return result.final_message.content or "", served
 
 
 _ROLES = {"user": Role.USER, "assistant": Role.ASSISTANT, "system": Role.SYSTEM}
 
 
-async def chat(db: Session, user: str, messages: list[dict], requested: str = "auto", context: str = "") -> dict:
+async def chat(db: Session, user: str, messages: list[JSONDict], tools: ToolRegistry,
+               requested: str = "auto", context: str = "") -> JSONDict:
+    """One agent turn with tool use. The caller supplies the tools (see app.ai.tools.registry)."""
     convo = [Message(role=Role.SYSTEM, content=SYSTEM_PROMPT + (f"\n{context}" if context else ""))]
     convo += [Message(role=_ROLES[m["role"]], content=m["content"]) for m in messages]
-    used: list[str] = []
-    content, model = await _run(db, user, convo, requested, _tools(db, user, used))
-    return {"model": model, "content": content, "tools_used": used}
+    content, model = await _run(db, user, convo, requested, tools)
+    return {"model": model, "content": content}
 
 
-async def complete(db: Session, user: str, prompt: str, system: str = "") -> dict:
+async def complete(db: Session, user: str, prompt: str, system: str = "") -> JSONDict:
     """One tool-free completion (news digests, the safety analyzer). Routed like chat."""
     convo = ([Message(role=Role.SYSTEM, content=system)] if system else []) + [Message(role=Role.USER, content=prompt)]
     content, model = await _run(db, user, convo, "auto", None)
     return {"model": model, "content": content}
 
 
-def available(db: Session, user: str) -> dict:
+def available(db: Session, user: str) -> JSONDict:
     """Which vendors can serve this user right now, and from whose key."""
     s = get_settings()
     cfg = load_ai_settings(db, user)

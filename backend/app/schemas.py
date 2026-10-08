@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Literal
+from typing import Literal, Self
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -13,9 +13,15 @@ class _Sym(BaseModel):
 
 class AccountIn(BaseModel):
     name: str = Field(min_length=1, max_length=120)
-    broker: str = "manual"
+    broker: str = Field("manual", max_length=60)  # "paper" makes it a practice account (a separate book)
     currency: str = "USD"
     cash: float = 0.0
+
+    @field_validator("broker")
+    @classmethod
+    def _normalise_broker(cls, v: str) -> str:
+        # "Paper" or " paper" must not silently become a real-money account
+        return v.strip().lower() or "manual"
 
 
 class AccountOut(AccountIn):
@@ -82,7 +88,7 @@ class TargetIn(_Sym):
     risk_max: float | None = None
 
     @model_validator(mode="after")
-    def _min_le_max(self):
+    def _min_le_max(self) -> Self:
         for dim, lo, hi in [
             ("profit", self.profit_min, self.profit_max),
             ("amount", self.amount_min, self.amount_max),
@@ -110,7 +116,8 @@ class AlertOut(BaseModel):
 
 
 class ChatMessage(BaseModel):
-    role: Literal["user", "assistant", "system"]
+    # no "system": the server owns the system prompt (it carries the user's risk rules)
+    role: Literal["user", "assistant"]
     content: str
 
 
@@ -120,3 +127,93 @@ class ChatIn(BaseModel):
     # "external" uses only the user's external agent endpoint
     model: str = "auto"
     symbol: str | None = None  # optional page context
+
+
+# ---- response shapes for routes whose bodies are built as dicts (also the source of web/src/lib/api-schema.ts) ----
+
+Verdict = Literal["pass", "warn", "block"]
+Grade = Literal["A", "B", "C", "D", "F"]
+
+
+class QuoteOut(BaseModel):
+    symbol: str
+    price: float
+    change: float
+    change_pct: float
+    prev_close: float
+    ts: int
+
+
+class CandleOut(BaseModel):
+    t: int
+    o: float
+    h: float
+    l: float  # noqa: E741
+    c: float
+    v: float
+
+
+class RatiosOut(BaseModel):
+    fundamental: dict[str, float | None]
+    price: dict[str, float | None]
+    data_source: str
+
+
+class ModelChoiceOut(BaseModel):
+    id: str
+    label: str
+    available: bool
+
+
+class ChatOut(BaseModel):
+    model: str
+    content: str
+    tools_used: list[str]
+
+
+class SafetyFlagOut(BaseModel):
+    code: str
+    severity: Literal["high", "medium"]
+    message: str
+
+
+class CheckItemOut(BaseModel):
+    rule: str
+    status: Literal["pass", "warn", "fail"]
+    message: str
+
+
+class CheckSafetyOut(BaseModel):
+    score: float | None
+    grade: Grade | None
+    flags: list[SafetyFlagOut]
+
+
+class CheckResultOut(BaseModel):
+    symbol: str
+    amount: float
+    price: float | None = None
+    # None on plans saved before checks recorded which book they were sized against
+    mode: Literal["real", "paper"] | None = None
+    verdict: Verdict
+    risky: bool
+    requires_note: bool
+    cooling_off_hours: int
+    checks: list[CheckItemOut]
+    safety: CheckSafetyOut
+
+
+class PlanOut(BaseModel):
+    id: int
+    account_id: int
+    symbol: str
+    quantity: float
+    price: float
+    amount: float
+    note: str
+    verdict: Verdict
+    status: Literal["blocked", "cooling_off", "ready", "executing", "executed", "cancelled"]
+    available_at: str
+    created_at: str
+    check: CheckResultOut
+    executed_holding_id: int | None

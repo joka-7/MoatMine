@@ -5,6 +5,7 @@ import math
 import random
 import time
 
+from app.jsontypes import JSONDict
 from app.market.base import RESOLUTION_SECONDS, Candle, NewsItem, Quote
 
 _KNOWN = {
@@ -35,6 +36,29 @@ def _price_at(symbol: str, t: int) -> float:
     cyc = 0.08 * math.sin(days / (20 + s % 30)) + 0.04 * math.sin(days / (5 + s % 7))
     noise = random.Random(_seed(symbol, int(days))).gauss(0, 0.012)
     return round(_base(symbol) * math.exp(drift * (days - 20000) / 10 + cyc + noise), 2)
+
+
+def _metric_values(symbol: str) -> dict[str, float]:
+    """Deterministic sample ratios; every key is always present."""
+    r = random.Random(_seed(symbol, "metrics"))
+    return {
+        "pe": round(r.uniform(8, 45), 2),
+        "forward_pe": round(r.uniform(8, 40), 2),
+        "pb": round(r.uniform(1, 15), 2),
+        "ps": round(r.uniform(1, 12), 2),
+        "peg": round(r.uniform(0.5, 3), 2),
+        "eps": round(_base(symbol) / r.uniform(10, 40), 2),
+        "roe": round(r.uniform(-5, 60), 2),
+        "roa": round(r.uniform(-2, 25), 2),
+        "gross_margin": round(r.uniform(20, 75), 2),
+        "net_margin": round(r.uniform(-5, 35), 2),
+        "debt_to_equity": round(r.uniform(0, 2.5), 2),
+        "current_ratio": round(r.uniform(0.6, 3.5), 2),
+        "dividend_yield": round(r.uniform(0, 4), 2),
+        "beta": round(r.uniform(0.5, 2), 2),
+        "week52_high": round(_base(symbol) * 1.25, 2),
+        "week52_low": round(_base(symbol) * 0.75, 2),
+    }
 
 
 class MockProvider:
@@ -71,25 +95,7 @@ class MockProvider:
         return out
 
     async def metrics(self, symbol: str) -> dict[str, float | None]:
-        r = random.Random(_seed(symbol, "metrics"))
-        return {
-            "pe": round(r.uniform(8, 45), 2),
-            "forward_pe": round(r.uniform(8, 40), 2),
-            "pb": round(r.uniform(1, 15), 2),
-            "ps": round(r.uniform(1, 12), 2),
-            "peg": round(r.uniform(0.5, 3), 2),
-            "eps": round(_base(symbol) / r.uniform(10, 40), 2),
-            "roe": round(r.uniform(-5, 60), 2),
-            "roa": round(r.uniform(-2, 25), 2),
-            "gross_margin": round(r.uniform(20, 75), 2),
-            "net_margin": round(r.uniform(-5, 35), 2),
-            "debt_to_equity": round(r.uniform(0, 2.5), 2),
-            "current_ratio": round(r.uniform(0.6, 3.5), 2),
-            "dividend_yield": round(r.uniform(0, 4), 2),
-            "beta": round(r.uniform(0.5, 2), 2),
-            "week52_high": round(_base(symbol) * 1.25, 2),
-            "week52_low": round(_base(symbol) * 0.75, 2),
-        }
+        return {**_metric_values(symbol)}
 
     async def news(self, symbol: str, days: int = 14) -> list[NewsItem]:
         now = int(time.time())
@@ -106,7 +112,7 @@ class MockProvider:
             for i, topic in enumerate(topics)
         ]
 
-    async def profile(self, symbol: str) -> dict:
+    async def profile(self, symbol: str) -> JSONDict:
         name, industry, _ = _KNOWN.get(symbol, (f"{symbol} Corp.", "Unknown", 0))
         return {
             "symbol": symbol,
@@ -118,14 +124,14 @@ class MockProvider:
             "market_cap": round(_base(symbol) * 5e9 / 1e6, 0),  # millions
         }
 
-    async def search(self, query: str) -> list[dict]:
+    async def search(self, query: str) -> list[JSONDict]:
         q = query.upper()
         hits = [{"symbol": s, "name": v[0]} for s, v in _KNOWN.items() if q in s or q in v[0].upper()]
         return hits or [{"symbol": q, "name": f"{q} (unverified)"}]
 
     # --- company & research data (sample values, labelled as such in the UI) ---
 
-    async def company(self, symbol: str) -> dict:
+    async def company(self, symbol: str) -> JSONDict:
         name, industry, _ = _KNOWN.get(symbol, (f"{symbol} Corp.", "Unknown", 0))
         r = random.Random(_seed(symbol, "company"))
         return {
@@ -141,7 +147,7 @@ class MockProvider:
             "logo": "",
         }
 
-    async def earnings(self, symbol: str) -> list[dict]:
+    async def earnings(self, symbol: str) -> list[JSONDict]:
         m = await self.metrics(symbol)
         q_eps = (m["eps"] or 1) / 4
         out = []
@@ -159,7 +165,7 @@ class MockProvider:
             })
         return out
 
-    async def recommendations(self, symbol: str) -> list[dict]:
+    async def recommendations(self, symbol: str) -> list[JSONDict]:
         out = []
         for i in range(6):
             r = random.Random(_seed(symbol, "rec", i))
@@ -172,7 +178,7 @@ class MockProvider:
             })
         return out
 
-    async def price_target(self, symbol: str) -> dict | None:
+    async def price_target(self, symbol: str) -> JSONDict | None:
         p = _price_at(symbol, int(time.time()))
         r = random.Random(_seed(symbol, "pt"))
         mean = p * r.uniform(0.95, 1.25)
@@ -181,7 +187,7 @@ class MockProvider:
             "median": round(mean * 1.01, 2), "updated": time.strftime("%Y-%m-%d"),
         }
 
-    async def dividends(self, symbol: str) -> list[dict]:
+    async def dividends(self, symbol: str) -> list[JSONDict]:
         m = await self.metrics(symbol)
         dy = m["dividend_yield"] or 0
         if dy < 0.5:
@@ -193,11 +199,11 @@ class MockProvider:
             for i in range(12)
         ]
 
-    async def splits(self, symbol: str) -> list[dict]:
+    async def splits(self, symbol: str) -> list[JSONDict]:
         return [{"date": "2020-08-31", "ratio": "4:1"}] if symbol in ("AAPL", "TSLA") else []
 
-    async def fundamentals(self, symbol: str) -> dict:
-        m = await self.metrics(symbol)
+    async def fundamentals(self, symbol: str) -> JSONDict:
+        m = _metric_values(symbol)
         r = random.Random(_seed(symbol, "fund"))
         shares = 5_000.0  # millions — matches profile market_cap
         eps = m["eps"]
@@ -232,7 +238,7 @@ class MockProvider:
             "statements": {"current": cur, "prior": prior},
         }
 
-    async def history(self, symbol: str) -> list[dict]:
+    async def history(self, symbol: str) -> list[JSONDict]:
         m = await self.metrics(symbol)
         r = random.Random(_seed(symbol, "history"))
         growth = r.uniform(-0.02, 0.14)  # company's underlying revenue growth

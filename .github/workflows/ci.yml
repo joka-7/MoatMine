@@ -1,0 +1,102 @@
+# The gates AGENTS.md/CLAUDE.md say must pass before every commit, run on every push and PR.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend (ruff, mypy, pytest)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          # .ai (ogen-ai) is a separate repo; set SUBMODULE_TOKEN if it isn't readable with the default token
+          token: ${{ secrets.SUBMODULE_TOKEN || github.token }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12" # matches render.yaml
+          cache: pip
+          cache-dependency-path: backend/requirements*
+      - run: pip install -r requirements-dev.txt
+      - run: ruff check .
+      - run: mypy
+      - run: pytest -q
+      - name: OpenAPI schema matches the routes
+        run: |
+          python -m app.openapi_spec ../web/openapi.json
+          git diff --exit-code ../web/openapi.json || { echo "::error::web/openapi.json is stale: run 'python -m app.openapi_spec ../web/openapi.json' in backend/ and 'npm run gen:api' in web/"; exit 1; }
+
+  web:
+    name: Web (tsc, build, static export)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          token: ${{ secrets.SUBMODULE_TOKEN || github.token }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+      - run: npx tsc --noEmit
+      - run: npm run lint
+      - name: Generated API types match openapi.json
+        run: |
+          npm run gen:api
+          git diff --exit-code src/lib/api-schema.ts || { echo "::error::src/lib/api-schema.ts is stale: run 'npm run gen:api'"; exit 1; }
+      - run: npm test
+      - run: npm run build
+      - run: npm run build:desktop
+
+  desktop:
+    name: Desktop (cargo check)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          token: ${{ secrets.SUBMODULE_TOKEN || github.token }}
+      - name: Tauri system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev librsvg2-dev libayatana-appindicator3-dev
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: desktop/src-tauri
+      # debug builds serve devUrl, so this doesn't need web/out
+      - run: cargo check --locked
+        working-directory: desktop/src-tauri
+
+  docs:
+    name: Docs (repo map is current)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          token: ${{ secrets.SUBMODULE_TOKEN || github.token }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      # fails with a diff when docs/STRUCTURE.md or the README tree no longer match the files
+      - run: python .ai/skills/repo_tree/gen_tree.py --project . --check

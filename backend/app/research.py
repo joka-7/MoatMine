@@ -2,19 +2,36 @@
 
 import asyncio
 import hashlib
-import json
-import re
+import logging
 import time
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app import cache
+from app.ai.dispatcher import complete
+from app.ai.llm_json import json_object_in
+from app.analytics import price_stats
+from app.jsontypes import JSONDict
+from app.market import describe_error
 from app.market.base import MarketProvider
+from app.market.sources import source_label, track_sources
 from app.models import Holding, WatchItem
 from app.valuation import Assumptions, estimate
 
+logger = logging.getLogger(__name__)
 
-async def valuation(provider: MarketProvider, symbol: str, a: Assumptions) -> dict:
+
+async def ratios(provider: MarketProvider, symbol: str, lookback_days: int) -> JSONDict:
+    """Fundamental ratios from the provider plus price/risk ratios computed from daily candles."""
+    end = int(time.time())
+    with track_sources() as used:
+        bars = await provider.candles(symbol, "D", end - lookback_days * 86400, end)
+    return {"fundamental": await provider.metrics(symbol), "price": price_stats([b["c"] for b in bars]),
+            "data_source": source_label(provider.name, used)}
+
+
+async def valuation(provider: MarketProvider, symbol: str, a: Assumptions) -> JSONDict:
     q, f = await asyncio.gather(provider.quote(symbol), provider.fundamentals(symbol))
     out = estimate(q["price"], f, a)
     out["symbol"] = symbol
@@ -22,15 +39,17 @@ async def valuation(provider: MarketProvider, symbol: str, a: Assumptions) -> di
     return out
 
 
-async def news_feed(db: Session, user: str, provider: MarketProvider, days: int = 7, limit: int = 60) -> list[dict]:
+async def news_feed(db: Session, user: str, provider: MarketProvider, days: int = 7, limit: int = 60) -> list[JSONDict]:
     """Merged, de-duplicated news for everything the user holds or watches, newest first."""
-    held = set(db.scalars(select(Holding.symbol).where(Holding.user_id == user)).all())
-    watched = set(db.scalars(select(WatchItem.symbol).where(WatchItem.user_id == user)).all())
+    held = set(await asyncio.to_thread(lambda: db.scalars(select(Holding.symbol).where(Holding.user_id == user)).all()))
+    watched = set(await asyncio.to_thread(lambda: db.scalars(select(WatchItem.symbol).where(WatchItem.user_id == user)).all()))
     syms = sorted(held | watched)[:25]  # stay inside provider rate limits
     results = await asyncio.gather(*(provider.news(s, days) for s in syms), return_exceptions=True)
-    seen, out = set(), []
-    for sym, items in zip(syms, results):
-        if isinstance(items, Exception):
+    seen: set[str] = set()
+    out: list[JSONDict] = []
+    for sym, items in zip(syms, results, strict=True):
+        if isinstance(items, BaseException):  # one symbol's news missing shouldn't empty the feed
+            logger.warning("news failed", extra={"symbol": sym, **describe_error(items)})
             continue
         for n in items:
             key = n["url"] or n["headline"]
@@ -47,15 +66,12 @@ _SUMMARY_SYSTEM = (
     '"points": ["up to 4 short key points"], "watch": "one thing to watch next"}. '
     "Base it only on the headlines given; say so if they are thin or irrelevant."
 )
-_cache: dict[str, tuple[float, dict]] = {}
 _TTL = 3600
 
 
-def _parse_json(text: str) -> dict:
-    m = re.search(r"\{.*\}", text, re.S)
-    try:
-        d = json.loads(m.group(0) if m else text)
-    except (json.JSONDecodeError, AttributeError):
+def _parse_json(text: str) -> JSONDict:
+    d = json_object_in(text)
+    if d is None:
         return {"summary": text.strip()[:1200], "sentiment": "unknown", "points": [], "watch": ""}
     sentiment = str(d.get("sentiment", "unknown")).lower()
     if sentiment not in ("bullish", "neutral", "bearish", "mixed"):
@@ -68,18 +84,16 @@ def _parse_json(text: str) -> dict:
     }
 
 
-async def news_summary(db: Session, user: str, provider: MarketProvider, symbol: str, days: int = 7) -> dict:
+async def news_summary(db: Session, user: str, provider: MarketProvider, symbol: str, days: int = 7) -> JSONDict:
     items = (await provider.news(symbol, days))[:20]
     if not items:
         return {"symbol": symbol, "summary": "No news in this window.", "sentiment": "neutral", "points": [], "watch": "", "count": 0}
     lines = "\n".join(f"- [{time.strftime('%Y-%m-%d', time.gmtime(n['datetime']))}] {n['headline']} — {n['summary'][:240]}" for n in items)
     digest = hashlib.sha256(f"{user}|{symbol}|{days}|{lines}".encode()).hexdigest()
-    hit = _cache.get(digest)
-    if hit and time.time() - hit[0] < _TTL:
-        return {**hit[1], "cached": True}
-    from app.ai.dispatcher import complete  # lazy: dispatcher -> tools -> research
-
+    key = ("news_summary", digest)
+    if isinstance(hit := cache.get(key), dict):
+        return {**hit, "cached": True}
     r = await complete(db, user, f"Stock: {symbol}\nNews from the last {days} days:\n{lines}", system=_SUMMARY_SYSTEM)
     out = {"symbol": symbol, **_parse_json(r["content"]), "model": r["model"], "count": len(items)}
-    _cache[digest] = (time.time(), out)
+    cache.put(key, out, _TTL)
     return out

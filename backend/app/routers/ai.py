@@ -1,26 +1,25 @@
+import asyncio
+
 from fastapi import APIRouter, Depends, HTTPException
-from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.ai.dispatcher import VENDORS, DispatchError, available, chat
+from app.ai.dispatcher import VENDORS, available, chat
 from app.ai.settings_store import SUPPORTED, load_ai_settings, masked, save_ai_settings
+from app.ai.tools import registry
 from app.auth import current_user
 from app.crypto import new_mcp_token
 from app.db import get_db
+from app.jsontypes import JSONDict
 from app.models import MCPToken
+from app.ratelimit import rate_limited
 from app.safety.service import get_profile, profile_dict
-from app.schemas import ChatIn
+from app.schemas import ChatIn, ChatOut, ModelChoiceOut
 
 router = APIRouter(prefix="/ai", tags=["ai"])
 
 VENDOR_LABELS = {"anthropic": "Anthropic Claude", "openai": "OpenAI", "gemini": "Google Gemini", "groq": "Groq"}
-
-
-def dispatch_error_response(e: DispatchError) -> JSONResponse:
-    """ModelDispatcher errors carry their own status + body (e.g. the trigger_key_wizard handoff)."""
-    return JSONResponse(status_code=e.status, content={"detail": e.payload})
 
 
 def agent_context(db: Session, user: str, symbol: str | None) -> str:
@@ -33,13 +32,15 @@ def agent_context(db: Session, user: str, symbol: str | None) -> str:
         f"portfolio loss limit {p['max_drawdown_pct']:g}%, minimum market cap ${p['min_market_cap_m']:,.0f}M, "
         f"penny stocks {'allowed' if p['allow_penny_stocks'] else 'not allowed'}. "
         "Run safety_check before discussing any buy. If something breaks these rules, say so plainly and "
-        "do not help work around them; the user can change the rules only in the Risk profile page."
+        "do not help work around them; the user can change the rules only in the Risk profile page. "
+        "Real-money and paper (practice) accounts are separate books: the portfolio tools default to real money; "
+        "pass mode='paper' only when the user asks about paper trading, and never add the two together."
     )
     return rules + (f" The user is currently viewing {symbol}." if symbol else "")
 
 
-@router.get("/models")
-def models(user: str = Depends(current_user), db: Session = Depends(get_db)):
+@router.get("/models", response_model=list[ModelChoiceOut])
+def models(user: str = Depends(current_user), db: Session = Depends(get_db)) -> list[JSONDict]:
     """Choices for the chat's model picker, with whether each can run right now."""
     av = available(db, user)
     vendors = {v["id"]: v for v in av["vendors"]}
@@ -52,32 +53,33 @@ def models(user: str = Depends(current_user), db: Session = Depends(get_db)):
     return out
 
 
-@router.post("/chat")
-async def chat_endpoint(body: ChatIn, user: str = Depends(current_user), db: Session = Depends(get_db)):
-    try:
-        return await chat(db, user, [m.model_dump() for m in body.messages], requested=body.model,
-                          context=agent_context(db, user, body.symbol))
-    except DispatchError as e:
-        return dispatch_error_response(e)
+@router.post("/chat", response_model=ChatOut, dependencies=[Depends(rate_limited("ai"))])
+async def chat_endpoint(body: ChatIn, user: str = Depends(current_user), db: Session = Depends(get_db)) -> JSONDict:
+    used: list[str] = []
+    context = await asyncio.to_thread(agent_context, db, user, body.symbol)
+    user_said = next((m.content for m in reversed(body.messages) if m.role == "user"), "")
+    out = await chat(db, user, [m.model_dump() for m in body.messages], registry(db, user, used, user_said),
+                     requested=body.model, context=context)
+    return {**out, "tools_used": used}
 
 
 # --- AI settings: ModelPicker's AgentConfig + favorite external app + external agent ---
 
 
 class AISettingsIn(BaseModel):
-    config: dict
+    config: JSONDict
     favorite: str | None = None
-    external: dict | None = None
+    external: JSONDict | None = None
 
 
 @router.get("/settings")
-def get_ai_settings(user: str = Depends(current_user), db: Session = Depends(get_db)):
+def get_ai_settings(user: str = Depends(current_user), db: Session = Depends(get_db)) -> JSONDict:
     data = masked(load_ai_settings(db, user))
     return {**data, "supported": list(SUPPORTED), "server_vendors": [v["id"] for v in available(db, user)["vendors"] if v["source"] == "server"]}
 
 
 @router.put("/settings")
-def put_ai_settings(body: AISettingsIn, user: str = Depends(current_user), db: Session = Depends(get_db)):
+def put_ai_settings(body: AISettingsIn, user: str = Depends(current_user), db: Session = Depends(get_db)) -> JSONDict:
     try:
         data = save_ai_settings(db, user, body.config, body.external, body.favorite)
     except ValueError as e:
@@ -91,13 +93,13 @@ def put_ai_settings(body: AISettingsIn, user: str = Depends(current_user), db: S
 
 
 @router.get("/mcp-tokens")
-def list_mcp_tokens(user: str = Depends(current_user), db: Session = Depends(get_db)):
+def list_mcp_tokens(user: str = Depends(current_user), db: Session = Depends(get_db)) -> list[JSONDict]:
     rows = db.scalars(select(MCPToken).where(MCPToken.user_id == user)).all()
     return [{"id": r.id, "label": r.label, "created_at": r.created_at} for r in rows]
 
 
 @router.post("/mcp-tokens", status_code=201)
-def create_mcp_token(label: str = "", user: str = Depends(current_user), db: Session = Depends(get_db)):
+def create_mcp_token(label: str = "", user: str = Depends(current_user), db: Session = Depends(get_db)) -> JSONDict:
     token, digest = new_mcp_token()
     row = MCPToken(user_id=user, token_hash=digest, label=label[:120])
     db.add(row)
@@ -106,7 +108,7 @@ def create_mcp_token(label: str = "", user: str = Depends(current_user), db: Ses
 
 
 @router.delete("/mcp-tokens/{token_id}", status_code=204)
-def delete_mcp_token(token_id: int, user: str = Depends(current_user), db: Session = Depends(get_db)):
+def delete_mcp_token(token_id: int, user: str = Depends(current_user), db: Session = Depends(get_db)) -> None:
     row = db.get(MCPToken, token_id)
     if not row or row.user_id != user:
         raise HTTPException(404, "not found")

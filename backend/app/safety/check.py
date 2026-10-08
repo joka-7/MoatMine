@@ -7,6 +7,8 @@ portfolio. Each rule yields pass / warn / fail; any fail blocks, any warn marks 
 
 from dataclasses import dataclass
 
+from app.jsontypes import JSONDict
+
 
 @dataclass(frozen=True)
 class Rules:
@@ -29,7 +31,7 @@ class Candidate:
     fair_value: float | None
     market_cap_m: float | None
     volatility_pct: float | None
-    safety: dict  # output of safety_score()
+    safety: JSONDict  # output of safety_score()
 
 
 @dataclass(frozen=True)
@@ -37,13 +39,55 @@ class Book:
     total_value: float  # holdings + cash, before the buy
     by_symbol: dict[str, float]  # current market value per symbol
     by_sector: dict[str, float]
+    cash: float = 0.0  # part of total_value; a buy is paid from it first
+    unpriced: tuple[str, ...] = ()  # holdings valued at cost because no live quote came back
 
 
-def _r(rule: str, status: str, message: str) -> dict:
+@dataclass(frozen=True)
+class Breach:
+    rule: str  # "position_size" | "sector" | "loss_limit"
+    subject: str  # symbol, sector, or "portfolio"
+    pct: float  # share of the book; for loss_limit the (negative) fall from the peak
+    limit: float
+
+    @property
+    def message(self) -> str:
+        if self.rule == "loss_limit":
+            return f"Your holdings are {-self.pct:.1f}% below their 1-year high — past your {-self.limit:g}% loss limit"
+        return f"{self.subject} is {self.pct:.1f}% of your portfolio — above your {self.limit:g}% limit"
+
+
+def portfolio_breaches(rules: Rules, book: Book) -> list[Breach]:
+    """Holdings and sectors over the user's concentration limits, as a share of the whole book (cash included).
+
+    Holdings whose sector is unknown aren't grouped into a pretend "Unknown" sector.
+    """
+    total = book.total_value
+    if not total:
+        return []
+    by_symbol = [Breach("position_size", s, v / total * 100, rules.max_position_pct) for s, v in book.by_symbol.items()]
+    by_sector = [Breach("sector", s, v / total * 100, rules.max_sector_pct) for s, v in book.by_sector.items() if s != "Unknown"]
+    return [b for b in by_symbol + by_sector if b.pct > b.limit]
+
+
+def loss_limit_breach(rules: Rules, values: list[float]) -> Breach | None:
+    """The book's current fall from its peak, if it is past the user's loss limit.
+
+    `values` is the book's daily value over the lookback window, oldest first. The loss limit
+    (`max_drawdown_pct`, negative) is a fall from the highest value, not a loss against cost.
+    """
+    peak = max(values, default=0.0)
+    if peak <= 0:
+        return None
+    fall = (values[-1] / peak - 1) * 100
+    return Breach("loss_limit", "portfolio", fall, rules.max_drawdown_pct) if fall < rules.max_drawdown_pct else None
+
+
+def _r(rule: str, status: str, message: str) -> JSONDict:
     return {"rule": rule, "status": status, "message": message}
 
 
-def check_buy(rules: Rules, c: Candidate, book: Book) -> dict:
+def check_buy(rules: Rules, c: Candidate, book: Book) -> JSONDict:
     results = []
     s = c.safety
     flag_codes = {f["code"] for f in s.get("flags", [])}
@@ -61,7 +105,8 @@ def check_buy(rules: Rules, c: Candidate, book: Book) -> dict:
     if "penny" in flag_codes and not rules.allow_penny_stocks:
         results.append(_r("penny", "fail", "Penny stocks are off in your risk profile"))
 
-    after_total = book.total_value + c.amount
+    # cash already counts in total_value, so only the part of the buy that cash can't cover is new money
+    after_total = book.total_value + c.amount - min(c.amount, max(book.cash, 0.0))
     pos = book.by_symbol.get(c.symbol, 0.0) + c.amount
     pos_pct = pos / after_total * 100 if after_total else 100.0
     if pos_pct > rules.max_position_pct:
@@ -84,6 +129,9 @@ def check_buy(rules: Rules, c: Candidate, book: Book) -> dict:
 
     if c.price and c.fair_value and c.price > c.fair_value * 1.15:
         results.append(_r("valuation", "warn", f"Price is {((c.price / c.fair_value) - 1) * 100:.0f}% above the models' fair value"))
+
+    if book.unpriced:
+        results.append(_r("prices", "warn", f"No live price for {', '.join(book.unpriced)}; sizes use what you paid"))
 
     statuses = {r["status"] for r in results}
     verdict = "block" if "fail" in statuses else "warn" if "warn" in statuses else "pass"

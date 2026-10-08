@@ -16,7 +16,7 @@ export default function NewsFeed() {
     <div className="card news">
       <div className="row" style={{ justifyContent: "space-between", marginBottom: 4 }}>
         <h2 style={{ margin: 0 }}>News on your stocks</h2>
-        <div className="seg" style={{ flex: 0 }}>
+        <div className="seg" style={{ flex: "0 1 auto" }}>
           {(["all", "held", "watched"] as const).map((s) => (
             <button key={s} className={`btn sm ${scope === s ? "on" : ""}`} onClick={() => setScope(s)}>
               {s === "all" ? "All" : s === "held" ? "Holdings" : "Watchlist"}

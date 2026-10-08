@@ -4,39 +4,90 @@ Read-heavy by design; the only writes are adding to the watchlist and saving a s
 No tool places trades.
 """
 
+import asyncio
 import json
-import time
+import re
+from collections.abc import Awaitable, Callable
+from dataclasses import replace
 
+from model_dispatcher import Tool, ToolRegistry, ToolSpec
+from pydantic import BaseModel, Field, ValidationError
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.analytics import price_stats
+from app.clock import utc_now
+from app.crises import bad_times
+from app.jsontypes import JSONDict
 from app.market import get_provider
 from app.models import StockNote, Target, WatchItem
-from app.portfolio import portfolio_snapshot, quotes_for
-from app.crises import bad_times
+from app.portfolio import BookMode, portfolio_snapshot, quotes_for
+from app.research import news_feed, ratios, valuation
 from app.safety.service import check_for, get_profile, portfolio_risk_report, profile_dict, stock_safety, stress_report
-from app.research import news_feed, valuation
-from app.valuation import Assumptions
 from app.targets import evaluate, risk_by_symbol
+from app.valuation import Assumptions
 
 
-def _sym_param(desc: str = "Ticker symbol, e.g. AAPL") -> dict:
+def _sym_param(desc: str = "Ticker symbol, e.g. AAPL") -> JSONDict:
     return {"type": "object", "properties": {"symbol": {"type": "string", "description": desc}}, "required": ["symbol"]}
 
 
-TOOL_SPECS = [
-    {"name": "get_portfolio", "description": "User's accounts, holdings with P/L and weights, and totals.", "parameters": {"type": "object", "properties": {}}},
-    {"name": "get_quote", "description": "Latest quote for a symbol.", "parameters": _sym_param()},
-    {"name": "get_ratios", "description": "Fundamental ratios (P/E, ROE, margins…) and 1-year price/risk stats (volatility, drawdown, Sharpe, RSI).", "parameters": _sym_param()},
-    {"name": "get_news", "description": "Recent company news headlines for a symbol.", "parameters": _sym_param()},
-    {"name": "get_company", "description": "Company profile: description, sector, industry, employees, website, IPO date, market cap.", "parameters": _sym_param()},
-    {"name": "get_earnings", "description": "Recent quarterly EPS: actual vs estimate and surprise %.", "parameters": _sym_param()},
-    {"name": "get_analysts", "description": "Analyst recommendation trend (strong buy … strong sell) and consensus price target.", "parameters": _sym_param()},
-    {"name": "get_dividends", "description": "Dividend history and stock splits.", "parameters": _sym_param()},
+_MODE_PROP = {
+    "mode": {
+        "type": "string",
+        "enum": ["real", "paper"],
+        "description": "Which book: 'real' money (default) or 'paper' practice accounts. They are never mixed.",
+    }
+}
+
+
+def _mode_param() -> JSONDict:
+    return {"type": "object", "properties": dict(_MODE_PROP)}
+
+
+class _ValuationArgs(BaseModel):
+    """The model's assumption overrides, held to the same bounds as GET /stocks/{symbol}/valuation."""
+
+    discount_rate: float | None = Field(None, gt=0, le=40)
+    growth_rate: float | None = Field(None, ge=-20, le=60)
+    terminal_growth: float | None = Field(None, ge=-2, le=6)
+    margin_of_safety: float | None = Field(None, ge=0, le=90)
+
+    def assumptions(self) -> Assumptions:
+        given = {k: v for k, v in self.model_dump().items() if v is not None}
+        d = Assumptions()
+        return replace(
+            d,
+            discount_rate=given.get("discount_rate", d.discount_rate),
+            growth_rate=given.get("growth_rate", d.growth_rate),
+            terminal_growth=given.get("terminal_growth", d.terminal_growth),
+            margin_of_safety=given.get("margin_of_safety", d.margin_of_safety),
+        )
+
+
+class _CheckArgs(BaseModel):
+    """Same bound as POST /safety/check: a negative amount would make any buy look smaller."""
+
+    amount: float = Field(gt=0)
+
+
+def _mode(args: JSONDict) -> BookMode:
+    return "paper" if args.get("mode") == "paper" else "real"
+
+
+# read_only: False marks a tool that changes the user's data. Those need the user's own say-so
+# (see run_tool) and are never served over MCP.
+TOOL_SPECS: list[JSONDict] = [
+    {"name": "get_portfolio", "read_only": True, "description": "User's accounts, holdings with P/L and weights, and totals for the real-money or the paper book.", "parameters": _mode_param()},
+    {"name": "get_quote", "read_only": True, "description": "Latest quote for a symbol.", "parameters": _sym_param()},
+    {"name": "get_ratios", "read_only": True, "description": "Fundamental ratios (P/E, ROE, margins…) and 1-year price/risk stats (volatility, drawdown, Sharpe, RSI).", "parameters": _sym_param()},
+    {"name": "get_news", "read_only": True, "description": "Recent company news headlines for a symbol.", "parameters": _sym_param()},
+    {"name": "get_company", "read_only": True, "description": "Company profile: description, sector, industry, employees, website, IPO date, market cap.", "parameters": _sym_param()},
+    {"name": "get_earnings", "read_only": True, "description": "Recent quarterly EPS: actual vs estimate and surprise %.", "parameters": _sym_param()},
+    {"name": "get_analysts", "read_only": True, "description": "Analyst recommendation trend (strong buy … strong sell) and consensus price target.", "parameters": _sym_param()},
+    {"name": "get_dividends", "read_only": True, "description": "Dividend history and stock splits.", "parameters": _sym_param()},
     {
-        "name": "get_valuation",
+        "name": "get_valuation", "read_only": True,
         "description": "Fair-value estimate from several models (DCF, Graham, Lynch, DDM, EPV, P/E and EV/EBITDA multiples), "
         "valuation indicators (PEG, FCF yield, payout…) and quality scores (Piotroski F, Altman Z). "
         "Optional assumption overrides in percent.",
@@ -51,31 +102,35 @@ TOOL_SPECS = [
         },
     },
     {
-        "name": "get_bad_times",
+        "name": "get_bad_times", "read_only": True,
         "description": "How the stock behaved in past market crises (dot-com, 2008, 2011, Q4 2018, COVID, 2022) vs SPY: "
         "drawdown, recovery time, downside capture, plus its own worst drawdowns. Use for any safety/risk question.",
         "parameters": _sym_param(),
     },
-    {"name": "get_risk_profile", "description": "The user's own risk rules: level, max position/sector %, minimum safety score, volatility and loss limits, cooling-off. Every recommendation must respect these.", "parameters": {"type": "object", "properties": {}}},
-    {"name": "get_safety_score", "description": "0–100 safety score for a stock with its components (Altman Z, Piotroski, debt, volatility, worst fall, crisis resilience, size, earnings, valuation, moat: return on capital, margin stability, steady growth) with A–F grades by area and red flags.", "parameters": _sym_param()},
+    {"name": "get_risk_profile", "read_only": True, "description": "The user's own risk rules: level, max position/sector %, minimum safety score, volatility and loss limits, cooling-off. Every recommendation must respect these.", "parameters": {"type": "object", "properties": {}}},
+    {"name": "get_safety_score", "read_only": True, "description": "0–100 safety score for a stock with its components (Altman Z, Piotroski, debt, volatility, worst fall, crisis resilience, size, earnings, valuation, moat: return on capital, margin stability, steady growth) with A–F grades by area and red flags.", "parameters": _sym_param()},
     {
-        "name": "safety_check",
+        "name": "safety_check", "read_only": True,
         "description": "Check a proposed buy against the user's risk rules: pass / warn / block with each rule's result. Run this before discussing any buy.",
-        "parameters": {"type": "object", "properties": {"symbol": {"type": "string"}, "amount": {"type": "number", "description": "money to invest"}}, "required": ["symbol", "amount"]},
+        "parameters": {
+            "type": "object",
+            "properties": {"symbol": {"type": "string"}, "amount": {"type": "number", "description": "money to invest"}, **_MODE_PROP},
+            "required": ["symbol", "amount"],
+        },
     },
-    {"name": "get_portfolio_risk", "description": "Portfolio volatility, beta, value-at-risk, max drawdown, concentration, sectors, correlation and rule breaches.", "parameters": {"type": "object", "properties": {}}},
-    {"name": "get_stress_test", "description": "Today's portfolio replayed through past crises and market falls of 10/20/35%, vs the user's loss limit.", "parameters": {"type": "object", "properties": {}}},
-    {"name": "get_news_feed", "description": "Recent news across all holdings and watchlist symbols.", "parameters": {"type": "object", "properties": {}}},
-    {"name": "get_targets_status", "description": "User's PAPI targets (profit, amount, period, intent) evaluated against their min/max bounds.", "parameters": {"type": "object", "properties": {}}},
-    {"name": "get_watchlist", "description": "User's watchlist with live quotes.", "parameters": {"type": "object", "properties": {}}},
-    {"name": "get_notes", "description": "User's own saved notes/thesis for a symbol.", "parameters": _sym_param()},
+    {"name": "get_portfolio_risk", "read_only": True, "description": "Portfolio volatility, beta, value-at-risk, max drawdown, concentration, sectors, correlation and rule breaches, for the real-money or the paper book.", "parameters": _mode_param()},
+    {"name": "get_stress_test", "read_only": True, "description": "Today's portfolio (real-money or paper book) replayed through past crises and market falls of 10/20/35%, vs the user's loss limit.", "parameters": _mode_param()},
+    {"name": "get_news_feed", "read_only": True, "description": "Recent news across all holdings and watchlist symbols.", "parameters": {"type": "object", "properties": {}}},
+    {"name": "get_targets_status", "read_only": True, "description": "User's PAPI targets (profit, amount, period, intent) evaluated against their min/max bounds.", "parameters": {"type": "object", "properties": {}}},
+    {"name": "get_watchlist", "read_only": True, "description": "User's watchlist with live quotes.", "parameters": {"type": "object", "properties": {}}},
+    {"name": "get_notes", "read_only": True, "description": "User's own saved notes/thesis for a symbol.", "parameters": _sym_param()},
     {
-        "name": "add_to_watchlist",
+        "name": "add_to_watchlist", "read_only": False,
         "description": "Add a symbol to the user's watchlist. Only when the user asks.",
         "parameters": {"type": "object", "properties": {"symbol": {"type": "string"}, "note": {"type": "string"}}, "required": ["symbol"]},
     },
     {
-        "name": "save_note",
+        "name": "save_note", "read_only": False,
         "description": "Save a note about a symbol to the user's stock page. Only when the user asks.",
         "parameters": {
             "type": "object",
@@ -86,22 +141,72 @@ TOOL_SPECS = [
 ]
 
 
-def openai_tools() -> list[dict]:
-    return [{"type": "function", "function": spec} for spec in TOOL_SPECS]
+def registry(db: Session, user: str, used: list[str], user_said: str = "") -> ToolRegistry:
+    """Every tool as a ModelDispatcher ToolRegistry for one user's chat turn; `used` collects the names called.
+
+    `user_said` is the user's latest message: write tools only act on symbols it names.
+    """
+    reg = ToolRegistry()
+
+    def handler(name: str) -> Callable[[JSONDict], Awaitable[str]]:
+        async def run(args: JSONDict) -> str:
+            used.append(name)
+            return await run_tool(name, dict(args), db, user, user_said)
+
+        return run
+
+    for spec in TOOL_SPECS:
+        reg.register(Tool(spec=ToolSpec(spec["name"], spec["description"], spec["parameters"]), ahandler=handler(spec["name"])))
+    return reg
 
 
-async def run_tool(name: str, args: dict, db: Session, user: str) -> str:
+WRITE_TOOLS = {spec["name"] for spec in TOOL_SPECS if not spec["read_only"]}
+
+
+def user_named(symbol: str, user_said: str) -> bool:
+    """Whether the user's own message names this ticker as a whole word.
+
+    Tickers of up to three letters are often ordinary words ("it", "on", "a", "all"), so for them
+    only a capitalised or $-prefixed mention counts ("IT", "$it"); longer ones match in any case.
+    """
+    if not symbol:
+        return False
+    word = rf"(?<![A-Za-z0-9.]){re.escape(symbol)}(?![A-Za-z0-9])"
+    if len(symbol) > 3:
+        return re.search(word, user_said, re.IGNORECASE) is not None
+    return (re.search(word, user_said) is not None
+            or re.search(rf"\${re.escape(symbol)}(?![A-Za-z0-9])", user_said, re.IGNORECASE) is not None)
+
+
+async def run_tool(name: str, args: JSONDict, db: Session, user: str, user_said: str = "") -> str:
+    """Run one tool and return its JSON result. Arguments come from a model, so bad ones become an
+    error the model can read and correct, not an exception.
+
+    Write tools act only on a symbol the user named in `user_said` (their latest message): text the
+    model read elsewhere (a news headline, a filing) must not be able to change the user's data.
+    Callers without a user message (MCP) can't write at all.
+    """
+    if name in WRITE_TOOLS and not user_named((args.get("symbol") or "").strip().upper(), user_said):
+        out: object = {"error": "write tools only act on a symbol the user named in their own message; ask them first"}
+        return json.dumps(out)
+    try:
+        out = await _run(name, args, db, user)
+    except ValidationError as e:
+        out = {"error": "invalid arguments", "details": [f"{'.'.join(map(str, err['loc']))}: {err['msg']}" for err in e.errors()]}
+    return json.dumps(out, default=str)
+
+
+async def _run(name: str, args: JSONDict, db: Session, user: str) -> object:
     p = get_provider()
     sym = (args.get("symbol") or "").strip().upper()
+    out: object  # any JSON-serialisable result
     match name:
         case "get_portfolio":
-            out = await portfolio_snapshot(db, user, p)
+            out = await portfolio_snapshot(db, user, p, _mode(args))
         case "get_quote":
             out = await p.quote(sym)
         case "get_ratios":
-            end = int(time.time())
-            bars = await p.candles(sym, "D", end - 365 * 86400, end)
-            out = {"fundamental": await p.metrics(sym), "price": price_stats([b["c"] for b in bars])}
+            out = await ratios(p, sym, 365)
         case "get_news":
             out = [{k: n[k] for k in ("headline", "source", "datetime", "url")} for n in (await p.news(sym))[:10]]
         case "get_company":
@@ -113,47 +218,47 @@ async def run_tool(name: str, args: dict, db: Session, user: str) -> str:
         case "get_dividends":
             out = {"dividends": (await p.dividends(sym))[:12], "splits": await p.splits(sym)}
         case "get_valuation":
-            overrides = {k: float(args[k]) for k in ("discount_rate", "growth_rate", "terminal_growth", "margin_of_safety") if args.get(k) is not None}
-            v = await valuation(p, sym, Assumptions(**overrides))
+            v = await valuation(p, sym, _ValuationArgs.model_validate(args).assumptions())
             out = {k: v[k] for k in ("price", "assumptions", "models", "summary", "indicators", "quality", "disclaimer")}
         case "get_bad_times":
             out = await bad_times(p, sym)
         case "get_risk_profile":
-            out = profile_dict(get_profile(db, user))
+            out = profile_dict(await asyncio.to_thread(get_profile, db, user))
         case "get_safety_score":
             out = await stock_safety(p, sym)
         case "safety_check":
-            out = await check_for(db, user, p, sym, float(args["amount"]))
+            out = await check_for(db, user, p, sym, _CheckArgs.model_validate(args).amount, _mode(args))
         case "get_portfolio_risk":
-            out = await portfolio_risk_report(db, user, p)
+            out = await portfolio_risk_report(db, user, p, _mode(args))
         case "get_stress_test":
-            r = await stress_report(db, user, p)
+            r = await stress_report(db, user, p, _mode(args))
             out = {**r, "scenarios": [{k: sc[k] for k in ("name", "change", "change_pct", "worst", "breaches_limit")} for sc in r["scenarios"]]}
         case "get_news_feed":
             out = [{k: n[k] for k in ("symbol", "headline", "source", "datetime")} for n in (await news_feed(db, user, p, 7, 25))]
         case "get_targets_status":
             snap = await portfolio_snapshot(db, user, p)
             risks = await risk_by_symbol(p, {h["symbol"] for h in snap["holdings"]})
-            out = [evaluate(t, snap, risks) for t in db.scalars(select(Target).where(Target.user_id == user)).all()]
+            targets = await asyncio.to_thread(lambda: db.scalars(select(Target).where(Target.user_id == user)).all())
+            out = [evaluate(t, snap, risks, utc_now()) for t in targets]
         case "get_watchlist":
-            items = db.scalars(select(WatchItem).where(WatchItem.user_id == user)).all()
+            items = await asyncio.to_thread(lambda: db.scalars(select(WatchItem).where(WatchItem.user_id == user)).all())
             q = await quotes_for(p, {i.symbol for i in items})
             out = [{"symbol": i.symbol, "note": i.note, "quote": q.get(i.symbol)} for i in items]
         case "get_notes":
-            notes = db.scalars(select(StockNote).where(StockNote.user_id == user, StockNote.symbol == sym)).all()
+            notes = await asyncio.to_thread(lambda: db.scalars(select(StockNote).where(StockNote.user_id == user, StockNote.symbol == sym)).all())
             out = [{"kind": n.kind, "title": n.title, "body": n.body[:2000]} for n in notes]
         case "add_to_watchlist":
             db.add(WatchItem(user_id=user, symbol=sym, note=args.get("note", "")))
             try:
-                db.commit()
+                await asyncio.to_thread(db.commit)
                 out = {"ok": True, "symbol": sym}
             except IntegrityError:
-                db.rollback()
+                await asyncio.to_thread(db.rollback)
                 out = {"ok": False, "error": f"{sym} already on watchlist"}
         case "save_note":
             db.add(StockNote(user_id=user, symbol=sym, kind="note", title=args["title"][:200], body=args["body"]))
-            db.commit()
+            await asyncio.to_thread(db.commit)
             out = {"ok": True}
         case _:
             out = {"error": f"unknown tool {name}"}
-    return json.dumps(out, default=str)
+    return out

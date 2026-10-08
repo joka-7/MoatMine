@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { SignOutLink } from "./AuthShell";
 
 const LINKS = [
   ["/", "Dashboard"],
@@ -25,6 +26,7 @@ export default function Nav() {
       <div className="grow" />
       <Link href="/risk-profile" className={cls("/risk-profile")}>Risk profile</Link>
       <Link href="/settings" className={cls("/settings")}>Settings</Link>
+      <SignOutLink />
     </nav>
   );
 }

@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
@@ -65,7 +65,7 @@ def hist(revs, gms, oi_margin=0.2, equity=500, debt=100, cash=100):
     """Annual rows newest first, built from oldest-first lists."""
     rows = [{"year": 2020 + i, "revenue": r, "gross_profit": r * g, "operating_income": r * oi_margin,
              "net_income": r * oi_margin * 0.8, "equity": equity, "debt": debt, "cash": cash}
-            for i, (r, g) in enumerate(zip(revs, gms))]
+            for i, (r, g) in enumerate(zip(revs, gms, strict=True))]
     return list(reversed(rows))
 
 
@@ -77,6 +77,7 @@ def test_roic_formula():
 
 def test_moat_metrics_hand_checked():
     m = moat_metrics(hist([1000, 1100, 1210, 1331, 1464.1], [0.40, 0.41, 0.40, 0.39, 0.40]))
+    assert m is not None
     assert m["years"] == 5 and m["revenue_cagr_pct"] == pytest.approx(10.0)
     assert m["growth_consistency"] == 1.0 and m["gross_margin_std_pp"] == pytest.approx(0.63, abs=0.01)
     # operating income 20% of revenue, invested capital fixed at 500 → ROIC rises with revenue
@@ -144,6 +145,26 @@ def test_check_blocks(kw, rule):
     assert r["verdict"] == "block" and any(c["rule"] == rule and c["status"] == "fail" for c in r["checks"])
 
 
+@pytest.mark.parametrize("book, amount, pos_pct, status", [
+    # 50k all cash, 8% limit: a 4,200 buy is paid from cash, so it is 4,200 / 50,000 = 8.4% (not 4,200 / 54,200)
+    (chk.Book(total_value=50_000, by_symbol={}, by_sector={}, cash=50_000), 4_200, "8.4%", "fail"),
+    (chk.Book(total_value=50_000, by_symbol={}, by_sector={}, cash=50_000), 3_900, "7.8%", "pass"),
+    # only 1,000 cash: the other 3,200 is new money, so the book grows to 53,200 → 7.9%
+    (chk.Book(total_value=50_000, by_symbol={}, by_sector={}, cash=1_000), 4_200, "7.9%", "pass"),
+])
+def test_check_buy_pays_from_cash_first(book, amount, pos_pct, status):
+    rules = chk.Rules(**{**RULES.__dict__, "max_position_pct": 8})
+    r = chk.check_buy(rules, cand(symbol="NEW", amount=amount), book)
+    pos = next(c for c in r["checks"] if c["rule"] == "position_size")
+    assert pos["status"] == status and f"{pos_pct} of your portfolio" in pos["message"]
+
+
+def test_check_buy_warns_when_the_book_has_unpriced_holdings():
+    book = chk.Book(total_value=10_000, by_symbol={"AAA": 500}, by_sector={"Tech": 2_500}, unpriced=("ZZZ",))
+    r = chk.check_buy(RULES, cand(), book)
+    assert r["verdict"] == "warn" and any(c["rule"] == "prices" and "ZZZ" in c["message"] for c in r["checks"])
+
+
 @pytest.mark.parametrize("kw, rule", [
     (dict(volatility_pct=50), "volatility"),
     (dict(market_cap_m=500), "size"),
@@ -154,6 +175,34 @@ def test_check_warns_need_note_and_cooling_off(kw, rule):
     r = chk.check_buy(RULES, cand(**kw), BOOK)
     assert r["verdict"] == "warn" and r["requires_note"] and r["cooling_off_hours"] == 24
     assert any(c["rule"] == rule and c["status"] == "warn" for c in r["checks"])
+
+
+@pytest.mark.parametrize("book, expected", [
+    # 10,000 book, limits 10% / 30%: AAA 1,500 = 15% breaks the position limit, Tech 3,500 = 35% the sector limit
+    (chk.Book(total_value=10_000, by_symbol={"AAA": 1_500, "BBB": 900}, by_sector={"Tech": 3_500, "Unknown": 5_000}),
+     [("position_size", "AAA", 15.0), ("sector", "Tech", 35.0)]),
+    (chk.Book(total_value=10_000, by_symbol={"AAA": 1_000}, by_sector={"Tech": 3_000}), []),  # exactly at the limits
+    (chk.Book(total_value=0, by_symbol={}, by_sector={}), []),  # empty book
+])
+def test_portfolio_breaches(book, expected):
+    got = chk.portfolio_breaches(RULES, book)
+    assert [(b.rule, b.subject, round(b.pct, 1)) for b in got] == expected
+    assert all(f"above your {b.limit:g}% limit" in b.message for b in got)
+
+
+@pytest.mark.parametrize("values, fall", [
+    ([100, 125, 95], -24.0),  # 125 -> 95 is past the -20% limit, though still only -5% against the start
+    ([100, 125, 100], None),  # exactly -20%: at the limit, not past it
+    ([100, 90, 85], None),  # -15%
+    ([100, 60, 110], None),  # recovered to a new high
+    ([], None),
+    ([0, 0], None),  # nothing held
+])
+def test_loss_limit_breach(values, fall):
+    got = chk.loss_limit_breach(RULES, values)
+    assert (None if got is None else round(got.pct, 1)) == fall
+    if got:
+        assert got.rule == "loss_limit" and "24.0% below their 1-year high" in got.message and "20% loss limit" in got.message
 
 
 # ---------------- risk maths ----------------
@@ -172,13 +221,25 @@ def test_beta_and_correlation_of_scaled_series():
 
 
 def test_portfolio_risk_concentration_and_cash():
-    closes = {"A": [100 + i for i in range(30)], "B": [50 + (i % 3) for i in range(30)]}
+    closes: dict[str, list[float]] = {"A": [100 + i for i in range(30)], "B": [50 + (i % 3) for i in range(30)]}
     r = risk.portfolio_risk({"A": 750, "B": 250}, 1000, closes, None, {"A": "Tech", "B": "Energy"})
     assert r["total_value"] == 2000 and r["cash_pct"] == 50
     assert r["top_position_pct"] == 37.5
     assert r["effective_holdings"] == pytest.approx(1 / (0.75**2 + 0.25**2), abs=0.1)
     assert r["sectors"] == {"Tech": 37.5, "Energy": 12.5}
     assert r["correlation"]["symbols"] == ["A", "B"] and r["correlation"]["matrix"][0][0] == 1.0
+
+
+def test_portfolio_risk_doesnt_treat_unpriced_holdings_as_cash():
+    # A alternates +1% / -1%; B has no history. Both 500, no cash: risk must equal A's own, not half of it.
+    a = [100.0]
+    for i in range(40):
+        a.append(a[-1] * (1.01 if i % 2 == 0 else 0.99))
+    both = risk.portfolio_risk({"A": 500, "B": 500}, 0, {"A": a}, None, {})
+    only_a = risk.portfolio_risk({"A": 1000}, 0, {"A": a}, None, {})
+    assert both["volatility_pct"] == only_a["volatility_pct"] > 0
+    assert both["uncovered_pct"] == 50.0 and both["uncovered_symbols"] == ["B"]
+    assert risk.portfolio_risk({"B": 500}, 0, {}, None, {})["volatility_pct"] is None  # nothing priced: unknown, not zero
 
 
 def test_stress_scenarios_use_actual_fall_then_beta():
@@ -206,7 +267,8 @@ def test_profile_roundtrip_and_auto_target(client):
     p = r.json()
     assert p["saved"] and p["level"] == "balanced" and p["max_position_pct"] == 12 and p["max_sector_pct"] == 30
     targets = {t["name"]: t for t in client.get("/targets", headers=D).json()}
-    assert targets["Risk profile (auto)"]["profit_min"] == -25 and targets["Risk profile (auto)"]["risk_max"] == 45
+    auto = targets["Risk profile (auto)"]
+    assert auto["profit_min"] is None and auto["risk_max"] == 45  # the loss limit is a fall from peak, not a profit bound
     assert client.put("/safety/profile", json={}, headers=D).status_code == 422
 
 
@@ -218,41 +280,103 @@ def test_stock_safety_endpoint(client):
     assert moat["grade"] is not None and r["moat"]["years"] == 10 and len(r["moat"]["series"]) == 10
 
 
-def test_plans_flow(client):
-    acc = client.post("/accounts", json={"name": "Paper", "broker": "paper", "cash": 100_000}, headers=D).json()["id"]
+class FakeClock:
+    def __init__(self) -> None:
+        self.now = datetime(2026, 5, 4, 9, tzinfo=UTC)
 
-    client.put("/safety/profile", json={**LOOSE}, headers=D)
-    # valuation can still warn (it isn't a profile rule), so give a reason; no cooling-off with 0 hours
-    ok = client.post("/plans", json={"account_id": acc, "symbol": "AAPL", "quantity": 1,
-                                     "note": "Core position, reviewed the valuation models."}, headers=D).json()
-    assert ok["verdict"] in ("pass", "warn") and ok["status"] == "ready", ok
-    done = client.post(f"/plans/{ok['id']}/execute", headers=D).json()
-    assert done["status"] == "executed" and done["executed_holding_id"]
+    def __call__(self) -> datetime:
+        return self.now
 
-    client.put("/safety/profile", json={**LOOSE, "max_volatility_pct": 0.1, "cooling_off_hours": 24}, headers=D)
-    r = client.post("/plans", json={"account_id": acc, "symbol": "MSFT", "quantity": 1}, headers=D)
-    assert r.status_code == 422 and r.json()["detail"]["check"]["verdict"] == "warn"  # needs a reason
-    risky = client.post("/plans", json={"account_id": acc, "symbol": "MSFT", "quantity": 1,
-                                        "note": "Long-term hold, accepting higher volatility here."}, headers=D).json()
-    assert risky["status"] == "cooling_off"
-    assert datetime.fromisoformat(risky["available_at"]) > datetime.now(timezone.utc) + timedelta(hours=23)
-    assert client.post(f"/plans/{risky['id']}/execute", headers=D).status_code == 409
-    assert client.post(f"/plans/{risky['id']}/cancel", headers=D).json()["status"] == "cancelled"
 
-    client.put("/safety/profile", json={**LOOSE, "min_safety_score": 100}, headers=D)
-    blocked = client.post("/plans", json={"account_id": acc, "symbol": "NVDA", "quantity": 1}, headers=D).json()
-    assert blocked["status"] == "blocked"
-    # paper accounts enforce blocks on direct adds too; real accounts only warn
-    assert client.post("/holdings", json={"account_id": acc, "symbol": "NVDA", "quantity": 1, "avg_cost": 100}, headers=D).status_code == 409
-    real = client.post("/accounts", json={"name": "Real", "cash": 0}, headers=D).json()["id"]
-    r = client.post("/holdings", json={"account_id": real, "symbol": "NVDA", "quantity": 1, "avg_cost": 100}, headers=D)
-    assert r.status_code == 201 and r.json()["check"]["verdict"] == "block"
+@pytest.fixture
+def clock():
+    from app.clock import get_clock
+    from app.main import app
 
-    notes = client.get("/stocks/AAPL/notes", headers=D).json()
-    assert notes[0]["kind"] == "thesis" and "Core position" in notes[0]["body"]  # the plan's reason becomes a journal entry
+    fake = FakeClock()
+    app.dependency_overrides[get_clock] = lambda: fake
+    yield fake
+    app.dependency_overrides.pop(get_clock, None)
+
+
+@pytest.fixture
+def paper(client, request):
+    """A fresh user (named after the test) with a 100k paper account; returns (headers, account id)."""
+    return _plan_user(client, f"plans-{request.node.name}"[:120])
+
+
+REASON = "Long-term hold, accepting higher volatility here."
+
+
+@pytest.mark.parametrize(("rules", "note", "code", "status"), [
+    ({}, REASON, 201, "ready"),  # valuation can still warn, but with no cooling-off a reasoned buy is ready now
+    ({"max_volatility_pct": 0.1}, "", 422, None),  # breaks a rule: needs a written reason
+    ({"max_volatility_pct": 0.1}, "too short", 422, None),
+    ({"max_volatility_pct": 0.1, "cooling_off_hours": 24}, REASON, 201, "cooling_off"),
+    ({"min_safety_score": 100}, "", 201, "blocked"),
+])
+def test_create_plan(client, clock, paper, rules, note, code, status):
+    who, acc = paper
+    client.put("/safety/profile", json={**LOOSE, **rules}, headers=who)
+    r = client.post("/plans", json={"account_id": acc, "symbol": "MSFT", "quantity": 1, "note": note}, headers=who)
+    assert r.status_code == code, r.text
+    if code == 422:
+        assert r.json()["detail"]["check"]["verdict"] == "warn"
+        return
+    plan = r.json()
+    assert plan["status"] == status
+    wait = timedelta(hours=24) if status == "cooling_off" else timedelta(0)
+    assert datetime.fromisoformat(plan["available_at"]) == clock.now + wait
+
+
+@pytest.mark.parametrize(("cooling_off_hours", "advance_hours", "code", "status"), [
+    (0, 0, 200, "executed"),
+    (24, 23, 409, "cooling_off"),  # still waiting
+    (24, 24, 200, "executed"),  # the wait is over
+])
+def test_execute_plan(client, clock, paper, cooling_off_hours, advance_hours, code, status):
+    who, acc = paper
+    rules = {"max_volatility_pct": 0.1, "cooling_off_hours": cooling_off_hours}
+    client.put("/safety/profile", json={**LOOSE, **rules}, headers=who)
+    plan = client.post("/plans", json={"account_id": acc, "symbol": "AAPL", "quantity": 1, "note": REASON}, headers=who).json()
+    clock.now += timedelta(hours=advance_hours)
+
+    r = client.post(f"/plans/{plan['id']}/execute", headers=who)
+
+    assert r.status_code == code, r.text
+    got = {p["id"]: p for p in client.get("/plans", headers=who).json()}[plan["id"]]
+    assert got["status"] == status
+    if status == "executed":
+        assert got["executed_holding_id"]
+        notes = client.get("/stocks/AAPL/notes", headers=who).json()
+        assert notes[0]["kind"] == "thesis" and REASON in notes[0]["body"]  # the reason becomes a journal entry
+
+
+@pytest.mark.parametrize(("execute_first", "code", "status"), [(False, 200, "cancelled"), (True, 409, "executed")])
+def test_cancel_plan(client, clock, paper, execute_first, code, status):
+    who, acc = paper
+    client.put("/safety/profile", json={**LOOSE}, headers=who)
+    plan = client.post("/plans", json={"account_id": acc, "symbol": "AAPL", "quantity": 1, "note": REASON}, headers=who).json()
+    if execute_first:
+        client.post(f"/plans/{plan['id']}/execute", headers=who)
+    assert client.post(f"/plans/{plan['id']}/cancel", headers=who).status_code == code
+    assert {p["id"]: p for p in client.get("/plans", headers=who).json()}[plan["id"]]["status"] == status
+
+
+@pytest.mark.parametrize(("broker", "code", "verdict"), [("paper", 409, None), ("manual", 201, "block")])
+def test_add_holding_enforces_blocks_on_paper_only(client, request, broker, code, verdict):
+    who = auth(f"blocks-{request.node.name}"[:120])
+    client.put("/safety/profile", json={**LOOSE, "min_safety_score": 100}, headers=who)
+    acc = client.post("/accounts", json={"name": "A", "broker": broker, "cash": 100_000}, headers=who).json()["id"]
+    r = client.post("/holdings", json={"account_id": acc, "symbol": "NVDA", "quantity": 1, "avg_cost": 100}, headers=who)
+    assert r.status_code == code
+    if verdict:
+        assert r.json()["check"]["verdict"] == verdict  # real accounts record trades already made: they warn
 
 
 def test_portfolio_risk_and_stress_endpoints(client):
+    acc = client.post("/accounts", json={"name": "Real", "cash": 1_000}, headers=D).json()["id"]
+    client.post("/holdings", json={"account_id": acc, "symbol": "AAPL", "quantity": 5, "avg_cost": 150}, headers=D)
     r = client.get("/safety/portfolio", headers=D).json()
     assert r["holdings_count"] >= 1 and r["volatility_pct"] is not None and "breaches" in r
     s = client.get("/safety/stress", headers=D).json()
@@ -272,3 +396,61 @@ def test_ai_analyzer(client, fake_ai):
     assert d["overview"] == "Solid balance sheet." and d["areas"][0]["name"] == "Price risk" and d["fit"]
     req = fake_ai.built["anthropic"].requests[0]
     assert '"user_rules"' in req.messages[-1].content and "not advice" in req.messages[0].content
+
+
+def _plan_user(client, name: str, cash: float = 100_000) -> tuple[dict[str, str], int]:
+    who = auth(name)
+    client.put("/safety/profile", json={**LOOSE}, headers=who)
+    acc = client.post("/accounts", json={"name": "Paper", "broker": "paper", "cash": cash}, headers=who).json()["id"]
+    return who, acc
+
+
+def test_execute_plan_runs_once_under_concurrent_requests(client):
+    import asyncio
+
+    from app.clock import utc_now
+    from app.db import SessionLocal
+    from app.market import get_provider
+    from app.routers.safety import execute_plan
+
+    who, acc = _plan_user(client, "double-click")
+    plan = client.post("/plans", json={"account_id": acc, "symbol": "JNJ", "quantity": 1}, headers=who).json()
+    assert plan["status"] == "ready", plan
+
+    async def attempt() -> str:
+        with SessionLocal() as db:
+            try:
+                await execute_plan(plan["id"], "double-click", db, get_provider(), utc_now)
+                return "executed"
+            except Exception as e:  # HTTPException 409 for the loser
+                return type(e).__name__
+
+    results = asyncio.run(_both(attempt))
+    assert sorted(results) == ["HTTPException", "executed"]
+    assert len(client.get("/portfolio?mode=paper", headers=who).json()["holdings"]) == 1
+
+
+async def _both(fn):
+    import asyncio
+
+    return await asyncio.gather(fn(), fn())
+
+
+@pytest.mark.parametrize(("note", "status"), [("Long-term hold, accepting the extra risk here.", "cooling_off"), ("", "cancelled")])
+def test_execute_plan_sends_a_drifted_warn_back_through_note_and_cooling_off(client, note, status):
+    who, acc = _plan_user(client, f"drift-{bool(note)}")
+    plan = client.post("/plans", json={"account_id": acc, "symbol": "JNJ", "quantity": 1, "note": note}, headers=who).json()
+    assert plan["verdict"] == "pass" and plan["status"] == "ready", plan
+    client.put("/safety/profile", json={**LOOSE, "max_volatility_pct": 0.1, "cooling_off_hours": 24}, headers=who)
+    r = client.post(f"/plans/{plan['id']}/execute", headers=who)
+    assert r.status_code == 409 and r.json()["detail"]["check"]["verdict"] == "warn"
+    after = next(p for p in client.get("/plans", headers=who).json() if p["id"] == plan["id"])
+    assert after["status"] == status and after["verdict"] == "warn"
+    assert client.get("/portfolio?mode=paper", headers=who).json()["holdings"] == []
+
+
+def test_execute_plan_releases_the_claim_when_paper_cash_is_short(client):
+    who, acc = _plan_user(client, "short-cash", cash=1)
+    plan = client.post("/plans", json={"account_id": acc, "symbol": "JNJ", "quantity": 1}, headers=who).json()
+    assert client.post(f"/plans/{plan['id']}/execute", headers=who).status_code == 409
+    assert next(p for p in client.get("/plans", headers=who).json() if p["id"] == plan["id"])["status"] == "ready"

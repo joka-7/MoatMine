@@ -9,3 +9,4 @@ cryptography>=42
 pyjwt[crypto]>=2.8
 mcp>=1.9
 model-dispatcher[openai,anthropic,gemini]==0.6.7
+alembic>=1.13

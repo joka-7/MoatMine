@@ -1,13 +1,13 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
-from sqlalchemy import DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import DateTime, Float, ForeignKey, Index, Integer, String, Text, UniqueConstraint, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db import Base
 
 
 def utcnow() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 class Account(Base):
@@ -104,6 +104,12 @@ class Target(Base):
 
 class Alert(Base):
     __tablename__ = "alerts"
+    # one unread alert per condition, enforced by the database so two overlapping worker passes
+    # can't both write it
+    __table_args__ = (
+        Index("uq_alerts_unread_dedupe", "user_id", "dedupe_key", unique=True,
+              sqlite_where=text("NOT read"), postgresql_where=text("NOT read")),
+    )
     id: Mapped[int] = mapped_column(primary_key=True)
     user_id: Mapped[str] = mapped_column(String(128), index=True)
     source: Mapped[str] = mapped_column(String(20))  # target | watch
@@ -113,6 +119,20 @@ class Alert(Base):
     dedupe_key: Mapped[str] = mapped_column(String(200), index=True)
     read: Mapped[bool] = mapped_column(default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+ALERT_WORKER = "alerts"  # WorkerHeartbeat.name of app.worker
+
+
+class WorkerHeartbeat(Base):
+    """The worker's last completed pass, so a stalled or crash-looping worker is visible."""
+
+    __tablename__ = "worker_heartbeats"
+    name: Mapped[str] = mapped_column(String(40), primary_key=True)
+    finished_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    duration_seconds: Mapped[float] = mapped_column(Float)
+    alerts_created: Mapped[int] = mapped_column(Integer)
+    users_failed: Mapped[int] = mapped_column(Integer)
 
 
 class AISettings(Base):

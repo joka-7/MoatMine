@@ -1,10 +1,13 @@
 "use client";
 
 import Link from "next/link";
+import BookToggle, { PaperNotice } from "@/components/BookToggle";
 import { Bar, BarChart, Cell, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { PortfolioRisk, StressReport } from "@/lib/api";
 import { money, num, pct } from "@/lib/format";
 import { useApi } from "@/lib/useApi";
+import { useBookMode } from "@/lib/useBookMode";
+import { isSampleData } from "@/lib/dataSource";
 
 const TT = { background: "#14171c", border: "1px solid #262a32", borderRadius: 8 };
 
@@ -15,8 +18,9 @@ function corrColor(c: number | null) {
 }
 
 export default function RiskPage() {
-  const { data: r, error } = useApi<PortfolioRisk>("/safety/portfolio");
-  const { data: s } = useApi<StressReport>("/safety/stress");
+  const [mode, setMode] = useBookMode();
+  const { data: r, error } = useApi<PortfolioRisk>(`/safety/portfolio?mode=${mode}`);
+  const { data: s } = useApi<StressReport>(`/safety/stress?mode=${mode}`);
 
   const tiles: [string, string, string?][] = r ? [
     ["Volatility", r.volatility_pct == null ? "—" : `${num(r.volatility_pct)}%/yr`, "how much the portfolio swings"],
@@ -39,9 +43,20 @@ export default function RiskPage() {
           <h1>Portfolio risk</h1>
           <div className="sub">Measured against <Link href="/risk-profile" style={{ textDecoration: "underline" }}>your risk profile</Link>.</div>
         </div>
+        <BookToggle mode={mode} onChange={setMode} />
       </div>
+      {mode === "paper" && <PaperNotice />}
       {error && <div className="err" style={{ marginBottom: 16 }}>{error}</div>}
       {r && r.holdings_count === 0 && <div className="card empty" style={{ marginBottom: 16 }}>Add holdings to see portfolio risk.</div>}
+      {isSampleData(r?.data_source) && <div className="sub" style={{ fontSize: 12, marginBottom: 12 }}>Risk numbers below use sample price data, not real history.</div>}
+      {!!r?.uncovered_pct && (
+        <div className="sub" style={{ fontSize: 12, marginBottom: 12 }}>
+          No price history for {r.uncovered_symbols.join(", ")} ({r.uncovered_pct}% of invested value): assumed to move like the rest.
+        </div>
+      )}
+      {r?.window_limited_by && (
+        <div className="sub" style={{ fontSize: 12, marginBottom: 12 }}>{r.window_limited_by} has a short history, so these numbers cover only the last {r.days} trading days.</div>
+      )}
 
       {!!r?.breaches.length && (
         <div className="card" style={{ marginBottom: 16, borderColor: "color-mix(in srgb, var(--down) 40%, var(--line))" }}>
@@ -119,19 +134,21 @@ export default function RiskPage() {
                 </BarChart>
               </ResponsiveContainer>
             </div>
-            <table>
-              <thead><tr><th>Scenario</th><th className="n">Portfolio change</th><th>Biggest hits</th></tr></thead>
-              <tbody>
-                {s.scenarios.map((x) => (
-                  <tr key={x.key}>
-                    <td>{x.name} <span className="sub" style={{ fontSize: 11 }}>{x.kind}</span></td>
-                    <td className={`n ${x.breaches_limit ? "down" : ""}`}>{money(x.change)} ({pct(x.change_pct)}){x.breaches_limit && " ⚠"}</td>
-                    <td className="sub" style={{ fontSize: 12 }}>{x.worst.map((w) => `${w.symbol} ${pct(w.change_pct)}${w.basis !== "actual fall" ? "*" : ""}`).join(" · ")}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            <div className="sub" style={{ fontSize: 12, marginTop: 6 }}>* estimated from the stock&apos;s beta (not listed then, or a hypothetical fall). {s.note}{s.data_source.startsWith("mock") ? " Sample data." : ""}</div>
+            <div className="scroll-x">
+              <table>
+                <thead><tr><th>Scenario</th><th className="n">Portfolio change</th><th>Biggest hits</th></tr></thead>
+                <tbody>
+                  {s.scenarios.map((x) => (
+                    <tr key={x.key}>
+                      <td>{x.name} <span className="sub" style={{ fontSize: 11 }}>{x.kind}</span></td>
+                      <td className={`n ${x.breaches_limit ? "down" : ""}`}>{money(x.change)} ({pct(x.change_pct)}){x.breaches_limit && " ⚠"}</td>
+                      <td className="sub" style={{ fontSize: 12 }}>{x.worst.map((w) => `${w.symbol} ${pct(w.change_pct)}${w.basis !== "actual fall" ? "*" : ""}`).join(" · ")}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="sub" style={{ fontSize: 12, marginTop: 6 }}>* estimated from the stock&apos;s beta (not listed then, or a hypothetical fall). {s.note}{isSampleData(s.data_source) ? " Sample data." : ""}</div>
           </>
         )}
       </div>

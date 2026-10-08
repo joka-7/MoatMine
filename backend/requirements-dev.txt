@@ -1,2 +1,5 @@
--r requirements.txt
+-r requirements.lock
 pytest>=8
+# exact versions: a new lint rule or type-check change shouldn't turn CI red on its own
+ruff==0.16.10
+mypy==2.4.0

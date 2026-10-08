@@ -5,6 +5,7 @@ import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAx
 import { BadTimes } from "@/lib/api";
 import { date, pct } from "@/lib/format";
 import { useApi } from "@/lib/useApi";
+import { isSampleData } from "@/lib/dataSource";
 
 const TT = { background: "#14171c", border: "1px solid #262a32", borderRadius: 8 };
 const AX = { stroke: "#8b909a", fontSize: 11, tickLine: false, axisLine: false } as const;
@@ -21,11 +22,11 @@ export default function BadTimesPanel({ symbol }: { symbol: string }) {
   const [input, setInput] = useState("SPY");
   const { data: d, error } = useApi<BadTimes>(`/stocks/${symbol}/crises?benchmark=${bench}`);
   const r = d?.resilience;
-  const chart = d?.crises.filter((c) => c.stock).map((c) => ({
+  const chart = d?.crises.flatMap((c) => c.stock ? [{
     name: c.name.replace(/ (crash|crisis|sell-off|bear market).*/i, ""),
-    [symbol]: c.stock!.drawdown_pct,
+    [symbol]: c.stock.drawdown_pct,
     [bench]: c.benchmark?.drawdown_pct ?? null,
-  })) ?? [];
+  }] : []) ?? [];
   const captureTone = r?.downside_capture_pct == null ? "" : r.downside_capture_pct <= 80 ? "up" : r.downside_capture_pct > 120 ? "down" : "";
 
   return (
@@ -74,50 +75,54 @@ export default function BadTimesPanel({ symbol }: { symbol: string }) {
             </ResponsiveContainer>
           </div>
         )}
-        <table style={{ marginTop: 8 }}>
-          <thead>
-            <tr><th>Crisis</th><th>Period</th><th className="n">{symbol} fall</th><th className="n">{bench} fall</th><th className="n">Back to pre-crisis price</th></tr>
-          </thead>
-          <tbody>
-            {d?.crises.map((c) => (
-              <tr key={c.key}>
-                <td><div>{c.name}</div><div className="sub" style={{ fontSize: 12 }}>{c.description}</div></td>
-                <td className="sub" style={{ whiteSpace: "nowrap" }}>{c.start.slice(0, 7)} → {c.end.slice(0, 7)}</td>
-                {c.stock ? (
-                  <>
-                    <td className="n down">{pct(c.stock.drawdown_pct)}</td>
-                    <td className="n sub">{pct(c.benchmark?.drawdown_pct)}</td>
-                    <td className="n">{c.stock.recovered ? span(c.stock.recovery_days) : <span className="down">not yet ({pct(c.stock.still_below_pct)})</span>}</td>
-                  </>
-                ) : (
-                  <td colSpan={3} className="sub" style={{ textAlign: "right" }}>not listed yet</td>
-                )}
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <div className="scroll-x">
+          <table style={{ marginTop: 8 }}>
+            <thead>
+              <tr><th>Crisis</th><th>Period</th><th className="n">{symbol} fall</th><th className="n">{bench} fall</th><th className="n">Back to pre-crisis price</th></tr>
+            </thead>
+            <tbody>
+              {d?.crises.map((c) => (
+                <tr key={c.key}>
+                  <td><div>{c.name}</div><div className="sub" style={{ fontSize: 12 }}>{c.description}</div></td>
+                  <td className="sub" style={{ whiteSpace: "nowrap" }}>{c.start.slice(0, 7)} → {c.end.slice(0, 7)}</td>
+                  {c.stock ? (
+                    <>
+                      <td className="n down">{pct(c.stock.drawdown_pct)}</td>
+                      <td className="n sub">{pct(c.benchmark?.drawdown_pct)}</td>
+                      <td className="n">{c.stock.recovered ? span(c.stock.recovery_days) : <span className="down">not yet ({pct(c.stock.still_below_pct)})</span>}</td>
+                    </>
+                  ) : (
+                    <td colSpan={3} className="sub" style={{ textAlign: "right" }}>not listed yet</td>
+                  )}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       <div className="card">
         <h2>{symbol}&apos;s own worst falls</h2>
-        <table>
-          <thead><tr><th>Peak</th><th>Bottom</th><th className="n">Fall</th><th className="n">Time falling</th><th className="n">Time to recover</th></tr></thead>
-          <tbody>
-            {d?.worst_drawdowns.map((w) => (
-              <tr key={w.peak_date}>
-                <td>{date(w.peak_date)}</td><td>{date(w.trough_date)}</td>
-                <td className="n down">{pct(w.depth_pct)}</td>
-                <td className="n">{span(w.fall_days)}</td>
-                <td className="n">{w.recovered ? span(w.recovery_days) : <span className="down">still below peak</span>}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <div className="scroll-x">
+          <table>
+            <thead><tr><th>Peak</th><th>Bottom</th><th className="n">Fall</th><th className="n">Time falling</th><th className="n">Time to recover</th></tr></thead>
+            <tbody>
+              {d?.worst_drawdowns.map((w) => (
+                <tr key={w.peak_date}>
+                  <td>{date(w.peak_date)}</td><td>{date(w.trough_date)}</td>
+                  <td className="n down">{pct(w.depth_pct)}</td>
+                  <td className="n">{span(w.fall_days)}</td>
+                  <td className="n">{w.recovered ? span(w.recovery_days) : <span className="down">still below peak</span>}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
         {d && !d.worst_drawdowns.length && <div className="empty">No falls deeper than 10% in the available history.</div>}
       </div>
       {d && (
         <div className="sub" style={{ fontSize: 12 }}>
-          {d.note} Source: {d.data_source}{d.data_source.startsWith("mock") ? " (sample data, not real history)" : ""}.
+          {d.note} Source: {d.data_source}{isSampleData(d.data_source) ? " (sample data, not real history)" : ""}.
         </div>
       )}
     </div>

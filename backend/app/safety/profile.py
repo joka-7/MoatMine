@@ -1,6 +1,15 @@
 """Risk-profile questionnaire and the default rules for each level."""
 
-QUESTIONS = [
+from typing import TypedDict
+
+
+class Question(TypedDict):
+    id: str
+    text: str
+    options: list[str]
+
+
+QUESTIONS: list[Question] = [
     {
         "id": "horizon",
         "text": "When will you need most of this money?",
@@ -35,7 +44,7 @@ RULE_KEYS = [
     "max_drawdown_pct", "min_market_cap_m", "allow_penny_stocks", "cooling_off_hours",
 ]
 
-DEFAULT_RULES: dict[str, dict] = {
+DEFAULT_RULES: dict[str, dict[str, float | bool]] = {
     "conservative": {"max_position_pct": 5, "max_sector_pct": 20, "min_safety_score": 70, "max_volatility_pct": 25,
                      "max_drawdown_pct": -15, "min_market_cap_m": 10_000, "allow_penny_stocks": False, "cooling_off_hours": 48},
     "moderate": {"max_position_pct": 8, "max_sector_pct": 25, "min_safety_score": 60, "max_volatility_pct": 35,

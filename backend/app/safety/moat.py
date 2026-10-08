@@ -6,16 +6,22 @@ Three signs of a moat, measured over up to 10 years:
   - steady revenue growth.
 """
 
+from itertools import pairwise
 from statistics import mean, pstdev
+
+from app.jsontypes import JSONDict
 
 TAX_RATE = 0.21  # NOPAT approximation; good enough for ranking, not for valuation
 GOOD_ROIC_PCT = 10.0
 MIN_YEARS = 4
 
 
-def roic_pct(row: dict) -> float | None:
+def roic_pct(row: JSONDict) -> float | None:
     """After-tax operating income ÷ (equity + debt − cash), in %. None if not computable."""
-    oi, eq, debt, cash = (row.get(k) for k in ("operating_income", "equity", "debt", "cash"))
+    oi: float | None = row.get("operating_income")
+    eq: float | None = row.get("equity")
+    debt: float | None = row.get("debt")
+    cash: float | None = row.get("cash")
     if oi is None or eq is None:
         return None
     invested = eq + (debt or 0) - (cash or 0)
@@ -24,12 +30,12 @@ def roic_pct(row: dict) -> float | None:
     return oi * (1 - TAX_RATE) / invested * 100
 
 
-def gross_margin_pct(row: dict) -> float | None:
+def gross_margin_pct(row: JSONDict) -> float | None:
     rev, gp = row.get("revenue"), row.get("gross_profit")
     return gp / rev * 100 if rev and gp is not None else None
 
 
-def moat_metrics(history: list[dict]) -> dict | None:
+def moat_metrics(history: list[JSONDict]) -> JSONDict | None:
     """Summary of up to 10 years (newest first). None when there are fewer than MIN_YEARS years."""
     rows = [r for r in history if r.get("revenue")][:10]
     if len(rows) < MIN_YEARS:
@@ -38,7 +44,7 @@ def moat_metrics(history: list[dict]) -> dict | None:
     roics = [(r["year"], v) for r in oldest_first if (v := roic_pct(r)) is not None]
     margins = [(r["year"], v) for r in oldest_first if (v := gross_margin_pct(r)) is not None]
     revs = [r["revenue"] for r in oldest_first]
-    growth = [b / a - 1 for a, b in zip(revs, revs[1:]) if a]
+    growth = [b / a - 1 for a, b in pairwise(revs) if a]
     years = len(revs) - 1
     cagr = (revs[-1] / revs[0]) ** (1 / years) - 1 if revs[0] and revs[-1] > 0 and years else None
     return {

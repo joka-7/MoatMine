@@ -13,6 +13,7 @@ import {
 } from "lightweight-charts";
 import { useEffect, useRef, useState } from "react";
 import { apiWithHeaders, Candle } from "@/lib/api";
+import { isSampleData } from "@/lib/dataSource";
 
 const RANGES = [
   { id: "1D", res: "5", days: 1 },
@@ -68,6 +69,8 @@ export default function PriceChart({ symbol }: { symbol: string }) {
     const chart = createChart(el.current, {
       autoSize: true,
       height: 420,
+      // fixed locale: the default (navigator.language) can be "en-US@posix" on Linux/C locales, which Intl rejects
+      localization: { locale: "en-US" },
       layout: { background: { type: ColorType.Solid, color: "transparent" }, textColor: C.text, fontFamily: "ui-monospace, Menlo, monospace" },
       grid: { vertLines: { color: C.grid }, horzLines: { color: C.grid } },
       crosshair: { mode: CrosshairMode.Normal },
@@ -133,7 +136,7 @@ export default function PriceChart({ symbol }: { symbol: string }) {
       {err ? <div className="err">{err}</div> : <div ref={el} style={{ height: 420 }} />}
       {source && source !== "finnhub" && (
         <div className="sub" style={{ fontSize: 12, marginTop: 6 }}>
-          Data source: {source}{source.startsWith("mock") ? " — sample data, not real prices" : ""}
+          Data source: {source}{isSampleData(source) ? " — sample data, not real prices" : ""}
         </div>
       )}
     </div>

@@ -1,25 +1,30 @@
 import asyncio
 import time
+from collections.abc import Sequence
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.analytics import price_stats
 from app.auth import current_user
-from app.db import get_db
-from app.market import get_provider
-from app.market.base import RESOLUTION_SECONDS
-from app.models import StockNote
-from app.ai.dispatcher import DispatchError
-from app.routers.ai import dispatch_error_response
 from app.crises import bad_times
+from app.db import get_db
+from app.jsontypes import JSONDict
+from app.market import get_provider
+from app.market.base import RESOLUTION_SECONDS, Candle, MarketProvider, NewsItem, Quote
+from app.market.sources import source_label, track_sources
+from app.models import StockNote
+from app.ratelimit import rate_limited
 from app.research import news_feed, news_summary, valuation
-from app.schemas import NoteIn, NoteOut
+from app.research import ratios as research_ratios
+from app.schemas import CandleOut, NoteIn, NoteOut, QuoteOut, RatiosOut
 from app.valuation import Assumptions
 
-router = APIRouter(prefix="/stocks", tags=["stocks"])
-feed_router = APIRouter(tags=["news"])
+# every market-data route spends the server's provider quota: signed-in users only, rate-limited
+router = APIRouter(prefix="/stocks", tags=["stocks"], dependencies=[Depends(rate_limited("market"))])
+feed_router = APIRouter(tags=["news"], dependencies=[Depends(rate_limited("market"))])
+
+MAX_CANDLES = 10_000  # a year of hourly bars; bounds the work one request can ask for
 
 
 def _sym(symbol: str) -> str:
@@ -27,65 +32,64 @@ def _sym(symbol: str) -> str:
 
 
 @router.get("/search")
-async def search(q: str = Query(min_length=1)):
-    return await get_provider().search(q)
+async def search(q: str = Query(min_length=1), provider: MarketProvider = Depends(get_provider)) -> list[JSONDict]:
+    return await provider.search(q)
 
 
-@router.get("/{symbol}/quote")
-async def quote(symbol: str):
-    return await get_provider().quote(_sym(symbol))
+@router.get("/{symbol}/quote", response_model=QuoteOut)
+async def quote(symbol: str, provider: MarketProvider = Depends(get_provider)) -> Quote:
+    return await provider.quote(_sym(symbol))
 
 
-@router.get("/{symbol}/candles")
+@router.get("/{symbol}/candles", response_model=list[CandleOut])
 async def candles(
     symbol: str,
     response: Response,
     resolution: str = Query("D"),
     start: int | None = None,
     end: int | None = None,
-):
+    provider: MarketProvider = Depends(get_provider),
+) -> list[Candle]:
     if resolution not in RESOLUTION_SECONDS:
         raise HTTPException(422, f"resolution must be one of {list(RESOLUTION_SECONDS)}")
-    end = end or int(time.time())
-    start = start or end - 365 * 86400
-    provider = get_provider()
-    bars = await provider.candles(_sym(symbol), resolution, start, end)
-    source = "mock-fallback" if getattr(provider, "candles_fell_back", False) else provider.name
-    response.headers["X-Data-Source"] = source
+    if end is None:
+        end = int(time.time())
+    if start is None:  # default: a year, or as much as fits in MAX_CANDLES at fine resolutions
+        start = end - min(365 * 86400, MAX_CANDLES * RESOLUTION_SECONDS[resolution])
+    if end <= start or (end - start) / RESOLUTION_SECONDS[resolution] > MAX_CANDLES:
+        raise HTTPException(422, f"range must be positive and at most {MAX_CANDLES} bars at this resolution")
+    with track_sources() as used:
+        bars = await provider.candles(_sym(symbol), resolution, start, end)
+    response.headers["X-Data-Source"] = source_label(provider.name, used)
     return bars
 
 
 @router.get("/{symbol}/profile")
-async def profile(symbol: str):
-    return await get_provider().profile(_sym(symbol))
+async def profile(symbol: str, provider: MarketProvider = Depends(get_provider)) -> JSONDict:
+    return await provider.profile(_sym(symbol))
 
 
-@router.get("/{symbol}/ratios")
-async def ratios(symbol: str, lookback_days: int = Query(365, ge=30, le=3650)):
-    """Fundamental ratios from the provider + price/risk ratios computed from candles."""
-    p = get_provider()
-    sym = _sym(symbol)
-    end = int(time.time())
-    bars = await p.candles(sym, "D", end - lookback_days * 86400, end)
-    return {"fundamental": await p.metrics(sym), "price": price_stats([b["c"] for b in bars])}
+@router.get("/{symbol}/ratios", response_model=RatiosOut)
+async def ratios(symbol: str, lookback_days: int = Query(365, ge=30, le=3650), provider: MarketProvider = Depends(get_provider)) -> JSONDict:
+    return await research_ratios(provider, _sym(symbol), lookback_days)
 
 
 @router.get("/{symbol}/news")
-async def news(symbol: str, days: int = Query(14, ge=1, le=90)):
-    return await get_provider().news(_sym(symbol), days)
+async def news(symbol: str, days: int = Query(14, ge=1, le=90), provider: MarketProvider = Depends(get_provider)) -> list[NewsItem]:
+    return await provider.news(_sym(symbol), days)
 
 
 # --- user's own notes / news / thesis per stock ---
 
 
 @router.get("/{symbol}/notes", response_model=list[NoteOut])
-def list_notes(symbol: str, user: str = Depends(current_user), db: Session = Depends(get_db)):
+def list_notes(symbol: str, user: str = Depends(current_user), db: Session = Depends(get_db)) -> Sequence[StockNote]:
     q = select(StockNote).where(StockNote.user_id == user, StockNote.symbol == _sym(symbol))
     return db.scalars(q.order_by(StockNote.created_at.desc())).all()
 
 
 @router.post("/{symbol}/notes", response_model=NoteOut, status_code=201)
-def add_note(symbol: str, body: NoteIn, user: str = Depends(current_user), db: Session = Depends(get_db)):
+def add_note(symbol: str, body: NoteIn, user: str = Depends(current_user), db: Session = Depends(get_db)) -> StockNote:
     n = StockNote(user_id=user, symbol=_sym(symbol), **body.model_dump())
     db.add(n)
     db.commit()
@@ -93,7 +97,7 @@ def add_note(symbol: str, body: NoteIn, user: str = Depends(current_user), db: S
 
 
 @router.delete("/{symbol}/notes/{note_id}", status_code=204)
-def delete_note(symbol: str, note_id: int, user: str = Depends(current_user), db: Session = Depends(get_db)):
+def delete_note(symbol: str, note_id: int, user: str = Depends(current_user), db: Session = Depends(get_db)) -> None:
     n = db.get(StockNote, note_id)
     if not n or n.user_id != user:
         raise HTTPException(404, "note not found")
@@ -105,33 +109,30 @@ def delete_note(symbol: str, note_id: int, user: str = Depends(current_user), db
 
 
 @router.get("/{symbol}/company")
-async def company(symbol: str):
-    p = get_provider()
+async def company(symbol: str, provider: MarketProvider = Depends(get_provider)) -> JSONDict:
     sym = _sym(symbol)
-    prof, comp = await asyncio.gather(p.profile(sym), p.company(sym))
+    prof, comp = await asyncio.gather(provider.profile(sym), provider.company(sym))
     return {**prof, **{k: v for k, v in comp.items() if v not in (None, "")}}
 
 
 @router.get("/{symbol}/earnings")
-async def earnings(symbol: str):
-    return await get_provider().earnings(_sym(symbol))
+async def earnings(symbol: str, provider: MarketProvider = Depends(get_provider)) -> list[JSONDict]:
+    return await provider.earnings(_sym(symbol))
 
 
 @router.get("/{symbol}/analysts")
-async def analysts(symbol: str):
-    p = get_provider()
+async def analysts(symbol: str, provider: MarketProvider = Depends(get_provider)) -> JSONDict:
     sym = _sym(symbol)
-    recs, target, q = await asyncio.gather(p.recommendations(sym), p.price_target(sym), p.quote(sym))
+    recs, target, q = await asyncio.gather(provider.recommendations(sym), provider.price_target(sym), provider.quote(sym))
     if target and target.get("mean") and q["price"]:
         target["upside_pct"] = round((target["mean"] / q["price"] - 1) * 100, 1)
     return {"recommendations": recs, "price_target": target, "price": q["price"]}
 
 
 @router.get("/{symbol}/dividends")
-async def dividends(symbol: str):
-    p = get_provider()
+async def dividends(symbol: str, provider: MarketProvider = Depends(get_provider)) -> JSONDict:
     sym = _sym(symbol)
-    divs, splits = await asyncio.gather(p.dividends(sym), p.splits(sym))
+    divs, splits = await asyncio.gather(provider.dividends(sym), provider.splits(sym))
     return {"dividends": divs, "splits": splits}
 
 
@@ -147,31 +148,30 @@ async def stock_valuation(
     pe_multiple: float = Query(18.0, gt=0, le=100),
     ev_ebitda_multiple: float = Query(12.0, gt=0, le=60),
     dividend_growth: float = Query(4.0, ge=-10, le=20),
-):
+    provider: MarketProvider = Depends(get_provider),
+) -> JSONDict:
     """Fair value from several models, valuation indicators and quality scores. All assumptions are overridable."""
     a = Assumptions(discount_rate, growth_rate, terminal_growth, years, margin_of_safety, bond_yield,
                     pe_multiple, ev_ebitda_multiple, dividend_growth)
-    return await valuation(get_provider(), _sym(symbol), a)
+    return await valuation(provider, _sym(symbol), a)
 
 
 @router.get("/{symbol}/crises")
-async def crises(symbol: str, benchmark: str = Query("SPY", min_length=1, max_length=16)):
+async def crises(symbol: str, benchmark: str = Query("SPY", min_length=1, max_length=16), provider: MarketProvider = Depends(get_provider)) -> JSONDict:
     """How the stock behaved in past market crises vs a benchmark, plus its own worst drawdowns."""
-    return await bad_times(get_provider(), _sym(symbol), _sym(benchmark))
+    return await bad_times(provider, _sym(symbol), _sym(benchmark))
 
 
 @router.get("/{symbol}/news/summary")
 async def summarize_news(
-    symbol: str, days: int = Query(7, ge=1, le=90), user: str = Depends(current_user), db: Session = Depends(get_db)
-):
+    symbol: str, days: int = Query(7, ge=1, le=90), user: str = Depends(current_user), db: Session = Depends(get_db),
+    provider: MarketProvider = Depends(get_provider),
+) -> JSONDict:
     """AI digest of recent headlines with a sentiment label (fast model, cached 1h)."""
-    try:
-        return await news_summary(db, user, get_provider(), _sym(symbol), days)
-    except DispatchError as e:
-        return dispatch_error_response(e)
+    return await news_summary(db, user, provider, _sym(symbol), days)
 
 
 @feed_router.get("/news/feed")
-async def feed(days: int = Query(7, ge=1, le=30), user: str = Depends(current_user), db: Session = Depends(get_db)):
+async def feed(days: int = Query(7, ge=1, le=30), user: str = Depends(current_user), db: Session = Depends(get_db), provider: MarketProvider = Depends(get_provider)) -> list[JSONDict]:
     """News across everything you hold or watch."""
-    return await news_feed(db, user, get_provider(), days)
+    return await news_feed(db, user, provider, days)

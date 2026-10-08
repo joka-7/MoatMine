@@ -9,6 +9,8 @@ databases:
 envVarGroups:
   - name: moatmine-shared
     envVars:
+      - key: LOG_FORMAT
+        value: json
       - key: MARKET_PROVIDER
         value: finnhub
       - key: FINNHUB_API_KEY
@@ -22,6 +24,8 @@ envVarGroups:
       - key: CLERK_JWKS_URL
         sync: false
       - key: CLERK_ISSUER
+        sync: false
+      - key: CLERK_AUTHORIZED_PARTIES
         sync: false
       - key: ANTHROPIC_API_KEY
         sync: false
@@ -38,9 +42,13 @@ services:
     runtime: python
     rootDir: backend
     plan: starter # free plan sleeps when idle
-    buildCommand: pip install -r requirements.txt
+    # One instance on purpose: response caches, AI quotas and rate limits live in process memory
+    # (docs/HLD.md "Scaling"). Move them to Redis before raising this.
+    numInstances: 1
+    buildCommand: pip install -r requirements.lock # exact versions; regenerate from requirements.txt
+    preDeployCommand: alembic upgrade head # schema first; a failed migration stops the deploy
     startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT --proxy-headers
-    healthCheckPath: /health
+    healthCheckPath: /health/ready # DB reachable and schema at the newest migration
     envVars:
       - fromGroup: moatmine-shared
       - key: PYTHON_VERSION
@@ -55,7 +63,8 @@ services:
     runtime: python
     rootDir: backend
     plan: starter
-    buildCommand: pip install -r requirements.txt
+    buildCommand: pip install -r requirements.lock # exact versions; regenerate from requirements.txt
+    preDeployCommand: alembic upgrade head # safe to run twice: Postgres advisory lock in migrations/env.py
     startCommand: python -m app.worker
     envVars:
       - fromGroup: moatmine-shared

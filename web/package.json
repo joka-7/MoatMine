@@ -7,22 +7,37 @@
     "build": "next build",
     "build:desktop": "cross-env NEXT_OUTPUT=export next build",
     "start": "next start",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "gen:api": "openapi-typescript openapi.json -o src/lib/api-schema.ts"
   },
   "dependencies": {
+    "@clerk/nextjs": "7.9.11",
+    "@clerk/react": "6.17.6",
     "lightweight-charts": "^5.2.1",
     "modeldispatcher-browser-agent": "^0.6.7",
     "modeldispatcher-react-ui": "^0.6.7",
-    "next": "15.5.27",
-    "react": "19.1.0",
-    "react-dom": "19.1.0",
+    "next": "^16.3.8",
+    "react": "19.1.9",
+    "react-dom": "19.1.9",
     "recharts": "^2.15.4"
   },
   "devDependencies": {
-    "@types/node": "^20",
+    "@testing-library/dom": "^10.4.2",
+    "@testing-library/react": "^16.3.3",
+    "@types/node": "^22.20.5",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@vitejs/plugin-react": "^6.1.1",
     "cross-env": "^10.1.0",
-    "typescript": "^5"
+    "eslint": "^9.39.5",
+    "eslint-config-next": "^16.3.8",
+    "jsdom": "^26.1.0",
+    "openapi-typescript": "^7.13.0",
+    "typescript": "^5",
+    "typescript-eslint": "^8.71.1",
+    "vite": "^8.3.1",
+    "vitest": "^5.0.1"
   }
 }

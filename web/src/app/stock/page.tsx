@@ -57,7 +57,7 @@ function Stock() {
             {[prof?.exchange, prof?.industry, prof?.market_cap ? `Mkt cap ${money(prof.market_cap * 1e6).replace(/\.\d+$/, "")}` : null].filter(Boolean).join(" · ")}
           </div>
         </div>
-        <div className="row" style={{ flex: 0, alignItems: "center" }}>
+        <div className="row" style={{ flex: "0 1 auto", alignItems: "center" }}>
           <div style={{ textAlign: "right", minWidth: 140 }}>
             <div className="num" style={{ fontSize: 22, fontWeight: 600 }}>{money(q?.price)}</div>
             <div className={`num ${tone(q?.change)}`}>{q ? `${q.change > 0 ? "+" : ""}${q.change.toFixed(2)} (${pct(q.change_pct)})` : ""}</div>
