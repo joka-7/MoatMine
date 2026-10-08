@@ -69,6 +69,7 @@ MoatMine/
 │   │   ├── ai/                          # Agent tools, ModelDispatcher wiring and per-user AI settings
 │   │   │   ├── __init__.py              # Package marker
 │   │   │   ├── dispatcher.py            # AI calls through ModelDispatcher (https://github.com/joka-7/ModelDispatcher).
+│   │   │   ├── llm_json.py              # Pull the JSON object out of a model reply that was asked to answer in JSON.
 │   │   │   ├── settings_store.py        # Per-user AI settings in ModelDispatcher's AgentConfig shape, Fernet-encrypted…
 │   │   │   └── tools.py                 # Tools the in-app agent can call
 │   │   ├── market/                      # Market-data providers (mock, Finnhub, FMP) behind one protocol
@@ -124,6 +125,7 @@ MoatMine/
 │   │   └── script.py.mako               # Template for new Alembic revisions
 │   ├── tests/                           # Pytest suite (SQLite, mock market data, no network)
 │   │   ├── conftest.py                  # Test app on a throwaway SQLite DB (migrated), mock market data,…
+│   │   ├── test_analytics.py            # Price-derived ratios with hand-checkable numbers.
 │   │   ├── test_api.py                  # End-to-end API: portfolio, stock data, notes, targets, worker alerts, AI…
 │   │   ├── test_auth.py                 # Clerk JWT verification, with a locally generated key standing in for Clerk's…
 │   │   ├── test_cache.py                # The TTL cache: expiry, eviction order, lock pruning and per-key single flight…
@@ -134,6 +136,7 @@ MoatMine/
 │   │   ├── test_dispatcher.py           # The server-wide AI budget: per-user quotas alone don't stop many accounts…
 │   │   ├── test_finnhub.py              # Finnhub provider against canned HTTP responses (no network).
 │   │   ├── test_fmp.py                  # FMP provider against canned HTTP responses (no network).
+│   │   ├── test_llm_json.py             # Finding the JSON object in a model reply.
 │   │   ├── test_log_config.py           # Secret redaction, JSON/text formatters, request-id middleware
 │   │   ├── test_portfolio.py            # Paper (practice) and real-money accounts are separate books everywhere money…
 │   │   ├── test_ratelimit.py

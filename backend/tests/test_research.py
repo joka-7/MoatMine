@@ -1,4 +1,4 @@
-from app import research
+from app import cache, research
 from tests.conftest import auth, reply
 
 C = auth("carol")
@@ -47,7 +47,7 @@ def test_news_feed_covers_holdings_and_watchlist(client):
 def test_news_summary_parses_and_caches(client, fake_ai):
     fake_ai.plans["anthropic"] = {"scripted": [reply(
         'Here you go: {"summary": "Mixed week.", "sentiment": "Bullish", "points": ["a", "b"], "watch": "earnings"}')]}
-    research._cache.clear()
+    cache.clear()
     r = client.get("/stocks/TSLA/news/summary?days=7", headers=C)
     assert r.status_code == 200, r.text
     d = r.json()

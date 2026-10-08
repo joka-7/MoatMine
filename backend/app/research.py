@@ -2,15 +2,15 @@
 
 import asyncio
 import hashlib
-import json
 import logging
-import re
 import time
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app import cache
 from app.ai.dispatcher import complete
+from app.ai.llm_json import json_object_in
 from app.jsontypes import JSONDict
 from app.market import describe_error
 from app.market.base import MarketProvider
@@ -55,15 +55,12 @@ _SUMMARY_SYSTEM = (
     '"points": ["up to 4 short key points"], "watch": "one thing to watch next"}. '
     "Base it only on the headlines given; say so if they are thin or irrelevant."
 )
-_cache: dict[str, tuple[float, JSONDict]] = {}
 _TTL = 3600
 
 
 def _parse_json(text: str) -> JSONDict:
-    m = re.search(r"\{.*\}", text, re.S)
-    try:
-        d = json.loads(m.group(0) if m else text)
-    except (json.JSONDecodeError, AttributeError):
+    d = json_object_in(text)
+    if d is None:
         return {"summary": text.strip()[:1200], "sentiment": "unknown", "points": [], "watch": ""}
     sentiment = str(d.get("sentiment", "unknown")).lower()
     if sentiment not in ("bullish", "neutral", "bearish", "mixed"):
@@ -82,10 +79,10 @@ async def news_summary(db: Session, user: str, provider: MarketProvider, symbol:
         return {"symbol": symbol, "summary": "No news in this window.", "sentiment": "neutral", "points": [], "watch": "", "count": 0}
     lines = "\n".join(f"- [{time.strftime('%Y-%m-%d', time.gmtime(n['datetime']))}] {n['headline']} — {n['summary'][:240]}" for n in items)
     digest = hashlib.sha256(f"{user}|{symbol}|{days}|{lines}".encode()).hexdigest()
-    hit = _cache.get(digest)
-    if hit and time.time() - hit[0] < _TTL:
-        return {**hit[1], "cached": True}
+    key = ("news_summary", digest)
+    if isinstance(hit := cache.get(key), dict):
+        return {**hit, "cached": True}
     r = await complete(db, user, f"Stock: {symbol}\nNews from the last {days} days:\n{lines}", system=_SUMMARY_SYSTEM)
     out = {"symbol": symbol, **_parse_json(r["content"]), "model": r["model"], "count": len(items)}
-    _cache[digest] = (time.time(), out)
+    cache.put(key, out, _TTL)
     return out

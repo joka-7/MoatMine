@@ -146,7 +146,7 @@ sequenceDiagram
 - **Cache: in-process only**, so each instance has its own:
   - `app/cache.py` `ttl_cache` holds safety reports (10 min) and sector lookups (1 h). At 2,000
     entries it drops expired entries first, then the oldest, and prunes idle per-key locks.
-  - `app/research.py` keeps its own news-summary cache (`_TTL = 3600`).
+  - `app/research.py` stores AI news summaries (1 h) in the same store via `cache.get`/`cache.put`.
   - ModelDispatcher's quota store is `InMemoryQuotaStore` (`app/ai/dispatcher.py`).
   - Running more than one API instance would split caches and quotas. Nothing coordinates them.
 - **Blob storage:** none.
@@ -159,10 +159,9 @@ sequenceDiagram
   - MCP tokens are stored as SHA-256 hashes.
 
 ## Scaling
-- **The API runs as one instance on purpose** (`numInstances: 1` in `render.yaml`). Four pieces of
+- **The API runs as one instance on purpose** (`numInstances: 1` in `render.yaml`). Three pieces of
   state live in process memory:
-  - the TTL caches (`app/cache.py`);
-  - the news-summary cache (`app/research.py`);
+  - the TTL cache (`app/cache.py`), including AI news summaries;
   - ModelDispatcher's per-user AI quota store (`app/ai/dispatcher.py` `_QUOTA_STORE`) and the
     server-wide daily AI budget (`SERVER_BUDGET`);
   - the per-user request rate limits (`app/ratelimit.py`).

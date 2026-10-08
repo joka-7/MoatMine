@@ -10,7 +10,8 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.ai.dispatcher import complete
-from app.analytics import annual_volatility_pct
+from app.ai.llm_json import json_object_in
+from app.analytics import annual_volatility_pct, max_drawdown_pct, returns
 from app.cache import ttl_cache
 from app.crises import CRISES, HISTORY_START, _ts, bad_times, crisis_stats
 from app.jsontypes import JSONDict
@@ -21,7 +22,7 @@ from app.portfolio import BookMode, portfolio_snapshot
 from app.safety.check import Book, Candidate, Rules, check_buy, portfolio_breaches
 from app.safety.moat import moat_metrics
 from app.safety.profile import DEFAULT_RULES, RULE_KEYS
-from app.safety.risk import align, beta, daily_returns, portfolio_risk, stress_scenarios
+from app.safety.risk import align, beta, portfolio_risk, stress_scenarios
 from app.safety.score import StockFacts, safety_score
 from app.valuation import Assumptions, estimate
 
@@ -57,13 +58,7 @@ async def stock_safety(provider: MarketProvider, symbol: str) -> JSONDict:
     price = quote["price"]
     val = estimate(price, fund, Assumptions())
     weekly = [b["c"] for b in weekly5y]
-    max_dd = None
-    if weekly:
-        peak, worst = weekly[0], 0.0
-        for c in weekly:
-            peak = max(peak, c)
-            worst = min(worst, c / peak - 1)
-        max_dd = round(worst * 100, 1)
+    max_dd = max_drawdown_pct(weekly)
 
     facts = StockFacts(
         price=price,
@@ -227,8 +222,8 @@ async def stress_report(db: Session, user: str, provider: MarketProvider, mode: 
         daily = await asyncio.gather(*(provider.candles(s, "D", now - 365 * 86400, now) for s in [*syms, BENCHMARK]))
     wk = dict(zip([*syms, BENCHMARK], weekly, strict=True))
     _, aligned = align({s: [(b["t"], b["c"]) for b in bs] for s, bs in zip([*syms, BENCHMARK], daily, strict=True)})
-    bench_r = daily_returns(aligned.get(BENCHMARK, []))
-    betas = {s: beta(daily_returns(aligned[s]), bench_r) if s in aligned else None for s in syms}
+    bench_r = returns(aligned.get(BENCHMARK, []))
+    betas = {s: beta(returns(aligned[s]), bench_r) if s in aligned else None for s in syms}
 
     crisis_dd: dict[str, dict[str, float | None]] = {s: {} for s in syms}
     bench_dd: dict[str, float | None] = {}
@@ -278,11 +273,7 @@ async def ai_analysis(db: Session, user: str, provider: MarketProvider, symbol: 
     }
     r = await complete(db, user, json.dumps(payload, default=str), system=_ANALYZER_SYSTEM)
     text = r["content"]
-    start, end = text.find("{"), text.rfind("}")
-    try:
-        parsed = json.loads(text[start:end + 1]) if start != -1 else {}
-    except json.JSONDecodeError:
-        parsed = {}
+    parsed = json_object_in(text) or {}
     return {
         "symbol": symbol,
         "overview": str(parsed.get("overview") or text.strip())[:1500],

@@ -1,17 +1,13 @@
 """Portfolio risk maths and stress scenarios. Pure functions over aligned close series."""
 
 import math
-from itertools import pairwise
 from statistics import mean, pstdev
 
+from app.analytics import max_drawdown_pct, returns
 from app.jsontypes import JSONDict
 
 TRADING_DAYS = 252
 Z95 = 1.645
-
-
-def daily_returns(closes: list[float]) -> list[float]:
-    return [b / a - 1 for a, b in pairwise(closes) if a]
 
 
 def align(series: dict[str, list[tuple[int, float]]]) -> tuple[list[int], dict[str, list[float]]]:
@@ -43,16 +39,6 @@ def correlation(x: list[float], y: list[float]) -> float | None:
     return sum((a - mx) * (b - my) for a, b in zip(x, y, strict=True)) / len(x) / (sx * sy)
 
 
-def max_drawdown(index: list[float]) -> float | None:
-    if not index:
-        return None
-    peak, worst = index[0], 0.0
-    for v in index:
-        peak = max(peak, v)
-        worst = min(worst, v / peak - 1)
-    return round(worst * 100, 2)
-
-
 def portfolio_risk(values: dict[str, float], cash: float, closes: dict[str, list[float]],
                    bench: list[float] | None, sectors: dict[str, str | None]) -> JSONDict:
     """Risk of the current holdings, as if held through the price history given.
@@ -65,14 +51,14 @@ def portfolio_risk(values: dict[str, float], cash: float, closes: dict[str, list
     invested = sum(values.values())
     total = invested + cash
     weights = {s: v / invested for s, v in values.items()} if invested else {}
-    rets = {s: daily_returns(closes[s]) for s in weights if s in closes}
+    rets = {s: returns(closes[s]) for s in weights if s in closes}
     n = min((len(r) for r in rets.values()), default=0)
     covered = sum(weights[s] for s in rets)
     invested_share = invested / total if total else 0
 
     port = [sum(weights[s] / covered * rets[s][i] for s in rets) * invested_share for i in range(n)] if covered else []
     sd = pstdev(port) if len(port) > 1 else None
-    bench_rets = daily_returns(bench)[:n] if bench else None
+    bench_rets = returns(bench)[:n] if bench else None
 
     index, level = [], 1.0
     for r in port:
@@ -100,7 +86,7 @@ def portfolio_risk(values: dict[str, float], cash: float, closes: dict[str, list
         "beta": round(b, 2) if bench_rets and (b := beta(port, bench_rets)) is not None else None,
         "var95_1d": round(Z95 * sd * total, 2) if sd is not None else None,
         "var95_1m": round(Z95 * sd * math.sqrt(21) * total, 2) if sd is not None else None,
-        "max_drawdown_pct": max_drawdown(index),
+        "max_drawdown_pct": max_drawdown_pct(index),
         "top_position_pct": round(max(values.values()) / total * 100, 2) if values and total else None,
         "effective_holdings": round(1 / hhi, 1) if hhi else None,
         "holdings_count": len(values),
