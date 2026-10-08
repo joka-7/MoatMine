@@ -45,6 +45,7 @@ from sqlalchemy.orm import Session
 from app.ai.settings_store import load_ai_settings
 from app.ai.tools import TOOL_SPECS, run_tool
 from app.config import get_settings
+from app.errors import DispatchError
 from app.jsontypes import JSONDict
 
 SYSTEM_PROMPT = (
@@ -73,15 +74,6 @@ VENDORS: dict[str, tuple[_VendorAdapter, str, str]] = {
 EXTERNAL = "external"
 
 _QUOTA_STORE = InMemoryQuotaStore()  # per process; shared across requests so per-user limits accumulate
-
-
-class DispatchError(Exception):
-    """A gateway failure carrying the HTTP status and JSON body to send to the client."""
-
-    def __init__(self, status: int, payload: JSONDict):
-        super().__init__(str(payload.get("detail") or payload.get("error") or payload))
-        self.status = status
-        self.payload = payload
 
 
 def tier_for(model: str) -> ModelTier:

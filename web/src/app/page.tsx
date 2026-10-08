@@ -40,6 +40,9 @@ export default function Dashboard() {
         </div>
       )}
       {mode === "paper" && <PaperNotice />}
+      {!!t?.unpriced.length && (
+        <div className="err" style={{ marginBottom: 16 }}>No live price for {t.unpriced.join(", ")}: valued at what you paid, so totals and P/L are incomplete.</div>
+      )}
       {error && <div className="err" style={{ marginBottom: 16 }}>Can't reach the API: {error}. Check Settings → API URL.</div>}
 
       <div className="grid g4" style={{ marginBottom: 16 }}>

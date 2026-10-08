@@ -147,14 +147,17 @@ Web: `NEXT_PUBLIC_API_URL` and `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` (`web/src/lib
 
 ## Error contract
 
-The package's own errors form one hierarchy rooted at `MoatMineError` (`app/errors.py`):
-- `ConfigError`: settings are invalid or unsafe. Raised at startup, never caught.
-- `InsufficientPaperCashError`: raised by `pay_for_paper_buy`. The routers map it to HTTP 409.
+Every error the app raises on purpose derives from `MoatMineError` (`app/errors.py`). The HTTP
+mapping lives in one place: the exception handlers in `app/main.py`.
+
+| Exception | Raised by | HTTP |
+|---|---|---|
+| `ConfigError` | `get_settings()` on invalid or unsafe settings | never served: the process doesn't start |
+| `InsufficientPaperCashError` | `pay_for_paper_buy` | 409, mapped in the route so the body can include the safety check |
+| `MarketDataError` | providers with no usable value (e.g. Finnhub's `c=0` quote) | 502 (`market_data_missing` handler) |
+| `DispatchError(status, payload)` | `app/ai/dispatcher.py` around ModelDispatcher | its own status and payload (`dispatch_failed` handler) |
 
 Other errors:
-- **ModelDispatcher failures** become `DispatchError(status, payload)` (`app/ai/dispatcher.py`).
-  This sits **outside** the hierarchy. Routers return it through `dispatch_error_response`.
-  BACKLOG #13 proposes folding it into the hierarchy behind one exception handler.
 - **HTTP errors** use FastAPI `HTTPException`:
   - 401: auth failed. Clerk failures say only `invalid token`.
   - 404: not found or not owned.
@@ -163,10 +166,13 @@ Other errors:
 - **Provider errors** propagate as `httpx` errors. Where a fallback is deliberate, it is caught
   narrowly and logged with `describe_error` (type and status, never the message, because the
   message contains the URL):
-  - FMP falls back to the primary provider;
-  - a failed quote marks the holding stale;
-  - a failed sector lookup counts as `Unknown`;
-  - failed candles leave volatility unknown for target alerts.
+  - FMP falls back to the primary provider.
+  - A failed or empty quote marks the holding `stale`. Totals list it under `unpriced`, the buy
+    check warns, and PAPI targets report `no_data` instead of 0% P/L.
+  - A failed sector lookup counts as `Unknown`.
+  - Failed candles leave volatility unknown for target alerts.
+- **AI tool arguments** that break the bounds come back to the model as
+  `{"error": "invalid arguments", ...}`, not as an exception.
 
 ## Logging plan
 

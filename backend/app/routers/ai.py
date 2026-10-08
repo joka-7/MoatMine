@@ -1,10 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException
-from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.ai.dispatcher import VENDORS, DispatchError, available, chat
+from app.ai.dispatcher import VENDORS, available, chat
 from app.ai.settings_store import SUPPORTED, load_ai_settings, masked, save_ai_settings
 from app.auth import current_user
 from app.crypto import new_mcp_token
@@ -17,11 +16,6 @@ from app.schemas import ChatIn
 router = APIRouter(prefix="/ai", tags=["ai"])
 
 VENDOR_LABELS = {"anthropic": "Anthropic Claude", "openai": "OpenAI", "gemini": "Google Gemini", "groq": "Groq"}
-
-
-def dispatch_error_response(e: DispatchError) -> JSONResponse:
-    """ModelDispatcher errors carry their own status + body (e.g. the trigger_key_wizard handoff)."""
-    return JSONResponse(status_code=e.status, content={"detail": e.payload})
 
 
 def agent_context(db: Session, user: str, symbol: str | None) -> str:
@@ -55,13 +49,10 @@ def models(user: str = Depends(current_user), db: Session = Depends(get_db)) -> 
     return out
 
 
-@router.post("/chat", response_model=None)
-async def chat_endpoint(body: ChatIn, user: str = Depends(current_user), db: Session = Depends(get_db)) -> JSONDict | JSONResponse:
-    try:
-        return await chat(db, user, [m.model_dump() for m in body.messages], requested=body.model,
-                          context=agent_context(db, user, body.symbol))
-    except DispatchError as e:
-        return dispatch_error_response(e)
+@router.post("/chat")
+async def chat_endpoint(body: ChatIn, user: str = Depends(current_user), db: Session = Depends(get_db)) -> JSONDict:
+    return await chat(db, user, [m.model_dump() for m in body.messages], requested=body.model,
+                      context=agent_context(db, user, body.symbol))
 
 
 # --- AI settings: ModelPicker's AgentConfig + favorite external app + external agent ---

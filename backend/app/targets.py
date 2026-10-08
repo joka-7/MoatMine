@@ -60,18 +60,21 @@ def _days_since(iso_dates: list[str]) -> int | None:
 
 def evaluate(t: Target, snapshot: JSONDict, risks: dict[str, float | None]) -> JSONDict:
     holdings = snapshot["holdings"]
+    # an unpriced holding is valued at cost, which would read as 0% P/L and hide a real loss
     if t.symbol:
         rows = [h for h in holdings if h["symbol"] == t.symbol]
+        priced = not any(h["stale"] for h in rows)
         cost = sum(h["cost"] for h in rows)
         value = sum(h["value"] for h in rows)
-        profit = round((value / cost - 1) * 100, 2) if cost else None
-        amount = round(value, 2) if rows else None
+        profit = round((value / cost - 1) * 100, 2) if cost and priced else None
+        amount = round(value, 2) if rows and priced else None
         risk = risks.get(t.symbol)
     else:
         rows = holdings
         tot = snapshot["totals"]
-        profit = tot["pnl_pct"] if tot["cost"] else None
-        amount = tot["net_worth"]
+        priced = not tot["unpriced"]
+        profit = tot["pnl_pct"] if tot["cost"] and priced else None
+        amount = tot["net_worth"] if priced else None
         weighted = [(h["value"], risks.get(h["symbol"])) for h in rows if risks.get(h["symbol"]) is not None]
         wsum = sum(v for v, _ in weighted)
         risk = round(sum(v * r for v, r in weighted) / wsum, 2) if wsum else None
@@ -85,7 +88,8 @@ def evaluate(t: Target, snapshot: JSONDict, risks: dict[str, float | None]) -> J
         "intent": {**check_bound(risk, t.risk_target, t.risk_min, t.risk_max), "intent": t.intent, "note": t.intent_note},
     }
     breaches = [k for k, c in checks.items() if c["status"] in ("below_min", "above_max")]
-    return {"target_id": t.id, "name": t.name, "symbol": t.symbol, "checks": checks, "breaches": breaches}
+    return {"target_id": t.id, "name": t.name, "symbol": t.symbol, "checks": checks, "breaches": breaches,
+            "unpriced": sorted({h["symbol"] for h in rows if h["stale"]})}
 
 
 def breach_messages(result: JSONDict) -> list[tuple[str, str]]:

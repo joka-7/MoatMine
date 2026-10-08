@@ -204,3 +204,18 @@ def test_mcp_requires_token_and_serves_tools(client, alice_account):
     assert {"get_portfolio", "get_targets_status", "get_quote", "get_valuation", "get_company", "get_news_feed"} <= names
     res = client.post("/mcp/", json=rpc, headers=h).json()
     assert "AAPL" in res["result"]["content"][0]["text"]
+
+
+def test_missing_market_price_is_a_502(client, monkeypatch):
+    from app.errors import MarketDataError
+    from app.routers import stocks
+
+    class _NoPrice:
+        name = "no-price"
+
+        async def quote(self, symbol):
+            raise MarketDataError(f"no price for {symbol}")
+
+    monkeypatch.setattr(stocks, "get_provider", lambda: _NoPrice())
+    r = client.get("/stocks/GONE/quote")
+    assert r.status_code == 502 and r.json() == {"detail": "no price for GONE"}

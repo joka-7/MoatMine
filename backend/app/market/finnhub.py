@@ -13,6 +13,7 @@ from typing import Any
 
 import httpx
 
+from app.errors import MarketDataError
 from app.jsontypes import JSONDict
 from app.market.base import Candle, NewsItem, Quote
 from app.market.mock import MockProvider
@@ -57,9 +58,13 @@ class FinnhubProvider:
 
     async def quote(self, symbol: str) -> Quote:
         d = await self._get("/quote", symbol=symbol)
+        if not d.get("c"):
+            # Finnhub answers unknown or delisted symbols with c=0 rather than an error; a $0 price
+            # would read as a -100% loss and fire false alerts
+            raise MarketDataError(f"no price for {symbol}")
         return {
             "symbol": symbol,
-            "price": d.get("c") or 0.0,
+            "price": d["c"],
             "change": d.get("d") or 0.0,
             "change_pct": d.get("dp") or 0.0,
             "prev_close": d.get("pc") or 0.0,

@@ -40,6 +40,7 @@ class Book:
     by_symbol: dict[str, float]  # current market value per symbol
     by_sector: dict[str, float]
     cash: float = 0.0  # part of total_value; a buy is paid from it first
+    unpriced: tuple[str, ...] = ()  # holdings valued at cost because no live quote came back
 
 
 @dataclass(frozen=True)
@@ -113,6 +114,9 @@ def check_buy(rules: Rules, c: Candidate, book: Book) -> JSONDict:
 
     if c.price and c.fair_value and c.price > c.fair_value * 1.15:
         results.append(_r("valuation", "warn", f"Price is {((c.price / c.fair_value) - 1) * 100:.0f}% above the models' fair value"))
+
+    if book.unpriced:
+        results.append(_r("prices", "warn", f"No live price for {', '.join(book.unpriced)}; sizes use what you paid"))
 
     statuses = {r["status"] for r in results}
     verdict = "block" if "fail" in statuses else "warn" if "warn" in statuses else "pass"

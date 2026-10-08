@@ -88,7 +88,7 @@ export type Portfolio = {
   mode: "real" | "paper";
   accounts: Account[];
   holdings: HoldingRow[];
-  totals: { cash: number; invested_value: number; net_worth: number; cost: number; pnl: number; pnl_pct: number; day_change: number };
+  totals: { cash: number; invested_value: number; net_worth: number; cost: number; pnl: number; pnl_pct: number; day_change: number; unpriced: string[] };
 };
 export type WatchRow = { id: number; symbol: string; note: string; alert_above: number | null; alert_below: number | null; quote: Quote | null };
 export type Note = { id: number; symbol: string; kind: "note" | "news" | "thesis" | "link"; title: string; body: string; url: string; created_at: string };

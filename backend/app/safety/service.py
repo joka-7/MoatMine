@@ -161,7 +161,8 @@ async def book_for(
         by_symbol[h["symbol"]] = by_symbol.get(h["symbol"], 0) + h["value"]
         sec = sectors.get(h["symbol"]) or "Unknown"
         by_sector[sec] = by_sector.get(sec, 0) + h["value"]
-    book = Book(total_value=snap["totals"]["net_worth"], by_symbol=by_symbol, by_sector=by_sector, cash=snap["totals"]["cash"])
+    book = Book(total_value=snap["totals"]["net_worth"], by_symbol=by_symbol, by_sector=by_sector,
+                cash=snap["totals"]["cash"], unpriced=tuple(snap["totals"]["unpriced"]))
     return snap, book, sectors
 
 

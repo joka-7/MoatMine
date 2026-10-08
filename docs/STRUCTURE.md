@@ -145,6 +145,7 @@ MoatMine/
 │   │   ├── test_research.py                   # Company/earnings/analyst data, news feed and AI news summary
 │   │   ├── test_safety.py                     # Safety score, risk profile, buy check, risk maths, stress tests, plans flow
 │   │   ├── test_sources.py                    # Results built from fallback (sample) candles say so, however deep the candles…
+│   │   ├── test_targets.py                    # PAPI evaluation never turns a missing price into a plausible-looking number.
 │   │   ├── test_tools.py                      # The agent's tools hold model-supplied arguments to the same bounds as the…
 │   │   ├── test_valuation.py                  # Fair-value models and quality scores with hand-checkable numbers
 │   │   └── test_worker.py                     # Worker isolates a failing user; failed sector lookups count as Unknown

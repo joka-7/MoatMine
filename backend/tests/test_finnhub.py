@@ -95,6 +95,13 @@ def test_research_endpoints_degrade_on_paid_plan_errors():
     assert asyncio.run(p.earnings("FAIL")) == []
 
 
+def test_quote_treats_a_zero_price_as_no_quote():
+    from app.errors import MarketDataError
+
+    with pytest.raises(MarketDataError):
+        asyncio.run(provider({"/quote": {"c": 0, "d": None, "dp": None, "pc": 0, "t": 0}}).quote("DELISTED"))
+
+
 def test_quote_raises_on_http_error():
     with pytest.raises(httpx.HTTPStatusError):
         asyncio.run(provider({}).quote("FAIL"))

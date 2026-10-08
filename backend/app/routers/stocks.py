@@ -3,11 +3,9 @@ import time
 from collections.abc import Sequence
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
-from fastapi.responses import JSONResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.ai.dispatcher import DispatchError
 from app.analytics import price_stats
 from app.auth import current_user
 from app.crises import bad_times
@@ -18,7 +16,6 @@ from app.market.base import RESOLUTION_SECONDS, Candle, NewsItem, Quote
 from app.market.sources import source_label, track_sources
 from app.models import StockNote
 from app.research import news_feed, news_summary, valuation
-from app.routers.ai import dispatch_error_response
 from app.schemas import NoteIn, NoteOut
 from app.valuation import Assumptions
 
@@ -164,15 +161,12 @@ async def crises(symbol: str, benchmark: str = Query("SPY", min_length=1, max_le
     return await bad_times(get_provider(), _sym(symbol), _sym(benchmark))
 
 
-@router.get("/{symbol}/news/summary", response_model=None)
+@router.get("/{symbol}/news/summary")
 async def summarize_news(
     symbol: str, days: int = Query(7, ge=1, le=90), user: str = Depends(current_user), db: Session = Depends(get_db)
-) -> JSONDict | JSONResponse:
+) -> JSONDict:
     """AI digest of recent headlines with a sentiment label (fast model, cached 1h)."""
-    try:
-        return await news_summary(db, user, get_provider(), _sym(symbol), days)
-    except DispatchError as e:
-        return dispatch_error_response(e)
+    return await news_summary(db, user, get_provider(), _sym(symbol), days)
 
 
 @feed_router.get("/news/feed")

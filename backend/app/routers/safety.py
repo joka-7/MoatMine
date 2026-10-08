@@ -3,7 +3,6 @@ from datetime import UTC, datetime, timedelta
 from typing import Self
 
 from fastapi import APIRouter, Depends, HTTPException
-from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field, field_validator, model_validator
 from sqlalchemy import CursorResult, select, update
 from sqlalchemy.orm import Session
@@ -90,16 +89,10 @@ async def safety(symbol: str) -> JSONDict:
     return await stock_safety(get_provider(), _sym(symbol))
 
 
-@router.post("/stocks/{symbol}/safety/analyze", response_model=None)
-async def safety_analyze(symbol: str, user: str = Depends(current_user), db: Session = Depends(get_db)) -> JSONDict | JSONResponse:
+@router.post("/stocks/{symbol}/safety/analyze")
+async def safety_analyze(symbol: str, user: str = Depends(current_user), db: Session = Depends(get_db)) -> JSONDict:
     """AI analyzer: explains each area grade and how the stock fits the user's risk rules."""
-    from app.ai.dispatcher import DispatchError
-    from app.routers.ai import dispatch_error_response
-
-    try:
-        return await ai_analysis(db, user, get_provider(), _sym(symbol))
-    except DispatchError as e:
-        return dispatch_error_response(e)
+    return await ai_analysis(db, user, get_provider(), _sym(symbol))
 
 
 class CheckIn(BaseModel):

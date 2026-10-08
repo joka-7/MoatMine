@@ -121,5 +121,7 @@ async def portfolio_snapshot(db: Session, user_id: str, provider: MarketProvider
             "pnl": round(total_value - total_cost, 2),
             "pnl_pct": round((total_value / total_cost - 1) * 100, 2) if total_cost else 0.0,
             "day_change": round(day_change, 2),
+            # holdings without a live quote, valued at what was paid: totals and P/L are incomplete
+            "unpriced": sorted({r["symbol"] for r in rows if r["stale"]}),
         },
     }

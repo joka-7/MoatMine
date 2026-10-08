@@ -159,6 +159,12 @@ def test_check_buy_pays_from_cash_first(book, amount, pos_pct, status):
     assert pos["status"] == status and f"{pos_pct} of your portfolio" in pos["message"]
 
 
+def test_check_buy_warns_when_the_book_has_unpriced_holdings():
+    book = chk.Book(total_value=10_000, by_symbol={"AAA": 500}, by_sector={"Tech": 2_500}, unpriced=("ZZZ",))
+    r = chk.check_buy(RULES, cand(), book)
+    assert r["verdict"] == "warn" and any(c["rule"] == "prices" and "ZZZ" in c["message"] for c in r["checks"])
+
+
 @pytest.mark.parametrize("kw, rule", [
     (dict(volatility_pct=50), "volatility"),
     (dict(market_cap_m=500), "size"),

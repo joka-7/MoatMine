@@ -6,10 +6,12 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from sqlalchemy.exc import SQLAlchemyError
 
 from app.config import get_settings
 from app.db import schema_is_current
+from app.errors import DispatchError, MarketDataError
 from app.log_config import configure_logging, request_id
 from app.mcp_server import build_mcp_app, mcp
 from app.routers import ai, portfolio, safety, stocks, targets, watchlist
@@ -40,6 +42,17 @@ app.add_middleware(
     allow_headers=["*"],
     expose_headers=["X-Data-Source", "X-Request-ID"],
 )
+
+
+@app.exception_handler(DispatchError)
+async def dispatch_failed(_: Request, e: DispatchError) -> JSONResponse:
+    """ModelDispatcher errors carry their own status and body (e.g. the add-a-key handoff)."""
+    return JSONResponse(status_code=e.status, content={"detail": e.payload})
+
+
+@app.exception_handler(MarketDataError)
+async def market_data_missing(_: Request, e: MarketDataError) -> JSONResponse:
+    return JSONResponse(status_code=502, content={"detail": str(e)})
 
 
 @app.middleware("http")
