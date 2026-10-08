@@ -37,3 +37,8 @@ def note_source(source: str) -> None:
 def source_label(provider_name: str, used: set[str]) -> str:
     """The `data_source` to show: the provider's name, unless any input fell back to sample data."""
     return MOCK_FALLBACK if MOCK_FALLBACK in used else provider_name
+
+
+def is_sample_data(label: str) -> bool:
+    """Whether a `data_source` label means sample prices: the mock provider or a fallback to it."""
+    return label.startswith("mock")

@@ -14,6 +14,7 @@ import sys
 import time
 from datetime import UTC, datetime
 
+import httpx
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -21,12 +22,13 @@ from sqlalchemy.orm import Session
 from app.clock import utc_now
 from app.config import get_settings
 from app.db import SessionLocal
+from app.errors import MarketDataError
 from app.log_config import configure_logging
-from app.market import get_provider
+from app.market import describe_error, get_provider
 from app.market.base import MarketProvider
-from app.market.sources import MOCK_FALLBACK, track_sources
+from app.market.sources import is_sample_data, source_label, track_sources
 from app.models import ALERT_WORKER, Alert, RiskProfile, Target, WatchItem, WorkerHeartbeat
-from app.portfolio import held_value_history, holdings_in_book, portfolio_snapshot, quotes_for
+from app.portfolio import cached_daily_candles, held_value_history, holdings_in_book, portfolio_snapshot, quotes_for
 from app.safety.check import Breach, Rules, loss_limit_breach, portfolio_breaches
 from app.safety.service import book_for, rules_for
 from app.targets import breach_messages, evaluate, risk_by_symbol
@@ -125,14 +127,21 @@ async def _alerts_for_user(db: Session, user: str, provider: MarketProvider, pro
 async def _loss_limit_breach(db: Session, user: str, provider: MarketProvider, rules: Rules) -> Breach | None:
     """The real-money holdings' fall from their 1-year high, against the loss limit.
 
-    Skipped when the history is sample data: an alert about a fall that didn't happen is worse than none.
+    Skipped when the history is sample data (the mock provider, or Finnhub's fallback to it): an
+    alert about a fall that didn't happen is worse than none. Also skipped, with a warning, when
+    the prices can't be fetched, so the user's other alerts for this pass still go out.
     """
     holdings = await asyncio.to_thread(holdings_in_book, db, user, "real")
     if not holdings:
         return None
-    with track_sources() as used:
-        history = await held_value_history(provider, holdings, 365, int(time.time()))
-    if MOCK_FALLBACK in used:
+    today = int(time.time()) // 86400 * 86400  # day-aligned so the cached bars are reused all day
+    try:
+        with track_sources() as used:
+            history = await held_value_history(provider, holdings, 365, today, cached_daily_candles)
+    except (httpx.HTTPError, MarketDataError) as e:
+        logger.warning("loss-limit check skipped: price history unavailable", extra={"user_id": user, **describe_error(e)})
+        return None
+    if is_sample_data(source_label(provider.name, used)):
         return None
     return loss_limit_breach(rules, [p["value"] for p in history])
 

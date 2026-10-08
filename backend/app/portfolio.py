@@ -7,11 +7,13 @@ never makes the real portfolio look bigger or more diversified than it is.
 
 import asyncio
 import logging
+from collections.abc import Awaitable, Callable
 from typing import Literal
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.cache import ttl_cache
 from app.errors import InsufficientPaperCashError
 from app.jsontypes import JSONDict
 from app.market import describe_error
@@ -151,10 +153,22 @@ def held_value_by_day(series: dict[str, list[Candle]], qty: dict[str, float]) ->
     return out
 
 
-async def held_value_history(provider: MarketProvider, holdings: list[Holding], days: int, now: int) -> list[JSONDict]:
+CandleFetch = Callable[[MarketProvider, str, int, int], Awaitable[list[Candle]]]
+
+
+async def daily_candles(provider: MarketProvider, symbol: str, start: int, end: int) -> list[Candle]:
+    return await provider.candles(symbol, "D", start, end)
+
+
+# the worker asks for the same day-aligned year of bars every pass; fetch each symbol once a day
+cached_daily_candles: CandleFetch = ttl_cache(24 * 3600)(daily_candles)
+
+
+async def held_value_history(provider: MarketProvider, holdings: list[Holding], days: int, now: int,
+                             fetch: CandleFetch = daily_candles) -> list[JSONDict]:
     """Daily value over the last `days` of the given holdings at today's quantities."""
     syms = sorted({h.symbol for h in holdings})
-    series = await asyncio.gather(*(provider.candles(s, "D", now - days * 86400, now) for s in syms))
+    series = await asyncio.gather(*(fetch(provider, s, now - days * 86400, now) for s in syms))
     qty: dict[str, float] = {}
     for h in holdings:
         qty[h.symbol] = qty.get(h.symbol, 0) + h.quantity

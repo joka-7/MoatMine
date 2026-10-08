@@ -3,10 +3,11 @@ import os
 import signal
 from datetime import UTC, datetime, timedelta
 
+import httpx
 import pytest
 from sqlalchemy.exc import IntegrityError
 
-from app import worker
+from app import cache, worker
 from app.db import SessionLocal
 from app.market import get_provider
 from app.models import ALERT_WORKER, Alert, WorkerHeartbeat
@@ -87,6 +88,7 @@ def test_run_once_alerts_on_the_loss_limit(client, monkeypatch):
     client.put("/safety/profile", json={"level": "growth", "max_drawdown_pct": -20, "max_position_pct": 100,
                                         "max_sector_pct": 100}, headers=who)
     for last, expect in ((85, False), (70, True)):  # -15% stays quiet, -30% alerts
+        cache.clear()  # the worker caches a day of bars per symbol
         monkeypatch.setattr(worker, "get_provider", lambda last=last: _FallsBy(get_provider(), last))
         asyncio.run(worker.run_once())
         msgs = [a["message"] for a in client.get("/alerts?unread_only=true", headers=who).json()]
@@ -151,3 +153,31 @@ def test_alert_index_allows_one_unread_alert_per_condition(client):
         db.add(alert(False))
         with pytest.raises(IntegrityError):
             db.commit()
+
+
+class _SampleFalls(_FallsBy):
+    name = "mock"  # the mock provider's own bars are sample data
+
+
+class _HistoryDown(_FallsBy):
+    async def candles(self, symbol, resolution, start, end):
+        raise httpx.ConnectError("provider down")
+
+
+@pytest.mark.parametrize("provider_cls", [_SampleFalls, _HistoryDown])
+def test_run_once_skips_the_loss_limit_without_real_history(client, monkeypatch, provider_cls):
+    user = f"no-history-{provider_cls.__name__}"
+    who = auth(user)
+    acc = client.post("/accounts", json={"name": "B", "cash": 0}, headers=who).json()["id"]
+    client.post("/holdings", json={"account_id": acc, "symbol": "AAPL", "quantity": 1, "avg_cost": 1}, headers=who)
+    client.put("/safety/profile", json={"level": "growth", "max_drawdown_pct": -20, "max_position_pct": 100,
+                                        "max_sector_pct": 100}, headers=who)
+    client.post("/watchlist", json={"symbol": "MSFT", "alert_below": 1_000_000}, headers=who)
+    cache.clear()
+    monkeypatch.setattr(worker, "get_provider", lambda: provider_cls(get_provider(), 50))
+
+    asyncio.run(worker.run_once())
+
+    msgs = [a["message"] for a in client.get("/alerts?unread_only=true", headers=who).json()]
+    assert not any("loss limit" in m for m in msgs)  # no alert about a fall that may not have happened
+    assert any("MSFT" in m for m in msgs)  # and the user's other alerts still went out

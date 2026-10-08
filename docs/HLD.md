@@ -122,8 +122,9 @@ sequenceDiagram
 ### Other flows
 - **Worker pass** (`app/worker.py` `run_once`), every `WORKER_INTERVAL_SECONDS`:
   1. For each user, check real-book concentration and the loss limit (the holdings' fall from
-     their 1-year high, skipped on sample-fallback data) against the risk rules, evaluate PAPI
-     targets, and check watchlist price levels.
+     their 1-year high; daily bars cached for a day; skipped on sample data or when the history
+     can't be fetched) against the risk rules, evaluate PAPI targets, and check watchlist price
+     levels.
   2. Write alerts deduplicated on `(user, dedupe_key, unread)`; the unique partial index
      `uq_alerts_unread_dedupe` enforces it even if two passes overlap.
   3. Commit **per user**: one failing user doesn't drop anyone else's alerts.
