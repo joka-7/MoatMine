@@ -16,6 +16,7 @@ export default function ValueChart({ mode }: { mode: BookMode }) {
 
   useEffect(() => {
     let current = true; // drop the response if days/mode changed before it arrived
+    setPoints(null); // and don't keep drawing the previous book's line meanwhile
     api<{ t: number; value: number }[]>(`/portfolio/history?days=${days}&mode=${mode}`)
       .then((p) => { if (current) setPoints(p); })
       .catch(() => { if (current) setPoints([]); });

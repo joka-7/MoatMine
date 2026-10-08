@@ -13,9 +13,15 @@ class _Sym(BaseModel):
 
 class AccountIn(BaseModel):
     name: str = Field(min_length=1, max_length=120)
-    broker: str = "manual"
+    broker: str = Field("manual", max_length=60)  # "paper" makes it a practice account (a separate book)
     currency: str = "USD"
     cash: float = 0.0
+
+    @field_validator("broker")
+    @classmethod
+    def _normalise_broker(cls, v: str) -> str:
+        # "Paper" or " paper" must not silently become a real-money account
+        return v.strip().lower() or "manual"
 
 
 class AccountOut(AccountIn):

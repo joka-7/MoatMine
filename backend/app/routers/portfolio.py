@@ -12,7 +12,15 @@ from app.errors import InsufficientPaperCashError
 from app.jsontypes import JSONDict
 from app.market import get_provider
 from app.models import Account, Holding
-from app.portfolio import BookMode, book_mode_of, holdings_in_book, is_paper, pay_for_paper_buy, portfolio_snapshot
+from app.portfolio import (
+    PAPER_BROKER,
+    BookMode,
+    book_mode_of,
+    holdings_in_book,
+    is_paper,
+    pay_for_paper_buy,
+    portfolio_snapshot,
+)
 from app.safety.service import check_for
 from app.schemas import AccountIn, AccountOut, HoldingIn, HoldingUpdate
 
@@ -42,6 +50,9 @@ def create_account(body: AccountIn, user: str = Depends(current_user), db: Sessi
 @router.put("/accounts/{account_id}", response_model=AccountOut)
 def update_account(account_id: int, body: AccountIn, user: str = Depends(current_user), db: Session = Depends(get_db)) -> Account:
     acc = _own(db, Account, account_id, user)
+    if (body.broker == PAPER_BROKER) != is_paper(acc):
+        # moving an account would carry its positions and cash into the other book
+        raise HTTPException(409, "An account can't switch between real money and paper. Create a new account instead.")
     for k, v in body.model_dump().items():
         setattr(acc, k, v)
     db.commit()
@@ -58,19 +69,24 @@ def delete_account(account_id: int, user: str = Depends(current_user), db: Sessi
 async def add_holding(body: HoldingIn, user: str = Depends(current_user), db: Session = Depends(get_db)) -> JSONDict:
     """Record a position. Always runs the safety check against the user's risk rules.
 
-    Paper accounts enforce it (a blocked buy is refused) and pay for the buy from their cash;
-    real accounts record what was actually bought and return the check as a warning, since
-    refusing wouldn't undo the trade.
+    Real accounts record what was actually bought (at the cost the user enters) and return the
+    check as a warning, since refusing wouldn't undo the trade. Paper accounts are a simulated
+    buy now: priced at the live quote whatever avg_cost says, refused if the rules block it,
+    and paid for from the account's cash.
     """
     acc = _own(db, Account, body.account_id, user)
-    check = await check_for(db, user, get_provider(), body.symbol, body.quantity * body.avg_cost, book_mode_of(acc))
+    fields = body.model_dump(exclude_none=True)
+    if is_paper(acc):
+        fields["avg_cost"] = (await get_provider().quote(body.symbol))["price"]
+    cost = body.quantity * fields["avg_cost"]
+    check = await check_for(db, user, get_provider(), body.symbol, cost, book_mode_of(acc))
     if is_paper(acc) and check["verdict"] == "block":
         raise HTTPException(409, {"message": "Blocked by your risk rules. Use a buy plan or change your profile.", "check": check})
     try:
-        pay_for_paper_buy(acc, body.quantity * body.avg_cost)
+        pay_for_paper_buy(acc, cost)
     except InsufficientPaperCashError as e:
         raise HTTPException(409, {"message": str(e), "check": check}) from e
-    h = Holding(user_id=user, **body.model_dump(exclude_none=True))
+    h = Holding(user_id=user, **fields)
     db.add(h)
     db.commit()
     return {"id": h.id, "check": check}
@@ -79,15 +95,24 @@ async def add_holding(body: HoldingIn, user: str = Depends(current_user), db: Se
 @router.patch("/holdings/{holding_id}")
 def update_holding(holding_id: int, body: HoldingUpdate, user: str = Depends(current_user), db: Session = Depends(get_db)) -> dict[str, int]:
     h = _own(db, Holding, holding_id, user)
-    for k, v in body.model_dump(exclude_none=True).items():
+    changes = body.model_dump(exclude_none=True)
+    if is_paper(h.account) and ({"quantity", "avg_cost"} & changes.keys()):
+        # resizing would skip the safety check and the cash; paper positions change through buys and sells
+        raise HTTPException(409, "Paper positions change only by buying or removing (selling) them.")
+    for k, v in changes.items():
         setattr(h, k, v)
     db.commit()
     return {"id": h.id}
 
 
 @router.delete("/holdings/{holding_id}", status_code=204)
-def delete_holding(holding_id: int, user: str = Depends(current_user), db: Session = Depends(get_db)) -> None:
-    db.delete(_own(db, Holding, holding_id, user))
+async def delete_holding(holding_id: int, user: str = Depends(current_user), db: Session = Depends(get_db)) -> None:
+    """Remove a position. For paper, that is a sale at the live quote: the proceeds go back to its cash."""
+    h = _own(db, Holding, holding_id, user)
+    if is_paper(h.account):
+        price = (await get_provider().quote(h.symbol))["price"]
+        h.account.cash = round(h.account.cash + h.quantity * price, 2)
+    db.delete(h)
     db.commit()
 
 

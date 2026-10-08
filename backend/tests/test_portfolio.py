@@ -96,23 +96,24 @@ def test_agent_tools_take_a_book_mode(two_books, tool, args, expect):
 
 
 @pytest.mark.parametrize(
-    ("broker", "cash", "qty", "status", "cash_after"),
+    ("broker", "cash", "qty", "status", "paid"),
     [
-        ("paper", 1_000, 2, 201, 800),  # 2 × 100 paid from paper cash
-        ("paper", 1_000, 20, 409, 1_000),  # 2,000 > 1,000: refused, nothing changes
-        ("manual", 0, 20, 201, 0),  # real accounts record broker trades; cash is the user's to edit
+        ("paper", 1_000, 2, 201, True),  # 2 × the live quote is paid from paper cash
+        ("paper", 1_000, 20, 409, False),  # 20 × the quote > 1,000: refused, nothing changes
+        ("manual", 0, 20, 201, False),  # real accounts record broker trades; cash is the user's to edit
     ],
 )
-def test_pay_for_paper_buy_on_add_holding(client, broker, cash, qty, status, cash_after):
+def test_pay_for_paper_buy_on_add_holding(client, broker, cash, qty, status, paid):
     who = auth(f"cashier-{broker}-{qty}")
     loose = {"level": "growth", "max_position_pct": 100, "max_sector_pct": 100, "min_safety_score": 0,
              "max_volatility_pct": 300, "min_market_cap_m": 0, "allow_penny_stocks": True, "cooling_off_hours": 0}
     client.put("/safety/profile", json=loose, headers=who)
     acc = client.post("/accounts", json={"name": "A", "broker": broker, "cash": cash}, headers=who).json()["id"]
+    price = client.get("/stocks/AAPL/quote").json()["price"]
     r = client.post("/holdings", json={"account_id": acc, "symbol": "AAPL", "quantity": qty, "avg_cost": 100}, headers=who)
     assert r.status_code == status, r.text
     accounts = {a["id"]: a for a in client.get("/accounts", headers=who).json()}
-    assert accounts[acc]["cash"] == cash_after
+    assert accounts[acc]["cash"] == pytest.approx(cash - qty * price if paid else cash, abs=0.01)
     held = client.get(f"/portfolio?mode={'paper' if broker == 'paper' else 'real'}", headers=who).json()["holdings"]
     assert len(held) == (1 if status == 201 else 0)
 
@@ -129,3 +130,52 @@ def test_pay_for_paper_buy_on_plan_execute(client):
     r = client.post(f"/plans/{plan['id']}/execute", headers=who)
     assert r.status_code == 409 and "paper cash" in r.json()["detail"]["message"]
     assert client.get("/portfolio?mode=paper", headers=who).json()["holdings"] == []
+
+
+LOOSE_RULES = {"level": "growth", "max_position_pct": 100, "max_sector_pct": 100, "min_safety_score": 0,
+               "max_volatility_pct": 300, "min_market_cap_m": 0, "allow_penny_stocks": True, "cooling_off_hours": 0}
+
+
+def _paper_account(client, who: dict[str, str], cash: float, broker: str = "paper") -> int:
+    client.put("/safety/profile", json=LOOSE_RULES, headers=who)
+    acc: int = client.post("/accounts", json={"name": "P", "broker": broker, "cash": cash}, headers=who).json()["id"]
+    return acc
+
+
+@pytest.mark.parametrize(("start", "change"), [("paper", "manual"), ("manual", "paper")])
+def test_update_account_cannot_move_between_books(client, start, change):
+    who = auth(f"switcher-{start}")
+    acc = _paper_account(client, who, 1_000, broker=start)
+    r = client.put(f"/accounts/{acc}", json={"name": "P", "broker": change, "cash": 1_000}, headers=who)
+    assert r.status_code == 409
+
+
+def test_broker_is_normalised_so_paper_spelling_counts(client):
+    who = auth("caps-paper")
+    _paper_account(client, who, 5_000, broker=" Paper ")
+    assert client.get("/portfolio?mode=paper", headers=who).json()["totals"]["cash"] == 5_000
+    assert client.get("/portfolio", headers=who).json()["totals"]["cash"] == 0
+
+
+def test_paper_add_holding_prices_at_the_quote_not_the_typed_cost(client):
+    who = auth("zero-cost")
+    acc = _paper_account(client, who, 1_000)
+    price = client.get("/stocks/MSFT/quote").json()["price"]
+    r = client.post("/holdings", json={"account_id": acc, "symbol": "MSFT", "quantity": 1000, "avg_cost": 0}, headers=who)
+    assert r.status_code == 409  # 1000 × the real price is far more than 1,000 cash
+    r = client.post("/holdings", json={"account_id": acc, "symbol": "MSFT", "quantity": 1, "avg_cost": 0}, headers=who)
+    assert r.status_code == 201
+    book = client.get("/portfolio?mode=paper", headers=who).json()
+    assert book["holdings"][0]["avg_cost"] == price and book["totals"]["cash"] == pytest.approx(1_000 - price, abs=0.01)
+
+
+def test_paper_holdings_resize_only_through_buys_and_sell_back_on_delete(client):
+    who = auth("resizer")
+    acc = _paper_account(client, who, 10_000)
+    hid = client.post("/holdings", json={"account_id": acc, "symbol": "AAPL", "quantity": 2, "avg_cost": 1}, headers=who).json()["id"]
+    assert client.patch(f"/holdings/{hid}", json={"quantity": 100_000}, headers=who).status_code == 409
+    assert client.patch(f"/holdings/{hid}", json={"avg_cost": 1}, headers=who).status_code == 409
+    price = client.get("/stocks/AAPL/quote").json()["price"]
+    assert client.delete(f"/holdings/{hid}", headers=who).status_code == 204
+    assert client.get("/portfolio?mode=paper", headers=who).json()["totals"]["cash"] == pytest.approx(10_000, abs=0.01)
+    assert price > 0

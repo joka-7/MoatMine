@@ -23,7 +23,9 @@ and the logic that isn't obvious, see [`LLD.md`](LLD.md).
   holdings (`app/safety/risk.py`).
 - **Real and paper books.** Paper (practice) accounts are a separate book. Totals, risk, stress,
   alerts and position sizing never mix the two (`app/portfolio.py`, `BookMode`).
-  - Paper buys are paid from the paper account's cash (`pay_for_paper_buy`).
+  - Paper buys are priced at the live quote and paid from the paper account's cash
+    (`pay_for_paper_buy`). Removing a paper position sells it at the quote. Paper positions can't
+    be resized by editing, and an account can't move between books (`routers/portfolio.py`).
 - **Targets and alerts.**
   - PAPI targets (Profit, Amount, Period, Intent) with MAMI min/max bounds (`app/targets.py`).
   - Watchlist price alerts.
