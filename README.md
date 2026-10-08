@@ -2,7 +2,7 @@
 
 *Dig for companies that can't be knocked down.*
 
-Risk-aware investing app: every stock gets a graded safety score, every buy is checked against the user's own risk rules, and the portfolio is stress-tested against past crises. One UI for **web (Vercel)** and **desktop (Tauri)**, backed by one **FastAPI service on Render**.
+Risk-aware investing app: every stock gets a graded safety score, every buy is checked against the user's own risk rules, and the portfolio is stress-tested against past crises. One UI for **web (GitHub Pages)** and **desktop (Tauri)**, backed by one **FastAPI service on Render**.
 
 ## Repo structure
 
@@ -14,7 +14,7 @@ MoatMine/
 ├── backend/            # FastAPI API, background worker, MCP server, safety/valuation maths, Alembic…
 ├── desktop/            # Tauri v2 shell that loads the static-exported web UI and calls the same API
 ├── docs/               # Repo map, HLD/LLD design docs and UI screenshots
-├── web/                # Next.js UI for Vercel; the same code is static-exported for the desktop app
+├── web/                # Next.js UI, static-exported for GitHub Pages and the desktop app
 ├── .ai                 # The ogen-ai submodule: shared AI-assistant rules, agents and skills (don't…
 ├── .gitignore          # Virtualenvs, build output, local databases and env files
 ├── .gitmodules         # Points .ai at github.com/joka-7/ogen-ai
@@ -147,11 +147,16 @@ The app runs with **no API keys**: `MARKET_PROVIDER=mock` serves deterministic s
 - `FMP_API_KEY` (optional). Company descriptions, statements (Piotroski, Altman), price targets and dividend history need it or a paid Finnhub plan; without them those sections say so instead of breaking. The FMP mapping follows FMP's documented `/stable` fields but hasn't been run against a live key yet.
 - `FERNET_KEY`
 - `CLERK_JWKS_URL` and `CLERK_ISSUER` (the blueprint sets `AUTH_MODE=clerk`)
-- `CLERK_AUTHORIZED_PARTIES` = your Vercel URL plus `tauri://localhost,http://tauri.localhost`, so sessions minted for another site on the same Clerk instance are refused
+- `CLERK_AUTHORIZED_PARTIES` = your web app's origin (`https://<owner>.github.io` on GitHub Pages) plus `tauri://localhost,http://tauri.localhost`, so sessions minted for another site on the same Clerk instance are refused
 - AI keys (optional)
-- `CORS_ORIGINS` = your Vercel URL plus `tauri://localhost,http://tauri.localhost`
+- `CORS_ORIGINS` = the same web origin plus `tauri://localhost,http://tauri.localhost`
 
-**Vercel.** Import the repo with root directory `web`. Set `NEXT_PUBLIC_API_URL=https://<moatmine-api>.onrender.com` and `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`. With the key set, the whole app sits behind Clerk's sign-in, and every API call sends the Clerk session token from `getToken()`.
+**Web (GitHub Pages).** Render runs the API, the worker and the database; the web UI is only static files, so GitHub Pages can serve it. `.github/workflows/pages.yml` builds the static export and publishes it at `https://<owner>.github.io/<repo>/` on every push to `main` that touches `web/`. Once:
+1. Settings → Pages → Source: **GitHub Actions**.
+2. Settings → Secrets and variables → Actions → **Variables**: `API_URL` = `https://<moatmine-api>.onrender.com` and `CLERK_PUBLISHABLE_KEY` = the Clerk publishable key. Neither is secret: both end up in the page anyway. The workflow stops with an error until `API_URL` is set.
+3. In Clerk, allow the Pages origin. Check whether your Clerk plan's production instance accepts a `github.io` address or needs a domain you own.
+
+With the key set, the whole app sits behind Clerk's sign-in, and every API call sends the Clerk session token from `getToken()`. Vercel also works (import the repo with root directory `web` and set `NEXT_PUBLIC_API_URL` and `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`), but nothing needs it.
 
 **Desktop.** Set `NEXT_PUBLIC_API_URL` and `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` before `npm run build` so the installer points at Render and signs in with Clerk. Users can also change the API URL in Settings. The static export swaps `@clerk/nextjs` for `@clerk/react` (see `web/next.config.ts`), because the Next.js provider needs a server.
 

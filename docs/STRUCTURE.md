@@ -63,7 +63,8 @@ MoatMine/
 │       └── .ai-managed                           # Marker: directory is written by ai-sync
 ├── .github/                                      # CI workflow and the pull request template
 │   ├── workflows/
-│   │   └── ci.yml                                # CI: backend ruff/mypy/pytest + OpenAPI drift, web tsc/lint/vitest/type drift…
+│   │   ├── ci.yml                                # CI: backend ruff/mypy/pytest + OpenAPI drift, web tsc/lint/vitest/type drift…
+│   │   └── pages.yml                             # Publishes the static web export to GitHub Pages on pushes to main that touch…
 │   └── pull_request_template.md                  # Why / what / how verified, plus the regenerate-and-document checklist
 ├── backend/                                      # FastAPI API, background worker, MCP server, safety/valuation maths, Alembic…
 │   ├── app/                                      # The FastAPI application package
@@ -214,7 +215,7 @@ MoatMine/
 │   ├── LLD.md                                    # MoatMine — Low-Level Design
 │   ├── RUNBOOK.md                                # MoatMine runbook
 │   └── STRUCTURE.md                              # Repository structure
-├── web/                                          # Next.js UI for Vercel; the same code is static-exported for the desktop app
+├── web/                                          # Next.js UI, static-exported for GitHub Pages and the desktop app
 │   ├── src/                                      # App source
 │   │   ├── app/                                  # Routes (App Router): one folder per page
 │   │   │   ├── agent/                            # AI agent page (ChatPanel)
@@ -264,7 +265,7 @@ MoatMine/
 │   ├── .gitignore                                # Next.js build output and local env files
 │   ├── README.md                                 # How the web app is built, configured and exported for desktop
 │   ├── eslint.config.mjs                         # ESLint flat config: Next.js core-web-vitals + typescript rules,…
-│   ├── next.config.ts                            # Vercel build vs static export for Tauri (swaps @clerk/nextjs for @clerk/react)
+│   ├── next.config.ts                            # Server build vs static export (GitHub Pages base path; swaps @clerk/nextjs…
 │   ├── openapi.json                              # The API's OpenAPI schema (python -m app.openapi_spec); CI fails if it is stale
 │   ├── package-lock.json                         # Pinned npm dependencies
 │   ├── package.json                              # Next.js 16 / React 19 app; scripts for dev, build and build:desktop

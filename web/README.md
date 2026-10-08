@@ -2,8 +2,8 @@
 
 The MoatMine UI: Next.js 16 (App Router, Turbopack) with React 19. It is one codebase built two ways:
 
-- `npm run build` is the Vercel deployment.
-- `npm run build:desktop` is a static export to `out/` that the Tauri app in `../desktop` loads.
+- `npm run build:desktop` is a static export to `out/`. The Tauri app in `../desktop` loads it, and `.github/workflows/pages.yml` publishes it to GitHub Pages with `NEXT_BASE_PATH=/<repo>`.
+- `npm run build` is the server build, for hosts like Vercel.
 
 Both call the same FastAPI backend (`../backend`).
 

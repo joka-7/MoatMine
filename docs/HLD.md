@@ -55,7 +55,7 @@ and the logic that isn't obvious, see [`LLD.md`](LLD.md).
 ```mermaid
 flowchart LR
   subgraph Clients
-    W[Web UI<br/>Next.js on Vercel]
+    W[Web UI<br/>Next.js static export<br/>on GitHub Pages]
     D[Desktop<br/>Tauri over static export]
     X[External agents<br/>MCP clients]
   end
