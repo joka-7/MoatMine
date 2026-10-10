@@ -967,6 +967,12 @@ export interface components {
         };
         /** ChatIn */
         ChatIn: {
+            /**
+             * Language
+             * @default en
+             * @enum {string}
+             */
+            language: "en" | "he";
             /** Messages */
             messages: components["schemas"]["ChatMessage"][];
             /**

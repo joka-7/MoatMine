@@ -236,11 +236,19 @@ async def _run(db: Session, user: str, messages: list[Message], requested: str,
 
 _ROLES = {"user": Role.USER, "assistant": Role.ASSISTANT, "system": Role.SYSTEM}
 
+# tool results and numbers stay as they are; only the prose switches language
+_ANSWER_IN = {"en": "", "he": "\nAnswer in Hebrew. Keep ticker symbols, company names and numbers as they are."}
+
 
 async def chat(db: Session, user: str, messages: list[JSONDict], tools: ToolRegistry,
-               requested: str = "auto", context: str = "") -> JSONDict:
-    """One agent turn with tool use. The caller supplies the tools (see app.ai.tools.registry)."""
-    convo = [Message(role=Role.SYSTEM, content=SYSTEM_PROMPT + (f"\n{context}" if context else ""))]
+               requested: str = "auto", context: str = "", language: str = "en") -> JSONDict:
+    """One agent turn with tool use. The caller supplies the tools (see app.ai.tools.registry).
+
+    Raises:
+        KeyError: language isn't one of _ANSWER_IN's keys (ChatIn already restricts it).
+    """
+    system = SYSTEM_PROMPT + _ANSWER_IN[language] + (f"\n{context}" if context else "")
+    convo = [Message(role=Role.SYSTEM, content=system)]
     convo += [Message(role=_ROLES[m["role"]], content=m["content"]) for m in messages]
     content, model = await _run(db, user, convo, requested, tools)
     return {"model": model, "content": content}

@@ -127,6 +127,7 @@ class ChatIn(BaseModel):
     # "external" uses only the user's external agent endpoint
     model: str = "auto"
     symbol: str | None = None  # optional page context
+    language: Literal["en", "he"] = "en"  # the app's display language; the agent answers in it
 
 
 # ---- response shapes for routes whose bodies are built as dicts (also the source of web/src/lib/api-schema.ts) ----

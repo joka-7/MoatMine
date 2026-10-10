@@ -187,6 +187,15 @@
       },
       "ChatIn": {
         "properties": {
+          "language": {
+            "default": "en",
+            "enum": [
+              "en",
+              "he"
+            ],
+            "title": "Language",
+            "type": "string"
+          },
           "messages": {
             "items": {
               "$ref": "#/components/schemas/ChatMessage"
