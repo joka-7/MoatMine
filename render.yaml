@@ -1,5 +1,6 @@
-# Render Blueprint: API + background worker. The database is Postgres on Neon (Render has no
-# free database): DATABASE_URL is Neon's *direct* connection string, not the "-pooler" one.
+# Render Blueprint: the API as one free web service. The database is Postgres on Neon (Render has
+# no free database): DATABASE_URL is Neon's *direct* connection string, not the "-pooler" one.
+# Alert passes are started by .github/workflows/alerts.yml, since free plans have no workers.
 # New → Blueprint → pick this repo. Secrets marked sync:false are prompted on first deploy.
 envVarGroups:
   - name: moatmine-shared
@@ -34,30 +35,25 @@ services:
     name: moatmine-api
     runtime: python
     rootDir: backend
-    plan: starter # free plan sleeps when idle
+    plan: free # sleeps after 15 idle minutes; the next request wakes it in about a minute
     # One instance on purpose: response caches, AI quotas and rate limits live in process memory
     # (docs/HLD.md "Scaling"). Move them to Redis before raising this.
     numInstances: 1
     buildCommand: pip install -r requirements.lock # exact versions; regenerate from requirements.txt
-    preDeployCommand: alembic upgrade head # schema first; a failed migration stops the deploy
-    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT --proxy-headers
+    # migrations run at start: free instances have no pre-deploy step. A failed migration stops the
+    # start, so the deploy fails; the advisory lock in migrations/env.py makes a second start wait
+    # instead of migrating twice.
+    startCommand: alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port $PORT --proxy-headers
     healthCheckPath: /health/ready # DB reachable and schema at the newest migration
     envVars:
       - fromGroup: moatmine-shared
       - key: PYTHON_VERSION
         value: 3.12.7
       - key: CORS_ORIGINS
-        sync: false # e.g. https://moatmine.vercel.app,tauri://localhost,http://tauri.localhost
-
-  - type: worker
-    name: moatmine-worker
-    runtime: python
-    rootDir: backend
-    plan: starter
-    buildCommand: pip install -r requirements.lock # exact versions; regenerate from requirements.txt
-    preDeployCommand: alembic upgrade head # safe to run twice: Postgres advisory lock in migrations/env.py
-    startCommand: python -m app.worker
-    envVars:
-      - fromGroup: moatmine-shared
-      - key: PYTHON_VERSION
-        value: 3.12.7
+        sync: false # e.g. https://<owner>.github.io,tauri://localhost,http://tauri.localhost
+      # No background worker (none on the free plan): .github/workflows/alerts.yml calls
+      # POST /internal/alerts/run with this token every hour instead.
+      - key: ALERTS_RUN_TOKEN
+        sync: false # python -c "import secrets; print(secrets.token_urlsafe(32))"; same value as the GitHub secret
+      - key: WORKER_INTERVAL_SECONDS
+        value: "3600" # matches the hourly schedule, so /health/worker knows when a pass is late

@@ -270,6 +270,26 @@ export interface paths {
         patch: operations["update_holding_holdings__holding_id__patch"];
         trace?: never;
     };
+    "/internal/alerts/run": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Run Alerts
+         * @description Start one alert pass in the background and return at once; a pass already running is left alone.
+         */
+        post: operations["run_alerts_internal_alerts_run_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/news/feed": {
         parameters: {
             query?: never;
@@ -1911,6 +1931,28 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    run_alerts_internal_alerts_run_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: string;
+                    };
                 };
             };
         };

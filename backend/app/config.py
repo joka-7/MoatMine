@@ -50,7 +50,11 @@ class Settings(BaseSettings):
     # tokens per UTC day all users together may spend on the server's own keys (0 = no cap)
     ai_server_tokens_per_day: int = 5_000_000
 
+    # how often an alert pass runs: the worker's loop, or the scheduler calling /internal/alerts/run;
+    # /health/worker reports stale after three intervals
     worker_interval_seconds: int = 300
+    # bearer token a scheduler sends to POST /internal/alerts/run; empty = that route is off
+    alerts_run_token: str = ""
 
     # per-user requests per minute on routes that spend provider quota (app/ratelimit.py)
     rate_limit_market_per_min: int = 240
@@ -81,6 +85,13 @@ class Settings(BaseSettings):
                 Fernet(key.encode())
             except ValueError as e:
                 raise ValueError("FERNET_KEY is not a valid Fernet key (32 url-safe base64 bytes)") from e
+        return self
+
+    @model_validator(mode="after")
+    def _alerts_token_is_strong(self) -> Self:
+        """The token lets anyone who has it start an alert pass, so a guessable one is refused."""
+        if self.alerts_run_token and len(self.alerts_run_token) < 32:
+            raise ValueError("ALERTS_RUN_TOKEN must be at least 32 characters (e.g. python -c \"import secrets; print(secrets.token_urlsafe(32))\")")
         return self
 
     @property

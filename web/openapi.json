@@ -2302,6 +2302,34 @@
         ]
       }
     },
+    "/internal/alerts/run": {
+      "post": {
+        "description": "Start one alert pass in the background and return at once; a pass already running is left alone.",
+        "operationId": "run_alerts_internal_alerts_run_post",
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "title": "Response Run Alerts Internal Alerts Run Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Run Alerts"
+      }
+    },
     "/news/feed": {
       "get": {
         "description": "News across everything you hold or watch.",

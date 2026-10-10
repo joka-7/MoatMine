@@ -26,7 +26,7 @@ MoatMine/
 ├── README.md           # What MoatMine is, features, how to run, test and deploy it
 ├── ai-config.local.md  # MoatMine-specific notes merged into AGENTS.md/CLAUDE.md by ai-sync
 ├── ai-config.toml      # Manifest for ai-sync: stack, practices and targets for the generated AI config
-└── render.yaml         # Render blueprint: API (pre-deploy alembic upgrade, /health/ready check) and…
+└── render.yaml         # Render blueprint: one free API web service (migrates at start, /health/ready…
 ```
 <!-- END GENERATED TREE -->
 
@@ -60,7 +60,7 @@ Operating it (health checks, rollbacks, backups, `FERNET_KEY` rotation, outages)
 | News | Per-stock news by date window, an AI digest with sentiment (fast model, cached 1h), and a dashboard feed across holdings and watchlist |
 | My info | Your own notes, thesis, news and links per stock |
 | **PAPI / MAMI targets** | **P**rofit %, **A**mount (value), **P**eriod (days held), **I**ntent (category plus risk as annualised volatility %). Each has a target and **MA**x/**MI**n bounds. Scope is one symbol or the whole portfolio. Shown as live range bars. |
-| Alerts | Worker evaluates targets and watch prices and writes de-duplicated alerts (bell menu) |
+| Alerts | An hourly alert pass (`app/worker.py`) evaluates targets, watch prices, concentration and the loss limit, and writes de-duplicated alerts (bell menu) |
 | AI agent | Tool-using chat through **[ModelDispatcher](https://github.com/joka-7/ModelDispatcher)**, bound to the user's risk profile. Read tools: `get_portfolio`, `get_quote`, `get_ratios`, `get_news`, `get_company`, `get_earnings`, `get_analysts`, `get_dividends`, `get_valuation`, `get_bad_times`, `get_risk_profile`, `get_safety_score`, `safety_check`, `get_portfolio_risk`, `get_stress_test`, `get_news_feed`, `get_targets_status`, `get_watchlist`, `get_notes`. Write tools (`add_to_watchlist`, `save_note`) act only on a symbol the user named in their own message |
 | AI settings | ModelDispatcher's shared `<ModelPicker>`: providers in fallback order, a model each, pooled keys (encrypted server-side), a favorite free AI app (`<AskExternallyButton>` / `<PasteExternalReply>` in chat), plus an **external agent** at any OpenAI-compatible base URL |
 | MCP | `/mcp/` exposes the read tools to Claude Desktop, Claude Code or any MCP client, using per-user revocable tokens. The write tools aren't served |
@@ -156,10 +156,11 @@ The API checks every request's Firebase ID token against Google's public keys, f
 **Database (Neon).** Render has no free database, so the data lives in Postgres on [Neon](https://neon.tech) (free tier):
 1. Create a Neon project and database.
 2. Copy its connection string from Connection details with **pooled connection off**: the direct string, without `-pooler` in the host, ending in `?sslmode=require`. The migrations take a lock that Neon's pooler doesn't keep.
-3. Paste it as `DATABASE_URL` below. Neon pauses an idle database and wakes it on the next query (the first request after a pause is slower). **Check** how many compute hours your Neon plan includes: the worker queries the database every `WORKER_INTERVAL_SECONDS` (300 by default), which keeps it awake.
+3. Paste it as `DATABASE_URL` below. Neon pauses an idle database and wakes it on the next query (the first request after a pause is slower). The hourly alert pass and people using the app are what wake it.
 
-**Render.** New → Blueprint → this repo. Then fill in the prompted secrets:
+**Render (free).** The blueprint creates one free web service, `moatmine-api`. A free service sleeps after 15 idle minutes and takes about a minute to wake on the next request. Free plans have no background workers or pre-deploy steps, so migrations run when the service starts, and the alert pass (targets, watch prices, concentration, loss limit) is started every hour by `.github/workflows/alerts.yml`, which calls `POST /internal/alerts/run`. New → Blueprint → this repo. Then fill in the prompted secrets:
 - `DATABASE_URL`: the Neon connection string from above
+- `ALERTS_RUN_TOKEN`: a random token, `python -c "import secrets; print(secrets.token_urlsafe(32))"`. Save the same value as the GitHub **secret** `ALERTS_RUN_TOKEN`.
 - `FINNHUB_API_KEY`. The blueprint sets `MARKET_PROVIDER=finnhub`, but without this key the API serves the labelled sample data. Before you rely on it:
   - Finnhub's free plan is for personal use. Check the terms before showing its data to other users.
   - Free Finnhub gives quotes, news, ratios, earnings, recommendations and splits.
@@ -170,7 +171,7 @@ The API checks every request's Firebase ID token against Google's public keys, f
 - AI keys (optional)
 - `CORS_ORIGINS` = your web app's origin (`https://<owner>.github.io` on GitHub Pages) plus `tauri://localhost,http://tauri.localhost`
 
-**Web (GitHub Pages).** Render runs the API and the worker, Neon the database; the web UI is only static files, so GitHub Pages can serve it. `.github/workflows/pages.yml` builds the static export and publishes it at `https://<owner>.github.io/<repo>/` on every push to `main` that touches `web/`. Once:
+**Web (GitHub Pages).** Render runs the API, Neon the database; the web UI is only static files, so GitHub Pages can serve it. `.github/workflows/pages.yml` builds the static export and publishes it at `https://<owner>.github.io/<repo>/` on every push to `main` that touches `web/`. Once:
 1. Settings → Pages → Source: **GitHub Actions**.
 2. Settings → Secrets and variables → Actions → **Variables**: `API_URL` = `https://<moatmine-api>.onrender.com`, and `FIREBASE_API_KEY`, `FIREBASE_AUTH_DOMAIN`, `FIREBASE_PROJECT_ID`, `FIREBASE_APP_ID` from the Firebase web app. None is secret: they all end up in the page anyway. The workflow stops with an error until `API_URL` is set.
 
@@ -194,7 +195,7 @@ Inside the desktop and Android apps, the sign-in screen offers email and passwor
 ## Before real users
 
 - **Auth.** `AUTH_MODE=dev` trusts the bearer token as the user id. It works only against a local SQLite database: the API refuses to start in dev mode on Postgres. Production runs `AUTH_MODE=firebase` (see Deploy).
-- **Schema.** Alembic owns the schema (`backend/migrations/`). Render runs `alembic upgrade head` before each deploy of the API and the worker. After changing `app/models.py`, run `alembic revision --autogenerate -m "..."`, review the file, and commit it with the model change. `tests/test_db.py` fails if the models and migrations drift apart. A database created before migrations is adopted by the baseline revision as-is.
+- **Schema.** Alembic owns the schema (`backend/migrations/`). Render runs `alembic upgrade head` each time the API starts (`render.yaml` `startCommand`). After changing `app/models.py`, run `alembic revision --autogenerate -m "..."`, review the file, and commit it with the model change. `tests/test_db.py` fails if the models and migrations drift apart. A database created before migrations is adopted by the baseline revision as-is.
 - **Market data.** Check the Finnhub and FMP caveats under Deploy → Render before showing data to other users.
 - **Broker sync.** SnapTrade or Plaid Investments can fill the existing `accounts` and `holdings` tables. Today they are entered manually.
 - **Chat.** Chat replies are not streamed yet (one response per turn).

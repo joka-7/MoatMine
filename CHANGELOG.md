@@ -12,6 +12,8 @@ API share one version.
 - Automatic releases: a new version on `main` publishes desktop installers and an Android APK.
 
 ### Changed
+- Free hosting: the API runs as one free Render web service (it migrates on start), the database is
+  on Neon, and an hourly GitHub workflow starts the alert pass instead of a paid background worker.
 - Sign-in moved from Clerk to Firebase Authentication (email and password, plus Google in
   browsers), like the other apps. Existing Clerk accounts don't carry over: users sign up again.
 

@@ -26,6 +26,8 @@ FIREBASE = {"firebase_project_id": "moatmine-1a2b3", "fernet_key": KEY}
         ({"auth_mode": "dev", "database_url": SQLITE, "fernet_key": f"{KEY}, {Fernet.generate_key().decode()}"}, True),  # rotating
         ({"auth_mode": "dev", "database_url": SQLITE, "fernet_key": f"{KEY},not-a-key"}, False),  # every key must be valid
         ({"auth_mode": "dev", "database_url": SQLITE, "fernet_key": ""}, True),  # local: only AI-key saving needs it
+        ({"auth_mode": "dev", "database_url": SQLITE, "alerts_run_token": "short"}, False),  # guessable
+        ({"auth_mode": "dev", "database_url": SQLITE, "alerts_run_token": "t" * 32}, True),
     ],
 )
 def test_settings_refuses_unsafe_auth(kwargs, ok):

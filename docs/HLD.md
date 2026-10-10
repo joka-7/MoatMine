@@ -61,7 +61,7 @@ flowchart LR
   end
   subgraph Render
     API[FastAPI API<br/>app/main.py]
-    WK[Worker<br/>app/worker.py]
+    WK[Alert pass<br/>app/worker.py, in the API process]
   end
   PG[(Postgres on Neon)]
   CL[Firebase Authentication<br/>sign-in only]
@@ -90,7 +90,7 @@ flowchart LR
 | Market data | Provider protocol, mock/Finnhub/FMP, routing and fallback, provenance | `app/market/*` |
 | AI | Tool catalogue, ModelDispatcher wiring, encrypted per-user settings | `app/ai/*` |
 | MCP server | Read-only tools for external agents, behind an MCP-token gate | `app/mcp_server.py` |
-| Worker | Periodic alert evaluation | `app/worker.py` |
+| Alert pass | Periodic alert evaluation, started hourly by a scheduled GitHub workflow | `app/worker.py`, `app/routers/internal.py`, `.github/workflows/alerts.yml` |
 | Persistence | ORM models, sessions, Alembic migrations | `app/models.py`, `app/db.py`, `backend/migrations/` |
 
 ## Dynamic view
@@ -120,7 +120,11 @@ sequenceDiagram
 ```
 
 ### Other flows
-- **Worker pass** (`app/worker.py` `run_once`), every `WORKER_INTERVAL_SECONDS`:
+- **Alert pass** (`app/worker.py` `run_once`), every `WORKER_INTERVAL_SECONDS`. In production a
+  scheduled GitHub workflow (`.github/workflows/alerts.yml`, hourly) calls
+  `POST /internal/alerts/run` (`app/routers/internal.py`, bearer `ALERTS_RUN_TOKEN`), which starts
+  the pass in the API process and returns 202; Render's free plan has no background workers.
+  `python -m app.worker` runs the same pass in a loop where workers exist.
   1. For each user, check real-book concentration and the loss limit (the holdings' fall from
      their 1-year high; daily bars cached for a day; skipped on sample data or when the history
      can't be fetched) against the risk rules, evaluate PAPI targets, and check watchlist price
@@ -141,7 +145,7 @@ sequenceDiagram
 
 ## Data storage
 - **Primary store: Postgres on Neon** (free tier; `DATABASE_URL` in `render.yaml`'s shared env
-  group). Render runs only the API and the worker. SQLite locally and in tests.
+  group). Render runs only the API, on its free plan. SQLite locally and in tests.
   - Neon's *direct* connection string, not its "-pooler" one: the migration lock below is a
     session-level advisory lock, which a transaction-mode pooler doesn't hold.
   - Neon suspends an idle database; `pool_pre_ping` (`app/db.py`) replaces connections it closed.
@@ -149,7 +153,7 @@ sequenceDiagram
     notes, targets, alerts, AI settings (encrypted), MCP tokens (hashed), risk profiles and buy
     plans.
   - The schema is owned by Alembic (`backend/migrations/`). `render.yaml` runs
-    `alembic upgrade head` as a pre-deploy step for both services. A Postgres advisory lock in
+    `alembic upgrade head` in the API's start command (free instances have no pre-deploy step). A Postgres advisory lock in
     `migrations/env.py` makes concurrent runs safe.
 - **Cache: in-process only**, so each instance has its own:
   - `app/cache.py` `ttl_cache` holds safety reports (10 min) and sector lookups (1 h). At 2,000

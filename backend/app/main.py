@@ -17,7 +17,7 @@ from app.errors import DispatchError, MarketDataError
 from app.log_config import configure_logging, request_id
 from app.mcp_server import build_mcp_app, mcp
 from app.models import ALERT_WORKER, WorkerHeartbeat
-from app.routers import ai, portfolio, safety, stocks, targets, watchlist
+from app.routers import ai, internal, portfolio, safety, stocks, targets, watchlist
 
 configure_logging(get_settings().log_level, get_settings().log_format)
 logger = logging.getLogger(__name__)
@@ -71,7 +71,7 @@ async def tag_request(request: Request, call_next: Callable[[Request], Awaitable
     response.headers["X-Request-ID"] = rid
     return response
 
-for r in (portfolio.router, stocks.router, stocks.feed_router, watchlist.router, targets.router, ai.router, safety.router):
+for r in (portfolio.router, stocks.router, stocks.feed_router, watchlist.router, targets.router, ai.router, safety.router, internal.router):
     app.include_router(r)
 
 app.mount("/mcp", mcp_app)
