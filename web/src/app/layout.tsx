@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import AuthShell from "@/components/AuthShell";
 import Nav from "@/components/Nav";
+import { LanguageProvider } from "@/lib/i18n";
 import "modeldispatcher-react-ui/styles.css";
 import "./globals.css";
 
@@ -13,12 +14,14 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en">
       <body>
-        <AuthShell>
-          <div className="shell">
-            <Nav />
-            <main>{children}</main>
-          </div>
-        </AuthShell>
+        <LanguageProvider>
+          <AuthShell>
+            <div className="shell">
+              <Nav />
+              <main>{children}</main>
+            </div>
+          </AuthShell>
+        </LanguageProvider>
       </body>
     </html>
   );

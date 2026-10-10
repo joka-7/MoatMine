@@ -152,3 +152,4 @@
 "web/src/components" = "Shared UI components"
 "web/src/lib" = "API client, formatters and hooks"
 "docs/screenshots" = "Every page and stock tab at 1400px and 390px, on mock data"
+"web/src/lib/i18n" = "English and Hebrew: LanguageProvider/useI18n, one messages module per area, placeholder filling"

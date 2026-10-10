@@ -3,21 +3,23 @@
 import { useState } from "react";
 import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { BadTimes } from "@/lib/api";
-import { date, pct } from "@/lib/format";
+import { date, pct, share } from "@/lib/format";
 import { useApi } from "@/lib/useApi";
 import { isSampleData } from "@/lib/dataSource";
+import { useI18n, type I18n } from "@/lib/i18n";
 
 const TT = { background: "#14171c", border: "1px solid #262a32", borderRadius: 8 };
 const AX = { stroke: "#8b909a", fontSize: 11, tickLine: false, axisLine: false } as const;
 
-function span(days: number | null) {
+function span(t: I18n["t"], days: number | null) {
   if (days == null) return "—";
-  if (days < 60) return `${days} days`;
-  if (days < 730) return `${Math.round(days / 30)} months`;
-  return `${(days / 365).toFixed(1)} years`;
+  if (days < 60) return t("stock.bad.days", { n: days });
+  if (days < 730) return t("stock.bad.months", { n: Math.round(days / 30) });
+  return t("stock.bad.years", { n: (days / 365).toFixed(1) });
 }
 
 export default function BadTimesPanel({ symbol }: { symbol: string }) {
+  const { t, lang } = useI18n();
   const [bench, setBench] = useState("SPY");
   const [input, setInput] = useState("SPY");
   const { data: d, error } = useApi<BadTimes>(`/stocks/${symbol}/crises?benchmark=${bench}`);
@@ -34,33 +36,33 @@ export default function BadTimesPanel({ symbol }: { symbol: string }) {
       {error && <div className="err">{error}</div>}
       <div className="grid g4">
         <div className="card stat">
-          <div className="label">Downside capture vs {bench}</div>
-          <div className={`value ${captureTone}`}>{r?.downside_capture_pct != null ? `${r.downside_capture_pct}%` : "—"}</div>
+          <div className="label">{t("stock.bad.capture", { bench })}</div>
+          <div className={`value ${captureTone}`}>{share(r?.downside_capture_pct)}</div>
           <div className="delta sub">{r?.label}</div>
         </div>
         <div className="card stat">
-          <div className="label">Avg crisis drawdown</div>
+          <div className="label">{t("stock.bad.avgDrawdown")}</div>
           <div className="value down">{pct(r?.avg_drawdown_pct)}</div>
           <div className="delta sub">{bench}: {pct(r?.avg_benchmark_drawdown_pct)}</div>
         </div>
         <div className="card stat">
-          <div className="label">Recovered</div>
+          <div className="label">{t("stock.bad.recovered")}</div>
           <div className="value">{r ? `${r.recovered_count ?? 0}/${r.crises_covered}` : "—"}</div>
-          <div className="delta sub">crises back to pre-crisis price</div>
+          <div className="delta sub">{t("stock.bad.recoveredHint")}</div>
         </div>
         <div className="card stat">
-          <div className="label">Benchmark</div>
+          <div className="label">{t("stock.bad.benchmark")}</div>
           <form className="row" style={{ marginTop: 6 }} onSubmit={(e) => { e.preventDefault(); setBench(input.trim().toUpperCase() || "SPY"); }}>
             <input value={input} onChange={(e) => setInput(e.target.value)} style={{ maxWidth: 110 }} />
-            <button className="btn sm">Compare</button>
+            <button className="btn sm">{t("stock.bad.compare")}</button>
           </form>
-          {d?.history_from && <div className="delta sub">History from {date(d.history_from)}</div>}
+          {d?.history_from && <div className="delta sub">{t("stock.bad.historyFrom", { date: date(d.history_from, lang) })}</div>}
         </div>
       </div>
 
       <div className="card">
-        <h2>Drawdown in each crisis · {symbol} vs {bench}</h2>
-        {!chart.length ? <div className="empty">No price history through any of these crises.</div> : (
+        <h2>{t("stock.bad.chartTitle", { symbol, bench })}</h2>
+        {!chart.length ? <div className="empty">{t("stock.bad.noHistory")}</div> : (
           <div style={{ height: 260 }}>
             <ResponsiveContainer>
               <BarChart data={chart}>
@@ -78,7 +80,10 @@ export default function BadTimesPanel({ symbol }: { symbol: string }) {
         <div className="scroll-x">
           <table style={{ marginTop: 8 }}>
             <thead>
-              <tr><th>Crisis</th><th>Period</th><th className="n">{symbol} fall</th><th className="n">{bench} fall</th><th className="n">Back to pre-crisis price</th></tr>
+              <tr>
+                <th>{t("stock.bad.col.crisis")}</th><th>{t("stock.bad.col.period")}</th><th className="n">{t("stock.bad.col.fall", { symbol })}</th>
+                <th className="n">{t("stock.bad.col.fall", { symbol: bench })}</th><th className="n">{t("stock.bad.col.backToPrice")}</th>
+              </tr>
             </thead>
             <tbody>
               {d?.crises.map((c) => (
@@ -89,10 +94,10 @@ export default function BadTimesPanel({ symbol }: { symbol: string }) {
                     <>
                       <td className="n down">{pct(c.stock.drawdown_pct)}</td>
                       <td className="n sub">{pct(c.benchmark?.drawdown_pct)}</td>
-                      <td className="n">{c.stock.recovered ? span(c.stock.recovery_days) : <span className="down">not yet ({pct(c.stock.still_below_pct)})</span>}</td>
+                      <td className="n">{c.stock.recovered ? span(t, c.stock.recovery_days) : <span className="down">{t("stock.bad.notYet", { pct: pct(c.stock.still_below_pct) })}</span>}</td>
                     </>
                   ) : (
-                    <td colSpan={3} className="sub" style={{ textAlign: "right" }}>not listed yet</td>
+                    <td colSpan={3} className="sub" style={{ textAlign: "end" }}>{t("stock.bad.notListed")}</td>
                   )}
                 </tr>
               ))}
@@ -102,27 +107,32 @@ export default function BadTimesPanel({ symbol }: { symbol: string }) {
       </div>
 
       <div className="card">
-        <h2>{symbol}&apos;s own worst falls</h2>
+        <h2>{t("stock.bad.worstTitle", { symbol })}</h2>
         <div className="scroll-x">
           <table>
-            <thead><tr><th>Peak</th><th>Bottom</th><th className="n">Fall</th><th className="n">Time falling</th><th className="n">Time to recover</th></tr></thead>
+            <thead>
+              <tr>
+                <th>{t("stock.bad.col.peak")}</th><th>{t("stock.bad.col.bottom")}</th><th className="n">{t("stock.bad.col.depth")}</th>
+                <th className="n">{t("stock.bad.col.timeFalling")}</th><th className="n">{t("stock.bad.col.timeToRecover")}</th>
+              </tr>
+            </thead>
             <tbody>
               {d?.worst_drawdowns.map((w) => (
                 <tr key={w.peak_date}>
-                  <td>{date(w.peak_date)}</td><td>{date(w.trough_date)}</td>
+                  <td>{date(w.peak_date, lang)}</td><td>{date(w.trough_date, lang)}</td>
                   <td className="n down">{pct(w.depth_pct)}</td>
-                  <td className="n">{span(w.fall_days)}</td>
-                  <td className="n">{w.recovered ? span(w.recovery_days) : <span className="down">still below peak</span>}</td>
+                  <td className="n">{span(t, w.fall_days)}</td>
+                  <td className="n">{w.recovered ? span(t, w.recovery_days) : <span className="down">{t("stock.bad.stillBelow")}</span>}</td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
-        {d && !d.worst_drawdowns.length && <div className="empty">No falls deeper than 10% in the available history.</div>}
+        {d && !d.worst_drawdowns.length && <div className="empty">{t("stock.bad.noFalls")}</div>}
       </div>
       {d && (
         <div className="sub" style={{ fontSize: 12 }}>
-          {d.note} Source: {d.data_source}{isSampleData(d.data_source) ? " (sample data, not real history)" : ""}.
+          {d.note} {t(isSampleData(d.data_source) ? "stock.bad.sourceSample" : "stock.bad.source", { source: d.data_source })}
         </div>
       )}
     </div>

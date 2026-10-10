@@ -1,0 +1,36 @@
+// Texts shared by many screens. Keys are "area.name"; every module's `he` must cover its `en` (typed below).
+export const en = {
+  "common.add": "Add",
+  "common.remove": "Remove",
+  "common.delete": "Delete",
+  "common.cancel": "Cancel",
+  "common.save": "Save",
+  "common.loading": "Loading…",
+  "common.symbol": "Symbol",
+  "common.price": "Price",
+  "common.day": "Day",
+  "common.value": "Value",
+  "common.pnl": "P/L",
+  "common.cash": "Cash",
+  "common.portfolio": "portfolio",
+  "common.notAdvice": "Information, not financial advice.",
+  "common.apiUnreachable": "Can't reach the API: {error}. Check Settings → API URL.",
+} as const;
+
+export const he: { readonly [K in keyof typeof en]: string } = {
+  "common.add": "הוספה",
+  "common.remove": "הסרה",
+  "common.delete": "מחיקה",
+  "common.cancel": "ביטול",
+  "common.save": "שמירה",
+  "common.loading": "טוען…",
+  "common.symbol": "סימול",
+  "common.price": "מחיר",
+  "common.day": "יומי",
+  "common.value": "שווי",
+  "common.pnl": "רווח/הפסד",
+  "common.cash": "מזומן",
+  "common.portfolio": "תיק",
+  "common.notAdvice": "מידע בלבד, לא ייעוץ השקעות.",
+  "common.apiUnreachable": "אין חיבור לשרת: {error}. בדקו בהגדרות ← כתובת השרת.",
+};

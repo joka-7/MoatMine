@@ -163,6 +163,24 @@ def test_chat_runs_tools_with_users_own_key(client, alice_account, fake_ai):
     assert "risk profile" in second.messages[0].content  # agent is bound to the user's rules
 
 
+@pytest.mark.parametrize(("language", "asks_for_hebrew"), [("en", False), ("he", True), (None, False)])
+def test_chat_answers_in_the_apps_language(client, fake_ai, language, asks_for_hebrew):
+    cfg: JSONDict = {"providers": [{"provider": "openai", "model": "gpt-4o-mini", "apiKeys": ["sk-test-1234567890abcd"]}], "ollamaUrl": ""}
+    client.put("/ai/settings", json={"config": cfg}, headers=A)
+    fake_ai.plans["openai"] = {"scripted": [reply("ok")]}
+    body: JSONDict = {"model": "openai", "messages": [{"role": "user", "content": "hi"}]}
+    if language:
+        body["language"] = language
+    r = client.post("/ai/chat", json=body, headers=A)
+    assert r.status_code == 200, r.text
+    assert ("Answer in Hebrew" in fake_ai.built["openai"].requests[0].messages[0].content) is asks_for_hebrew
+
+
+def test_chat_rejects_an_unknown_language(client):
+    r = client.post("/ai/chat", json={"language": "fr", "messages": [{"role": "user", "content": "hi"}]}, headers=A)
+    assert r.status_code == 422
+
+
 def test_chat_falls_back_across_vendors(client, fake_ai):
     cfg: JSONDict = {"providers": [{"provider": "anthropic", "model": "claude-haiku-4-5-20251001", "apiKeys": []},
                          {"provider": "openai", "model": "gpt-4o-mini", "apiKeys": ["sk-test-1234567890abcd"]}], "ollamaUrl": ""}

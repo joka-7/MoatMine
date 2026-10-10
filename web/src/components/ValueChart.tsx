@@ -5,11 +5,15 @@ import { useEffect, useRef, useState } from "react";
 import { apiWithHeaders } from "@/lib/api";
 import type { BookMode } from "@/lib/useBookMode";
 import { isSampleData } from "@/lib/dataSource";
+import { useI18n, type MessageKey } from "@/lib/i18n";
 
 const SPANS = [30, 90, 180, 365, 1095] as const;
-const LABEL: Record<number, string> = { 30: "1M", 90: "3M", 180: "6M", 365: "1Y", 1095: "3Y" };
+const LABEL: Record<(typeof SPANS)[number], MessageKey> = {
+  30: "dashboard.chart.1m", 90: "dashboard.chart.3m", 180: "dashboard.chart.6m", 365: "dashboard.chart.1y", 1095: "dashboard.chart.3y",
+};
 
 export default function ValueChart({ mode }: { mode: BookMode }) {
+  const { t } = useI18n();
   const el = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const [days, setDays] = useState<number>(180);
@@ -50,15 +54,15 @@ export default function ValueChart({ mode }: { mode: BookMode }) {
   return (
     <div className="card">
       <div className="row" style={{ justifyContent: "space-between", marginBottom: 8 }}>
-        <h2 style={{ margin: 0 }}>Holdings value</h2>
+        <h2 style={{ margin: 0 }}>{t("dashboard.chart.title")}</h2>
         <div className="seg" style={{ flex: "0 1 auto" }}>
           {SPANS.map((d) => (
-            <button key={d} className={`btn sm ${d === days ? "on" : ""}`} onClick={() => setDays(d)}>{LABEL[d]}</button>
+            <button key={d} className={`btn sm ${d === days ? "on" : ""}`} onClick={() => setDays(d)}>{t(LABEL[d])}</button>
           ))}
         </div>
       </div>
-      {points && !points.length ? <div className="empty">Add holdings to see value over time.</div> : <div ref={el} style={{ height: 260 }} />}
-      <div className="sub" style={{ fontSize: 12 }}>Current quantities priced historically{isSampleData(source) ? " (sample data, not real prices)" : ""}. Scroll to zoom, drag to pan.</div>
+      {points && !points.length ? <div className="empty">{t("dashboard.chart.empty")}</div> : <div ref={el} style={{ height: 260 }} />}
+      <div className="sub" style={{ fontSize: 12 }}>{t(isSampleData(source) ? "dashboard.chart.noteSample" : "dashboard.chart.note")}</div>
     </div>
   );
 }

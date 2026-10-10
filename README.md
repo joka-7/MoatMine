@@ -2,7 +2,7 @@
 
 *Dig for companies that can't be knocked down.*
 
-Risk-aware investing app: every stock gets a graded safety score, every buy is checked against the user's own risk rules, and the portfolio is stress-tested against past crises. One UI for **web (GitHub Pages)** and **desktop (Tauri)**, backed by one **FastAPI service on Render**.
+Risk-aware investing app: every stock gets a graded safety score, every buy is checked against the user's own risk rules, and the portfolio is stress-tested against past crises. One UI for **web (GitHub Pages)** and **desktop (Tauri)**, in English or Hebrew (right to left, switch in Settings), backed by one **FastAPI service on Render**.
 
 ## Repo structure
 
@@ -172,7 +172,7 @@ The API checks every request's Firebase ID token against Google's public keys, f
 - `CORS_ORIGINS` = your web app's origin (`https://<owner>.github.io` on GitHub Pages) plus `tauri://localhost,http://tauri.localhost`
 
 **Web (GitHub Pages).** Render runs the API, Neon the database; the web UI is only static files, so GitHub Pages can serve it. `.github/workflows/pages.yml` builds the static export and publishes it at `https://<owner>.github.io/<repo>/` on every push to `main` that touches `web/`. Once:
-1. Settings → Pages → Source: **GitHub Actions**.
+1. Settings → Pages → Source: **GitHub Actions**. On a free GitHub plan Pages needs a public repository; the deploy fails with "Get Pages site failed" otherwise.
 2. Settings → Secrets and variables → Actions → **Variables**: `API_URL` = `https://<moatmine-api>.onrender.com`, and `FIREBASE_API_KEY`, `FIREBASE_AUTH_DOMAIN`, `FIREBASE_PROJECT_ID`, `FIREBASE_APP_ID` from the Firebase web app. None is secret: they all end up in the page anyway. The workflow stops with an error until `API_URL` is set.
 
 With the Firebase settings present, the whole app sits behind sign-in (email and password, or Google in a browser), and every API call sends the user's Firebase ID token (`authToken()` in `web/src/lib/api.ts`). Vercel also works (import the repo with root directory `web` and set the same values as `NEXT_PUBLIC_*` variables), but nothing needs it.

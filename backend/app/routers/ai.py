@@ -59,7 +59,7 @@ async def chat_endpoint(body: ChatIn, user: str = Depends(current_user), db: Ses
     context = await asyncio.to_thread(agent_context, db, user, body.symbol)
     user_said = next((m.content for m in reversed(body.messages) if m.role == "user"), "")
     out = await chat(db, user, [m.model_dump() for m in body.messages], registry(db, user, used, user_said),
-                     requested=body.model, context=context)
+                     requested=body.model, context=context, language=body.language)
     return {**out, "tools_used": used}
 
 

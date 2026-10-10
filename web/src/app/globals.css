@@ -23,12 +23,13 @@ button, input, select, textarea { font: inherit; color: inherit; }
 
 /* minmax(0, …): a wide table must not stretch the page past the viewport */
 .shell { display: grid; grid-template-columns: 220px minmax(0, 1fr); min-height: 100vh; }
-.side { border-right: 1px solid var(--line); padding: 20px 14px; position: sticky; top: 0; height: 100vh; display: flex; flex-direction: column; gap: 4px; }
+.side { border-inline-end: 1px solid var(--line); padding: 20px 14px; position: sticky; top: 0; height: 100vh; display: flex; flex-direction: column; gap: 4px; }
 .brand { font-weight: 700; letter-spacing: 0.02em; font-size: 18px; padding: 0 10px 18px; display: flex; align-items: center; gap: 8px; }
 .brand i { width: 10px; height: 10px; border-radius: 2px; background: var(--accent); display: inline-block; transform: rotate(45deg); }
 .navlink { padding: 8px 10px; border-radius: 8px; color: var(--muted); display: block; }
 .navlink:hover { background: var(--panel); color: var(--text); }
 .navlink.active { background: var(--panel-2); color: var(--text); box-shadow: inset 2px 0 0 var(--accent); }
+[dir="rtl"] .navlink.active { box-shadow: inset -2px 0 0 var(--accent); }
 .side .grow { flex: 1; }
 .signin { min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; padding: 16px; }
 
@@ -49,12 +50,12 @@ h2 { font-size: 13px; text-transform: uppercase; letter-spacing: 0.08em; color: 
 .stat .value { font: 600 24px/1.2 var(--mono); margin-top: 6px; font-variant-numeric: tabular-nums; }
 .stat .delta { font: 13px var(--mono); margin-top: 4px; }
 
-.num, td.n, th.n { font-family: var(--mono); font-variant-numeric: tabular-nums; text-align: right; }
+.num, td.n, th.n { font-family: var(--mono); font-variant-numeric: tabular-nums; text-align: end; }
 .up { color: var(--up); }
 .down { color: var(--down); }
 
 table { width: 100%; border-collapse: collapse; }
-th { text-align: left; color: var(--muted); font-weight: 500; font-size: 12px; padding: 8px 10px; border-bottom: 1px solid var(--line); }
+th { text-align: start; color: var(--muted); font-weight: 500; font-size: 12px; padding: 8px 10px; border-bottom: 1px solid var(--line); }
 td { padding: 10px; border-bottom: 1px solid var(--line); }
 tr:last-child td { border-bottom: 0; }
 tbody tr:hover { background: var(--panel-2); }
@@ -100,17 +101,24 @@ label.f { display: flex; flex-direction: column; gap: 4px; font-size: 12px; colo
 .news ul { margin: 0; padding: 0; }
 
 .bell { position: relative; }
-.bell .dot { position: absolute; top: -4px; right: -4px; background: var(--down); color: #fff; font-size: 10px; border-radius: 99px; padding: 0 5px; }
-.pop { position: absolute; right: 0; top: 38px; width: 360px; z-index: 20; max-height: 420px; overflow: auto; }
+.bell .dot { position: absolute; top: -4px; inset-inline-end: -4px; background: var(--down); color: #fff; font-size: 10px; border-radius: 99px; padding: 0 5px; }
+.pop { position: absolute; inset-inline-end: 0; top: 38px; width: 360px; z-index: 20; max-height: 420px; overflow: auto; }
 
 @media (max-width: 900px) {
   .shell { grid-template-columns: minmax(0, 1fr); }
-  .side { position: static; height: auto; flex-direction: row; flex-wrap: wrap; border-right: 0; border-bottom: 1px solid var(--line); }
+  .side { position: static; height: auto; flex-direction: row; flex-wrap: wrap; border-inline-end: 0; border-bottom: 1px solid var(--line); }
   .side .grow { display: none; }
   .g2, .g3, .g4 { grid-template-columns: 1fr; }
   .span2 { grid-column: auto; }
   main { padding: 16px; }
 }
+
+/* Hebrew: letter-spacing and uppercase are for Latin headings, and the mono font has no Hebrew letters */
+[dir="rtl"] h2, [dir="rtl"] th, [dir="rtl"] .stat .label, [dir="rtl"] .chip { letter-spacing: 0; }
+[dir="rtl"] th.n, [dir="rtl"] .stat .delta, [dir="rtl"] .chip { font-family: var(--sans); }
+
+/* charts keep time running left to right in Hebrew too */
+.recharts-wrapper { direction: ltr; }
 
 /* ModelDispatcher react-ui components, themed to match */
 .md-picker, .md-ask-externally, .md-no-provider, .md-paste-reply, .md-conversation-intro {
