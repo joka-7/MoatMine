@@ -30,6 +30,7 @@ jobs:
         working-directory: web
     steps:
       - name: Repository variables are set
+        working-directory: . # runs before checkout, when web/ doesn't exist yet
         run: |
           if [ -z "${{ vars.API_URL }}" ]; then
             echo "::error::Set the repository variable API_URL to the Render API address (Settings → Secrets and variables → Actions → Variables)."
