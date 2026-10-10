@@ -14,14 +14,15 @@ import {
 import { useEffect, useRef, useState } from "react";
 import { apiWithHeaders, Candle } from "@/lib/api";
 import { isSampleData } from "@/lib/dataSource";
+import { useI18n } from "@/lib/i18n";
 
 const RANGES = [
-  { id: "1D", res: "5", days: 1 },
-  { id: "5D", res: "15", days: 5 },
-  { id: "1M", res: "60", days: 30 },
-  { id: "6M", res: "D", days: 182 },
-  { id: "1Y", res: "D", days: 365 },
-  { id: "5Y", res: "W", days: 1825 },
+  { id: "1D", res: "5", days: 1, unit: "stock.range.days", n: 1 },
+  { id: "5D", res: "15", days: 5, unit: "stock.range.days", n: 5 },
+  { id: "1M", res: "60", days: 30, unit: "stock.range.months", n: 1 },
+  { id: "6M", res: "D", days: 182, unit: "stock.range.months", n: 6 },
+  { id: "1Y", res: "D", days: 365, unit: "stock.range.years", n: 1 },
+  { id: "5Y", res: "W", days: 1825, unit: "stock.range.years", n: 5 },
 ] as const;
 
 const C = { up: "#49c58c", down: "#ec6650", text: "#8b909a", grid: "#1d2128", accent: "#e8b04a", blue: "#6aa5ff" };
@@ -38,6 +39,7 @@ function sma(bars: Candle[], n: number) {
 }
 
 export default function PriceChart({ symbol }: { symbol: string }) {
+  const { t } = useI18n();
   const el = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const [range, setRange] = useState<(typeof RANGES)[number]>(RANGES[4]);
@@ -115,28 +117,28 @@ export default function PriceChart({ symbol }: { symbol: string }) {
       <div className="row" style={{ justifyContent: "space-between", marginBottom: 10 }}>
         <div className="seg">
           {RANGES.map((r) => (
-            <button key={r.id} className={`btn sm ${r.id === range.id ? "on" : ""}`} onClick={() => setRange(r)}>{r.id}</button>
+            <button key={r.id} className={`btn sm ${r.id === range.id ? "on" : ""}`} onClick={() => setRange(r)}>{t(r.unit, { n: r.n })}</button>
           ))}
         </div>
         <div className="seg">
-          <button className={`btn sm ${kind === "candle" ? "on" : ""}`} onClick={() => setKind("candle")}>Candles</button>
-          <button className={`btn sm ${kind === "line" ? "on" : ""}`} onClick={() => setKind("line")}>Line</button>
+          <button className={`btn sm ${kind === "candle" ? "on" : ""}`} onClick={() => setKind("candle")}>{t("stock.chart.candles")}</button>
+          <button className={`btn sm ${kind === "line" ? "on" : ""}`} onClick={() => setKind("line")}>{t("stock.chart.line")}</button>
           {(["sma20", "sma50", "volume"] as const).map((k) => (
             <button key={k} className={`btn sm ${overlays[k] ? "on" : ""}`} onClick={() => setOverlays((o) => ({ ...o, [k]: !o[k] }))}>
-              {k === "volume" ? "Vol" : k.toUpperCase()}
+              {k === "volume" ? t("stock.chart.volume") : k.toUpperCase()}
             </button>
           ))}
         </div>
         <div className="seg">
-          <button className="btn sm" title="Zoom in" onClick={() => zoom(0.6)}>＋</button>
-          <button className="btn sm" title="Zoom out" onClick={() => zoom(1.6)}>－</button>
-          <button className="btn sm" title="Reset" onClick={() => chartRef.current?.timeScale().fitContent()}>Fit</button>
+          <button className="btn sm" title={t("stock.chart.zoomIn")} onClick={() => zoom(0.6)}>＋</button>
+          <button className="btn sm" title={t("stock.chart.zoomOut")} onClick={() => zoom(1.6)}>－</button>
+          <button className="btn sm" title={t("stock.chart.reset")} onClick={() => chartRef.current?.timeScale().fitContent()}>{t("stock.chart.fit")}</button>
         </div>
       </div>
       {err ? <div className="err">{err}</div> : <div ref={el} style={{ height: 420 }} />}
       {source && source !== "finnhub" && (
         <div className="sub" style={{ fontSize: 12, marginTop: 6 }}>
-          Data source: {source}{isSampleData(source) ? " — sample data, not real prices" : ""}
+          {t(isSampleData(source) ? "stock.chart.sourceSample" : "stock.chart.source", { source })}
         </div>
       )}
     </div>

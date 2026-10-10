@@ -12,31 +12,42 @@ import SafetyPanel from "@/components/SafetyPanel";
 import ValuationPanel from "@/components/ValuationPanel";
 import { api, Note, Quote } from "@/lib/api";
 import { money, pct, tone } from "@/lib/format";
+import { useI18n, type MessageKey } from "@/lib/i18n";
 import { useApi } from "@/lib/useApi";
 
 // Query-param route (/stock?s=AAPL) so it works in the static desktop export too.
 export default function StockPage() {
+  const { t } = useI18n();
   return (
-    <Suspense fallback={<div className="empty">Loading…</div>}>
+    <Suspense fallback={<div className="empty">{t("common.loading")}</div>}>
       <Stock />
     </Suspense>
   );
 }
 
 const TABS = [
-  ["overview", "Overview"], ["safety", "Safety"], ["valuation", "Valuation"], ["badtimes", "Bad times"], ["financials", "Earnings & dividends"],
-  ["analysts", "Analysts"], ["news", "News"], ["notes", "My info"], ["ai", "Ask AI"],
-] as const;
+  ["overview", "stock.tab.overview"], ["safety", "stock.tab.safety"], ["valuation", "stock.tab.valuation"], ["badtimes", "stock.tab.badtimes"],
+  ["financials", "stock.tab.financials"], ["analysts", "stock.tab.analysts"], ["news", "stock.tab.news"], ["notes", "stock.tab.notes"], ["ai", "stock.tab.ai"],
+] as const satisfies readonly (readonly [string, MessageKey])[];
+
+const ASK_AI: readonly MessageKey[] = [
+  "stock.ask.rules", "stock.ask.undervalued", "stock.ask.crises", "stock.ask.earnings", "stock.ask.analysts", "stock.ask.targets",
+];
+
+const NOTE_KIND: Record<string, MessageKey> = {
+  note: "stock.notes.kind.note", thesis: "stock.notes.kind.thesis", news: "stock.notes.kind.news", link: "stock.notes.kind.link",
+};
 type Tab = (typeof TABS)[number][0];
 
 function Stock() {
+  const { t } = useI18n();
   const params = useSearchParams();
   const symbol = (params.get("s") || "AAPL").toUpperCase();
   const [tab, setTabState] = useState<Tab>((TABS.find(([k]) => k === params.get("tab"))?.[0] ?? "overview") as Tab);
-  const setTab = (t: Tab) => {
-    setTabState(t);
+  const setTab = (next: Tab) => {
+    setTabState(next);
     const u = new URL(window.location.href);
-    u.searchParams.set("tab", t);
+    u.searchParams.set("tab", next);
     window.history.replaceState(null, "", u);
   };
   const { data: q } = useApi<Quote>(`/stocks/${symbol}/quote`);
@@ -44,7 +55,7 @@ function Stock() {
   const [msg, setMsg] = useState<string | null>(null);
 
   const watch = async () => {
-    try { await api("/watchlist", { method: "POST", json: { symbol } }); setMsg("Added to watchlist"); }
+    try { await api("/watchlist", { method: "POST", json: { symbol } }); setMsg(t("stock.watchAdded")); }
     catch (e) { setMsg((e as Error).message); }
   };
 
@@ -54,15 +65,15 @@ function Stock() {
         <div>
           <h1><span className="sym">{symbol}</span> <span className="sub" style={{ fontWeight: 400 }}>{prof?.name}</span></h1>
           <div className="sub" style={{ fontSize: 12 }}>
-            {[prof?.exchange, prof?.industry, prof?.market_cap ? `Mkt cap ${money(prof.market_cap * 1e6).replace(/\.\d+$/, "")}` : null].filter(Boolean).join(" · ")}
+            {[prof?.exchange, prof?.industry, prof?.market_cap ? t("stock.mktCap", { cap: money(prof.market_cap * 1e6, "USD", 0) }) : null].filter(Boolean).join(" · ")}
           </div>
         </div>
         <div className="row" style={{ flex: "0 1 auto", alignItems: "center" }}>
-          <div style={{ textAlign: "right", minWidth: 140 }}>
+          <div style={{ textAlign: "end", minWidth: 140 }}>
             <div className="num" style={{ fontSize: 22, fontWeight: 600 }}>{money(q?.price)}</div>
             <div className={`num ${tone(q?.change)}`}>{q ? `${q.change > 0 ? "+" : ""}${q.change.toFixed(2)} (${pct(q.change_pct)})` : ""}</div>
           </div>
-          <button className="btn" onClick={watch}>＋ Watch</button>
+          <button className="btn" onClick={watch}>{t("stock.watch")}</button>
           <SymbolSearch />
         </div>
       </div>
@@ -70,7 +81,7 @@ function Stock() {
 
       <div className="seg" style={{ marginBottom: 16, borderBottom: "1px solid var(--line)", paddingBottom: 10 }}>
         {TABS.map(([k, label]) => (
-          <button key={k} className={`btn ${tab === k ? "on" : "ghost"}`} onClick={() => setTab(k)}>{label}</button>
+          <button key={k} className={`btn ${tab === k ? "on" : "ghost"}`} onClick={() => setTab(k)}>{t(label)}</button>
         ))}
       </div>
 
@@ -91,21 +102,23 @@ function Stock() {
       {tab === "news" && <NewsPanel symbol={symbol} />}
       {tab === "notes" && <div style={{ maxWidth: 720 }}><Notes symbol={symbol} /></div>}
       {tab === "ai" && (
-        <ChatPanel symbol={symbol} height={460} suggestions={[
-          `Does ${symbol} fit my risk rules?`, `Is ${symbol} undervalued? Show the models`, `How did ${symbol} do in past crises?`, `Summarise ${symbol}'s last earnings`,
-          `What do analysts think of ${symbol}?`, `How does ${symbol} fit my targets?`,
-        ]} />
+        <ChatPanel symbol={symbol} height={460} suggestions={ASK_AI.map((k) => t(k, { symbol }))} />
       )}
     </>
   );
 }
 
 function Notes({ symbol }: { symbol: string }) {
+  const { t } = useI18n();
+  const kindLabel = (kind: string) => {
+    const key = NOTE_KIND[kind];
+    return key ? t(key) : kind;
+  };
   const { data, reload } = useApi<Note[]>(`/stocks/${symbol}/notes`);
   const [f, setF] = useState({ kind: "note", title: "", body: "", url: "" });
   return (
     <div className="card">
-      <h2>My info</h2>
+      <h2>{t("stock.notes.title")}</h2>
       <form className="grid" style={{ gap: 8, marginBottom: 10 }} onSubmit={async (e) => {
         e.preventDefault();
         await api(`/stocks/${symbol}/notes`, { method: "POST", json: f });
@@ -114,19 +127,19 @@ function Notes({ symbol }: { symbol: string }) {
       }}>
         <div className="row">
           <select value={f.kind} onChange={(e) => setF({ ...f, kind: e.target.value })} style={{ maxWidth: 110 }}>
-            <option value="note">Note</option><option value="thesis">Thesis</option><option value="news">News</option><option value="link">Link</option>
+            {Object.entries(NOTE_KIND).map(([k, label]) => <option key={k} value={k}>{t(label)}</option>)}
           </select>
-          <input required placeholder="Title" value={f.title} onChange={(e) => setF({ ...f, title: e.target.value })} />
+          <input required placeholder={t("stock.notes.titlePlaceholder")} value={f.title} onChange={(e) => setF({ ...f, title: e.target.value })} />
         </div>
-        <textarea rows={3} placeholder="Details…" value={f.body} onChange={(e) => setF({ ...f, body: e.target.value })} />
+        <textarea rows={3} placeholder={t("stock.notes.bodyPlaceholder")} value={f.body} onChange={(e) => setF({ ...f, body: e.target.value })} />
         {(f.kind === "link" || f.kind === "news") && <input placeholder="https://…" value={f.url} onChange={(e) => setF({ ...f, url: e.target.value })} />}
-        <button className="btn primary">Save</button>
+        <button className="btn primary">{t("common.save")}</button>
       </form>
       <div style={{ maxHeight: 240, overflowY: "auto" }}>
         {data?.map((n) => (
           <div key={n.id} style={{ padding: "8px 0", borderBottom: "1px solid var(--line)" }}>
             <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
-              <span><span className="chip">{n.kind}</span> {n.url ? <a href={n.url} target="_blank" rel="noreferrer" style={{ textDecoration: "underline" }}>{n.title}</a> : n.title}</span>
+              <span><span className="chip">{kindLabel(n.kind)}</span> {n.url ? <a href={n.url} target="_blank" rel="noreferrer" style={{ textDecoration: "underline" }}>{n.title}</a> : n.title}</span>
               <button className="btn sm ghost" onClick={async () => { await api(`/stocks/${symbol}/notes/${n.id}`, { method: "DELETE" }); reload(); }}>×</button>
             </div>
             {n.body && <div className="sub" style={{ whiteSpace: "pre-wrap", marginTop: 4 }}>{n.body}</div>}

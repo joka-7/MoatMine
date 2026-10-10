@@ -15,6 +15,8 @@ Contracts and the logic that isn't obvious, as built. Each section names the
 | `BookMode = Literal["real", "paper"]` (`app/portfolio.py`) | type | Every portfolio-shaped function, route and tool | Functional: real and paper books |
 | `JSONDict` (`app/jsontypes.py`) | alias, `dict[str, Any]` | Report and provider dicts. The only `Any` in the app | Data validation / I/O |
 | ORM models (`app/models.py`) | SQLAlchemy 2.0 `Mapped` | Routers and services through a `Session` | Data storage |
+| `useI18n()` → `{lang, setLang, t}` (`web/src/lib/i18n/index.tsx`) | React context from `LanguageProvider` | Every screen; `t(key, vars)` fills `{name}` placeholders and throws on a missing one. Outside a provider it renders English | Functional: English and Hebrew |
+| `MessageKey` (`web/src/lib/i18n/messages.ts`) | union of every module's `en` keys | Each `messages/<area>.ts` types its `he` against its `en`, so a missing Hebrew text fails `tsc` | Functional: English and Hebrew |
 
 The business logic takes a `MarketProvider` argument. The concrete provider comes from the
 `get_provider()` composition point (see DI wiring).
@@ -119,7 +121,7 @@ Important ones:
 | `GET /health` / `GET /health/ready` | — | `{ok}` / `{ok, database}` (ready returns 503 if the DB is unreachable or behind) |
 | `POST /internal/alerts/run` | bearer `ALERTS_RUN_TOKEN` | 202 `{status: "started" \| "already running"}`; 401 wrong token; 404 when no token is configured |
 | `GET /health/worker` | — | `{ok, last_pass, age_seconds, duration_seconds, alerts_created, users_failed}`; 503 when no pass has finished or the last is over 3 × `WORKER_INTERVAL_SECONDS` old |
-| `POST /ai/chat` | `{messages[{role: "user"\|"assistant", content}], model, symbol?}` | `{model, content, tools_used[]}`, or ModelDispatcher's error payload with its HTTP status |
+| `POST /ai/chat` | `{messages[{role: "user"\|"assistant", content}], model, symbol?, language: "en"\|"he"}` (the agent answers in `language`) | `{model, content, tools_used[]}`, or ModelDispatcher's error payload with its HTTP status |
 
 Agent and MCP tools are listed in `TOOL_SPECS` (`app/ai/tools.py`) as JSON Schema. The
 portfolio-shaped tools take `mode`. Each spec has an explicit `read_only` flag: the in-app agent
@@ -259,5 +261,5 @@ I/O boundaries (HTTP transport, LLM vendor, JWKS).
 | Beta, correlation, portfolio risk and stress scenarios at the boundaries | `test_risk.py` | none |
 | Paper cash, failed quotes, value history over gaps | `test_portfolio.py` | none |
 | Upstream retry and backoff | `test_retry.py` | `httpx.MockTransport` |
-| Web: sample-data detection, `useApi` superseded responses, Ratios sample label, UI copy never promising safety | `web/src/**/*.test.ts[x]` (vitest + Testing Library, jsdom) | `@/lib/api` / `@/lib/useApi` mocked |
+| Web: sample-data detection, `useApi` superseded responses, Ratios sample label, UI copy never promising safety (English and Hebrew), sign-in errors, i18n (placeholders, Hebrew covers English, language switch sets `<html dir>`), number formatting isolated left to right | `web/src/**/*.test.ts[x]` (vitest + Testing Library, jsdom) | `@/lib/api` / `@/lib/useApi` mocked |
 | Chat, tools, MCP, settings, news summary | `test_api.py`, `test_research.py` | ModelDispatcher `MockProvider` |

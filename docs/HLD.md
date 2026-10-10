@@ -36,6 +36,9 @@ and the logic that isn't obvious, see [`LLD.md`](LLD.md).
   - Chat with tool use over the user's own data, routed through ModelDispatcher
     (`app/ai/dispatcher.py`, `app/ai/tools.py`).
   - The same tools are served to external agents over MCP at `/mcp` (`app/mcp_server.py`).
+- **English and Hebrew.** A language switch in Settings and on the sign-in screen. Hebrew lays the
+  page out right to left, and the AI agent answers in the chosen language (`web/src/lib/i18n/`,
+  `ChatIn.language`). Texts the API writes (safety-check reasons, alerts) are still English.
 
 ### Non-functional (what the code enforces)
 - **Runs without keys.** The mock market provider serves deterministic sample data
@@ -82,7 +85,7 @@ flowchart LR
 
 | Component | Owns | Code |
 |---|---|---|
-| Web UI | All screens; one API client; Firebase sign-in gate (email/password, Google in browsers) | `web/src/app/*`, `web/src/lib/api.ts`, `web/src/components/AuthShell.tsx` |
+| Web UI | All screens; one API client; Firebase sign-in gate (email/password, Google in browsers); English and Hebrew texts | `web/src/app/*`, `web/src/lib/api.ts`, `web/src/components/AuthShell.tsx`, `web/src/lib/i18n/*` |
 | Desktop and Android | Native window over the static export; no logic. Built and published by `.github/workflows/release.yml` and `android.yml` | `desktop/src-tauri/src/lib.rs`, `tauri.conf.json` |
 | API: routers | HTTP surface, auth dependency, request validation | `app/routers/*.py`, `app/auth.py`, `app/schemas.py` |
 | API: domain services | Gathering data for the maths; applying the user's rules | `app/safety/service.py`, `app/portfolio.py`, `app/research.py`, `app/targets.py` |

@@ -3,8 +3,10 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
+import { useI18n } from "@/lib/i18n";
 
-export default function SymbolSearch({ onPick, placeholder = "Search symbol…" }: { onPick?: (s: string) => void; placeholder?: string }) {
+export default function SymbolSearch({ onPick, placeholder }: { onPick?: (s: string) => void; placeholder?: string }) {
+  const { t } = useI18n();
   const [q, setQ] = useState("");
   const [hits, setHits] = useState<{ symbol: string; name: string }[]>([]);
   const router = useRouter();
@@ -28,14 +30,14 @@ export default function SymbolSearch({ onPick, placeholder = "Search symbol…" 
     <div style={{ position: "relative", minWidth: "min(220px, 100%)" }}>
       <input
         value={q}
-        placeholder={placeholder}
+        placeholder={placeholder ?? t("dashboard.search.placeholder")}
         onChange={(e) => setQ(e.target.value)}
         onKeyDown={(e) => e.key === "Enter" && q.trim() && pick(q.trim().toUpperCase())}
       />
       {hits.length > 0 && (
-        <div className="card" style={{ position: "absolute", top: 40, left: 0, right: 0, zIndex: 30, padding: 6 }}>
+        <div className="card" style={{ position: "absolute", top: 40, insetInlineStart: 0, insetInlineEnd: 0, zIndex: 30, padding: 6 }}>
           {hits.slice(0, 8).map((h) => (
-            <button key={h.symbol} className="btn ghost" style={{ display: "flex", width: "100%", border: 0, gap: 10, textAlign: "left" }} onClick={() => pick(h.symbol)}>
+            <button key={h.symbol} className="btn ghost" style={{ display: "flex", width: "100%", border: 0, gap: 10, textAlign: "start" }} onClick={() => pick(h.symbol)}>
               <span className="sym">{h.symbol}</span>
               <span className="sub" style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{h.name}</span>
             </button>

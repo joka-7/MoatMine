@@ -10,6 +10,9 @@ API share one version.
 - The web UI deploys to GitHub Pages; Vercel is no longer needed.
 - "Install app" from Chrome and Edge, and Add to Home Screen on phones.
 - Automatic releases: a new version on `main` publishes desktop installers and an Android APK.
+- Hebrew: a language switch in Settings and on the sign-in screen. Hebrew lays the app out right to
+  left, and the AI agent answers in Hebrew. Texts the server writes (safety-check reasons, alerts)
+  are still in English.
 
 ### Changed
 - Free hosting: the API runs as one free Render web service (it migrates on start), the database is

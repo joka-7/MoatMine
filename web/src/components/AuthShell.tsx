@@ -3,6 +3,7 @@
 import { onAuthStateChanged, signOut, type User } from "@firebase/auth";
 import { useEffect, useState, type ReactNode } from "react";
 import { FIREBASE_CONFIGURED, firebaseAuth } from "@/lib/firebase";
+import { useI18n } from "@/lib/i18n";
 import SignInForm from "./SignInForm";
 
 type Session = { status: "loading" } | { status: "signed-out" } | { status: "signed-in"; user: User };
@@ -19,7 +20,8 @@ function useSession(): Session {
 
 function SignedInGate({ children }: { children: ReactNode }) {
   const session = useSession();
-  if (session.status === "loading") return <div className="signin sub">Loading…</div>;
+  const { t } = useI18n();
+  if (session.status === "loading") return <div className="signin sub">{t("common.loading")}</div>;
   if (session.status === "signed-out") return <SignInForm />;
   return <>{children}</>;
 }
@@ -36,15 +38,16 @@ export default function AuthShell({ children }: { children: ReactNode }) {
 
 /** Sign-out link for the nav; nothing in dev mode. */
 export function SignOutLink() {
+  const { t } = useI18n();
   if (!FIREBASE_CONFIGURED) return null;
   return (
     <button
       type="button"
       className="navlink"
-      style={{ textAlign: "left", background: "none", border: 0, font: "inherit", cursor: "pointer" }}
+      style={{ textAlign: "start", background: "none", border: 0, font: "inherit", cursor: "pointer" }}
       onClick={() => void signOut(firebaseAuth())}
     >
-      Sign out
+      {t("nav.signOut")}
     </button>
   );
 }

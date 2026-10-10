@@ -248,6 +248,7 @@ MoatMine/
 │   │   │   ├── BadTimesPanel.tsx                 # Crisis drawdowns vs a benchmark and the stock's worst falls
 │   │   │   ├── BookToggle.tsx                    # Real money / Paper switch and the paper-mode notice
 │   │   │   ├── ChatPanel.tsx                     # Agent chat with model picker, tool use and suggestions
+│   │   │   ├── LanguageSwitch.tsx
 │   │   │   ├── MoatCard.tsx                      # Moat grade: return on capital, margin stability, growth over the years
 │   │   │   ├── Nav.tsx                           # Side navigation
 │   │   │   ├── NewsFeed.tsx                      # News across holdings and watchlist, filterable
@@ -263,11 +264,13 @@ MoatMine/
 │   │   │   ├── ValuationPanel.tsx                # Fair-value models with editable assumptions
 │   │   │   └── ValueChart.tsx                    # Holdings value over time for one book
 │   │   ├── lib/                                  # API client, formatters and hooks
+│   │   │   ├── i18n/                             # English and Hebrew: LanguageProvider/useI18n, one messages module per area,…
 │   │   │   ├── api-schema.ts                     # Types generated from openapi.json (npm run gen:api); don't edit
 │   │   │   ├── api.ts                            # API client (Firebase ID token or dev token), error type, and the response…
 │   │   │   ├── dataSource.test.ts                # Which data-source labels count as sample data
 │   │   │   ├── dataSource.ts                     # IsSampleData: whether a result's data source is the mock provider or its…
 │   │   │   ├── firebase.ts                       # Firebase app and Auth from the NEXT_PUBLIC_FIREBASE_* settings; detects the…
+│   │   │   ├── format.test.ts
 │   │   │   ├── format.ts                         # Money, number, percent, date and tone formatters (en-US)
 │   │   │   ├── useApi.test.ts
 │   │   │   ├── useApi.ts                         # Fetch hook; ignores responses from superseded requests
