@@ -1,8 +1,8 @@
 # MoatMine runbook
 
-What to do when something goes wrong in production (Render: `moatmine-api`, `moatmine-worker`,
-`moatmine-db`, from `render.yaml`). Each step names the file, command or endpoint it relies on.
-Anything this repo can't confirm is marked **Check** — it depends on your Render plan or account.
+What to do when something goes wrong in production (Render: the free `moatmine-api` service from
+`render.yaml`; the database on Neon; the daily alert pass started by `.github/workflows/alerts.yml`). Each step names the file, command or endpoint it relies
+on. Anything this repo can't confirm is marked **Check** — it depends on your Render or Neon plan.
 
 ## Health signals
 
@@ -10,28 +10,33 @@ Anything this repo can't confirm is marked **Check** — it depends on your Rend
 |---|---|---|---|
 | `GET /health` | API | `{"ok": true}` | The process is down or not routing |
 | `GET /health/ready` | API; Render's deploy health check (`healthCheckPath`) | `{"ok": true, "database": "ok"}` | 503 `unreachable`: Postgres down or out of connections. 503 `schema behind the code`: a migration didn't run |
-| `GET /health/worker` | API, reads `worker_heartbeats` | `ok: true`, `age_seconds` under 3 × `WORKER_INTERVAL_SECONDS` (default 300 s) | 503: the alert worker hasn't finished a pass recently. `users_failed > 0`: some users' alerts failed (see the worker logs) |
+| `GET /health/worker` | API, reads `worker_heartbeats` | `ok: true`, `age_seconds` under 3 × `WORKER_INTERVAL_SECONDS` (90 000 s in `render.yaml`, so 75 hours: a weekend doesn't trip it) | 503: the alert worker hasn't finished a pass recently. `users_failed > 0`: some users' alerts failed (see the worker logs) |
 
 Point an external uptime monitor at `/health/ready` and `/health/worker`; nothing in this repo pages anyone.
 
 Logs are JSON in production (`LOG_FORMAT=json`). Every API log line carries `request_id`, also
 returned to clients in the `X-Request-ID` header — ask users for it when they report an error.
 
-## Stuck or failing worker
+## Stuck or failing alert pass
 
 Symptom: `/health/worker` returns 503, or alerts stop appearing.
 
-1. Open the `moatmine-worker` logs in Render.
+1. GitHub → Actions → **Alert pass**: did it run on the last weekday (14:47 UTC), and is it green?
+   - Red with "Set the repository variable API_URL and the secret ALERTS_RUN_TOKEN": set them.
+   - Red with HTTP 401: the GitHub secret and Render's `ALERTS_RUN_TOKEN` differ. 404: Render has
+     no `ALERTS_RUN_TOKEN`.
+   - Red after the retries: the API didn't wake or is down. Check `/health/ready` and Render.
+   - You can start a pass by hand with **Run workflow**.
+2. Open the `moatmine-api` logs in Render.
    - `worker pass done, N new alerts` every interval: it is running. If `/health/worker` still
      says stale, the heartbeat write is failing. Look for database errors.
    - `worker: alerts failed for one user` with a traceback: one user's data or a provider call is
      failing. Other users are unaffected (`app/worker.py` commits per user). Fix the cause; the
      next pass retries.
    - `worker pass failed`: the whole pass failed, usually the database. Check `/health/ready`.
-   - No recent lines: the process is hung or crash-looping. Restart the service in Render.
-2. A restart is safe at any time. On SIGTERM the worker finishes the current user and exits
-   (`main` in `app/worker.py`). Alerts are de-duplicated by the `uq_alerts_unread_dedupe` index,
-   so an overlapping or repeated pass can't double-alert.
+   - `alert pass failed` with a traceback: the background task itself failed.
+3. Restarting the service or re-running the workflow is safe at any time. Alerts are de-duplicated
+   by the `uq_alerts_unread_dedupe` index, so an overlapping or repeated pass can't double-alert.
 
 ## Upstream outage (Finnhub, FMP, AI vendors)
 
@@ -53,12 +58,12 @@ Symptom: `/health/worker` returns 503, or alerts stop appearing.
 
 ## Rolling back a deploy
 
-The pre-deploy step runs `alembic upgrade head`, and `/health/ready` fails while the database
+The start command runs `alembic upgrade head` before the server, and `/health/ready` fails while the database
 revision differs from the code's newest migration (`schema_is_current` in `app/db.py`). So the
 order matters:
 
 1. **If the bad deploy added no migration**, roll back in Render (the service's Deploys page →
-   an earlier deploy → Rollback) for both `moatmine-api` and `moatmine-worker`.
+   an earlier deploy → Rollback) for `moatmine-api`.
 2. **If it added migrations**, downgrade the database first, using the code that is deployed
    now (it is the only code that knows how to undo its migrations):
    ```bash
@@ -67,16 +72,15 @@ order matters:
    alembic downgrade <revision>    # e.g. 0002
    ```
    Then roll back both services. Older code can't run `alembic upgrade head` against a database
-   at a revision it doesn't know: the pre-deploy step fails and the deploy stops.
+   at a revision it doesn't know: the start command fails and the deploy stops.
 3. Downgrades lose what the newer schema added. `0003` drops `worker_heartbeats`; read-marked
    duplicate alerts stay read. `0002` restores the auto target's old `profit_min` from each risk
    profile.
 
 ## Database backup and restore
 
-- **Check:** whether your `moatmine-db` plan (`basic-256mb` in `render.yaml`) includes Render's
-  automatic backups and point-in-time recovery, and how long they are kept. Restore from the
-  database's page in Render if it does.
+- **Check:** how far back your Neon plan lets you restore the database (Neon calls it the restore
+  window or history retention). Within that window, restore from the Neon console.
 - **Logical backup** you control, before risky changes (a migration, a key rotation):
   ```bash
   pg_dump --format=custom --no-owner "$DATABASE_URL" > moatmine-$(date +%F).dump
@@ -97,7 +101,7 @@ order matters:
 
 - **Custody.** Keep it only in the `moatmine-shared` env group (`sync: false`) and a password
   manager or secret store your team controls. It must never be committed or logged. The API
-  refuses to start in clerk mode without a valid key (`app/config.py`).
+  refuses to start in firebase mode without a valid key (`app/config.py`).
 - **Lost key.** The encrypted settings can't be recovered. Set a new key, then ask users to
   re-enter their AI keys in Settings → AI. Accounts, holdings, plans and targets are not
   affected.
@@ -116,6 +120,6 @@ order matters:
 
 | Secret | Where it lives | If it leaks |
 |---|---|---|
-| `CLERK_*` | Clerk dashboard | Nothing secret here: the API holds only the public JWKS URL, issuer and allowed origins, and the web only the publishable key |
+| `FIREBASE_*` | Firebase console | Nothing secret here: the API holds only the project id, and the web the public web-app settings. Protect the Firebase console account itself (two-factor sign-in) |
 | `FINNHUB_API_KEY`, `FMP_API_KEY`, `*_API_KEY` (AI) | The provider's dashboard | Regenerate there, update the env group, redeploy |
 | MCP tokens | `mcp_tokens` (hashes only) | Users revoke them in Settings → AI |

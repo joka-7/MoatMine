@@ -42,8 +42,8 @@ and the logic that isn't obvious, see [`LLD.md`](LLD.md).
   (`app/market/mock.py`), and the UI labels it as sample data.
 - **Honest data provenance.** Results built from fallback candles are labelled `mock-fallback`
   for each request (`app/market/sources.py`).
-- **Fail closed on auth.** The API refuses to start with `AUTH_MODE=dev` on Postgres, or in clerk
-  mode without the JWKS URL and issuer (`app/config.py` `_auth_is_safe`).
+- **Fail closed on auth.** The API refuses to start with `AUTH_MODE=dev` on Postgres, or in firebase
+  mode without a valid `FIREBASE_PROJECT_ID` (`app/config.py` `_auth_is_safe`).
 - **Secrets stay out of logs.** Finnhub's key is sent as a header, and `token=`/`apikey=` values
   are redacted in every log line (`app/log_config.py`).
 - **Per-user AI limits:** requests per minute, tokens per minute and tokens per day
@@ -55,23 +55,23 @@ and the logic that isn't obvious, see [`LLD.md`](LLD.md).
 ```mermaid
 flowchart LR
   subgraph Clients
-    W[Web UI<br/>Next.js on Vercel]
-    D[Desktop<br/>Tauri over static export]
+    W[Web UI<br/>Next.js static export<br/>on GitHub Pages]
+    D[Desktop and Android<br/>Tauri over static export]
     X[External agents<br/>MCP clients]
   end
   subgraph Render
     API[FastAPI API<br/>app/main.py]
-    WK[Worker<br/>app/worker.py]
-    PG[(Postgres)]
+    WK[Alert pass<br/>app/worker.py, in the API process]
   end
-  CL[Clerk]
+  PG[(Postgres on Neon)]
+  CL[Firebase Authentication<br/>sign-in only]
   MD[Market data<br/>Finnhub · FMP · mock]
   AI[LLM vendors via<br/>ModelDispatcher]
 
-  W -->|Bearer: Clerk JWT| API
-  D -->|Bearer: Clerk JWT| API
+  W -->|Bearer: Firebase ID token| API
+  D -->|Bearer: Firebase ID token| API
   W & D -->|sign-in| CL
-  API -->|JWKS| CL
+  API -->|Google's public keys| CL
   X -->|Bearer: MCP token| API
   API --> PG
   WK --> PG
@@ -82,15 +82,15 @@ flowchart LR
 
 | Component | Owns | Code |
 |---|---|---|
-| Web UI | All screens; one API client; Clerk sign-in gate | `web/src/app/*`, `web/src/lib/api.ts`, `web/src/components/AuthShell.tsx` |
-| Desktop | Native window over the static export; no logic | `desktop/src-tauri/src/lib.rs`, `tauri.conf.json` |
+| Web UI | All screens; one API client; Firebase sign-in gate (email/password, Google in browsers) | `web/src/app/*`, `web/src/lib/api.ts`, `web/src/components/AuthShell.tsx` |
+| Desktop and Android | Native window over the static export; no logic. Built and published by `.github/workflows/release.yml` and `android.yml` | `desktop/src-tauri/src/lib.rs`, `tauri.conf.json` |
 | API: routers | HTTP surface, auth dependency, request validation | `app/routers/*.py`, `app/auth.py`, `app/schemas.py` |
 | API: domain services | Gathering data for the maths; applying the user's rules | `app/safety/service.py`, `app/portfolio.py`, `app/research.py`, `app/targets.py` |
 | Pure maths | Safety score, buy check, risk/stress, valuation, crises, moat | `app/safety/{score,check,risk,moat,profile}.py`, `app/valuation.py`, `app/crises.py`, `app/analytics.py` |
 | Market data | Provider protocol, mock/Finnhub/FMP, routing and fallback, provenance | `app/market/*` |
 | AI | Tool catalogue, ModelDispatcher wiring, encrypted per-user settings | `app/ai/*` |
 | MCP server | Read-only tools for external agents, behind an MCP-token gate | `app/mcp_server.py` |
-| Worker | Periodic alert evaluation | `app/worker.py` |
+| Alert pass | Alert evaluation for every user, started each trading day by a scheduled GitHub workflow | `app/worker.py`, `app/routers/internal.py`, `.github/workflows/alerts.yml` |
 | Persistence | ORM models, sessions, Alembic migrations | `app/models.py`, `app/db.py`, `backend/migrations/` |
 
 ## Dynamic view
@@ -120,7 +120,11 @@ sequenceDiagram
 ```
 
 ### Other flows
-- **Worker pass** (`app/worker.py` `run_once`), every `WORKER_INTERVAL_SECONDS`:
+- **Alert pass** (`app/worker.py` `run_once`), every `WORKER_INTERVAL_SECONDS`. In production a
+  scheduled GitHub workflow (`.github/workflows/alerts.yml`, Mon–Fri 14:47 UTC, after the US open) calls
+  `POST /internal/alerts/run` (`app/routers/internal.py`, bearer `ALERTS_RUN_TOKEN`), which starts
+  the pass in the API process and returns 202; Render's free plan has no background workers.
+  `python -m app.worker` runs the same pass in a loop where workers exist.
   1. For each user, check real-book concentration and the loss limit (the holdings' fall from
      their 1-year high; daily bars cached for a day; skipped on sample data or when the history
      can't be fetched) against the risk rules, evaluate PAPI targets, and check watchlist price
@@ -140,13 +144,16 @@ sequenceDiagram
   2. Each tool resolves the user from the token and calls the same `run_tool`.
 
 ## Data storage
-- **Primary store: Postgres on Render** (`render.yaml`, plan `basic-256mb`); SQLite locally and
-  in tests.
+- **Primary store: Postgres on Neon** (free tier; `DATABASE_URL` in `render.yaml`'s shared env
+  group). Render runs only the API, on its free plan. SQLite locally and in tests.
+  - Neon's *direct* connection string, not its "-pooler" one: the migration lock below is a
+    session-level advisory lock, which a transaction-mode pooler doesn't hold.
+  - Neon suspends an idle database; `pool_pre_ping` (`app/db.py`) replaces connections it closed.
   - All user data is in one schema (`app/models.py`): accounts, holdings, watchlist, stock
     notes, targets, alerts, AI settings (encrypted), MCP tokens (hashed), risk profiles and buy
     plans.
   - The schema is owned by Alembic (`backend/migrations/`). `render.yaml` runs
-    `alembic upgrade head` as a pre-deploy step for both services. A Postgres advisory lock in
+    `alembic upgrade head` in the API's start command (free instances have no pre-deploy step). A Postgres advisory lock in
     `migrations/env.py` makes concurrent runs safe.
 - **Cache: in-process only**, so each instance has its own:
   - `app/cache.py` `ttl_cache` holds safety reports (10 min) and sector lookups (1 h). At 2,000
@@ -155,9 +162,8 @@ sequenceDiagram
   - ModelDispatcher's quota store is `InMemoryQuotaStore` (`app/ai/dispatcher.py`).
   - Running more than one API instance would split caches and quotas. Nothing coordinates them.
 - **Blob storage:** none.
-- **Backup/DR:** the repo doesn't document backups, point-in-time recovery or a restore
-  procedure. Whatever the Render Postgres plan provides is all there is
-  (BACKLOG #31 tracks a runbook).
+- **Backup/DR:** Neon's own restore window for your plan, plus `pg_dump` backups you take
+  yourself (`docs/RUNBOOK.md` "Database backup and restore").
 - **Encryption at rest (application level):**
   - User AI keys are Fernet-encrypted with `FERNET_KEY` (`app/crypto.py`). Losing that key
     makes them unreadable, and no rotation is implemented.
@@ -185,11 +191,10 @@ sequenceDiagram
   creates the engine at import time. An invalid or unsafe value raises `ConfigError`, which
   carries only the reasons, never the values.
   - Validated: `auth_mode` and `log_format` must be one of their `Literal` values, dev auth is
-    refused on Postgres, and clerk mode must have its JWKS URL and issuer.
-  - Not validated at startup: `FERNET_KEY`. Its absence surfaces on the first encrypt or
-    decrypt as a `RuntimeError`, which `routers/ai.py` maps to HTTP 500.
-- **Web config is baked in at build time:** `NEXT_PUBLIC_API_URL` and
-  `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`. Users can override the API URL in Settings (localStorage).
+    refused on Postgres, firebase mode must have a valid project id, and every `FERNET_KEY` must
+    be a valid key (firebase mode requires one).
+- **Web config is baked in at build time:** `NEXT_PUBLIC_API_URL` and the
+  `NEXT_PUBLIC_FIREBASE_*` web-app settings. Users can override the API URL in Settings (localStorage).
 
 ## Data validation / I/O
 - **Edge validation:**
@@ -221,7 +226,7 @@ sequenceDiagram
   (`settings_store.check_public_https_url`). Checked when saved and again before every request
   (`dispatcher._ExternalAgentProvider`), which also never follows redirects, so a public host
   can't bounce the call to an internal one.
-- **Clerk tokens** must come from an origin in `CLERK_AUTHORIZED_PARTIES` (the `azp` claim) when it is set.
+- **Firebase ID tokens** must be signed by Google and name this project as audience and issuer (`FIREBASE_PROJECT_ID`), so a token from another Firebase project is refused.
 
 ## Integration test strategy
 - **API level:** `backend/tests/` drives the real FastAPI app through `TestClient` (`conftest.py`):
@@ -231,7 +236,7 @@ sequenceDiagram
 - **Boundaries faked only at true I/O:**
   - LLM vendors: ModelDispatcher `MockProvider` doubles (`fake_ai`).
   - Finnhub and FMP: `httpx.MockTransport` (`test_finnhub.py`, `test_fmp.py`).
-  - Clerk's JWKS: a locally generated RSA key (`test_auth.py`).
+  - Google's Firebase signing keys: a locally generated RSA key (`test_auth.py`).
 - **Schema drift:** `test_db.py` compares the models with the migrated database. The baseline
   migration was also run against a real Postgres 16, including two upgrades at once.
 - **UI:** `docs/screenshots/shoot.js` loads every page against a running API and reports console
@@ -241,5 +246,5 @@ sequenceDiagram
   - `tsc` and both web builds;
   - `cargo check` for the desktop shell;
   - the repo-map drift check.
-- **Not covered:** a live Clerk instance, a live Finnhub or FMP key, and end-to-end tests of the
+- **Not covered:** a live Firebase project, a live Finnhub or FMP key, and end-to-end tests of the
   Tauri app.

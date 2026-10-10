@@ -1,0 +1,58 @@
+name: Deploy web to GitHub Pages
+
+# Builds the web UI as static files (the same export the desktop app uses) and publishes it at
+# https://<owner>.github.io/<repo>/. The UI calls the API on Render; Pages only serves files.
+# Needs: Settings → Pages → Source "GitHub Actions", and the repository variables API_URL
+# (the Render API address) and the FIREBASE_* web-app settings (Settings → Secrets and variables → Actions → Variables).
+on:
+  push:
+    branches: [main]
+    paths: ["web/**", ".github/workflows/pages.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - name: Repository variables are set
+        run: |
+          if [ -z "${{ vars.API_URL }}" ]; then
+            echo "::error::Set the repository variable API_URL to the Render API address (Settings → Secrets and variables → Actions → Variables)."
+            exit 1
+          fi
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+      - run: npm run build:desktop
+        env:
+          NEXT_BASE_PATH: /${{ github.event.repository.name }}
+          NEXT_PUBLIC_API_URL: ${{ vars.API_URL }}
+          NEXT_PUBLIC_FIREBASE_API_KEY: ${{ vars.FIREBASE_API_KEY }}
+          NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: ${{ vars.FIREBASE_AUTH_DOMAIN }}
+          NEXT_PUBLIC_FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
+          NEXT_PUBLIC_FIREBASE_APP_ID: ${{ vars.FIREBASE_APP_ID }}
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: web/out
+      - id: deployment
+        uses: actions/deploy-pages@v4

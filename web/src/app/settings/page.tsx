@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import AiSettingsCard from "@/components/AiSettingsCard";
-import { api, apiBase, CLERK_PUBLISHABLE_KEY, devToken } from "@/lib/api";
+import { api, apiBase, devToken } from "@/lib/api";
+import { FIREBASE_CONFIGURED } from "@/lib/firebase";
 import { date } from "@/lib/format";
 import { useApi } from "@/lib/useApi";
 
@@ -26,7 +27,7 @@ function Connection() {
   useEffect(() => { setUrl(apiBase()); setToken(devToken()); }, []);
   const save = async () => {
     localStorage.setItem("moatmine.api", url);
-    if (!CLERK_PUBLISHABLE_KEY) localStorage.setItem("moatmine.token", token);
+    if (!FIREBASE_CONFIGURED) localStorage.setItem("moatmine.token", token);
     // an authenticated call, so a wrong token fails here too, not just a wrong URL
     try { await api("/safety/profile"); setStatus("Connected and signed in"); }
     catch (e) { setStatus(`Failed: ${(e as Error).message}`); }
@@ -36,10 +37,10 @@ function Connection() {
       <h2>Connection</h2>
       <div className="grid" style={{ gap: 10 }}>
         <label className="f">API URL (Render)<input value={url} onChange={(e) => setUrl(e.target.value)} /></label>
-        {CLERK_PUBLISHABLE_KEY ? (
-          <div className="sub" style={{ fontSize: 12 }}>Signed in with Clerk.</div>
+        {FIREBASE_CONFIGURED ? (
+          <div className="sub" style={{ fontSize: 12 }}>Signed in with your MoatMine account.</div>
         ) : (
-          <label className="f">Dev user token <span>(local dev mode only; production signs in with Clerk)</span><input value={token} onChange={(e) => setToken(e.target.value)} /></label>
+          <label className="f">Dev user token <span>(local dev mode only; production signs in with Firebase)</span><input value={token} onChange={(e) => setToken(e.target.value)} /></label>
         )}
         <div className="row" style={{ alignItems: "center" }}>
           <span className="sub">{status}</span>

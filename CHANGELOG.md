@@ -4,6 +4,19 @@ Notable changes per release. The format follows [Keep a Changelog](https://keepa
 versions follow [Semantic Versioning](https://semver.org/). The web app, the desktop app and the
 API share one version.
 
+## [Unreleased]
+
+### Added
+- The web UI deploys to GitHub Pages; Vercel is no longer needed.
+- "Install app" from Chrome and Edge, and Add to Home Screen on phones.
+- Automatic releases: a new version on `main` publishes desktop installers and an Android APK.
+
+### Changed
+- Free hosting: the API runs as one free Render web service (it migrates on start), the database is
+  on Neon, and a GitHub workflow starts the alert pass each trading day after the US open instead of a paid background worker.
+- Sign-in moved from Clerk to Firebase Authentication (email and password, plus Google in
+  browsers), like the other apps. Existing Clerk accounts don't carry over: users sign up again.
+
 ## [0.1.0] - 2026-10-08
 
 The first tagged release: the version the first desktop builds are cut from.

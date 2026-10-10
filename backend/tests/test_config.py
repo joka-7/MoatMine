@@ -8,7 +8,7 @@ from app.errors import ConfigError
 SQLITE = "sqlite:///./x.db"
 PG = "postgresql://u:secret-password@db/moatmine"
 KEY = Fernet.generate_key().decode()
-CLERK = {"clerk_jwks_url": "https://clerk.example/.well-known/jwks.json", "clerk_issuer": "https://clerk.example", "fernet_key": KEY}
+FIREBASE = {"firebase_project_id": "moatmine-1a2b3", "fernet_key": KEY}
 
 
 @pytest.mark.parametrize(
@@ -17,14 +17,17 @@ CLERK = {"clerk_jwks_url": "https://clerk.example/.well-known/jwks.json", "clerk
         ({"auth_mode": "dev", "database_url": SQLITE}, True),
         ({"auth_mode": "dev", "database_url": PG}, False),
         ({"auth_mode": "dev", "database_url": "postgres://u@db/x"}, False),
-        ({"auth_mode": "clerk", "database_url": PG, **CLERK}, True),
-        ({"auth_mode": "clerk", "database_url": PG, "clerk_jwks_url": CLERK["clerk_jwks_url"]}, False),
-        ({"auth_mode": "clerk", "database_url": SQLITE}, False),
-        ({"auth_mode": "clerk", "database_url": PG, **{**CLERK, "fernet_key": ""}}, False),  # can't store AI keys
+        ({"auth_mode": "firebase", "database_url": PG, **FIREBASE}, True),
+        ({"auth_mode": "firebase", "database_url": PG, "fernet_key": KEY}, False),  # no project to check tokens against
+        ({"auth_mode": "firebase", "database_url": PG, **{**FIREBASE, "firebase_project_id": "Bad Project!"}}, False),
+        ({"auth_mode": "firebase", "database_url": SQLITE}, False),
+        ({"auth_mode": "firebase", "database_url": PG, **{**FIREBASE, "fernet_key": ""}}, False),  # can't store AI keys
         ({"auth_mode": "dev", "database_url": SQLITE, "fernet_key": "not-a-key"}, False),
         ({"auth_mode": "dev", "database_url": SQLITE, "fernet_key": f"{KEY}, {Fernet.generate_key().decode()}"}, True),  # rotating
         ({"auth_mode": "dev", "database_url": SQLITE, "fernet_key": f"{KEY},not-a-key"}, False),  # every key must be valid
         ({"auth_mode": "dev", "database_url": SQLITE, "fernet_key": ""}, True),  # local: only AI-key saving needs it
+        ({"auth_mode": "dev", "database_url": SQLITE, "alerts_run_token": "short"}, False),  # guessable
+        ({"auth_mode": "dev", "database_url": SQLITE, "alerts_run_token": "t" * 32}, True),
     ],
 )
 def test_settings_refuses_unsafe_auth(kwargs, ok):

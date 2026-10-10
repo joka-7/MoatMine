@@ -61,9 +61,13 @@ MoatMine/
 │       ├── write-design-doc/
 │       │   └── SKILL.md                          # Produce an HLD/LLD design document — either documenting an existing repo's…
 │       └── .ai-managed                           # Marker: directory is written by ai-sync
-├── .github/                                      # CI workflow and the pull request template
+├── .github/                                      # CI, Pages deploy and release workflows, and the pull request template
 │   ├── workflows/
-│   │   └── ci.yml                                # CI: backend ruff/mypy/pytest + OpenAPI drift, web tsc/lint/vitest/type drift…
+│   │   ├── alerts.yml                            # Each trading day after the US open: calls POST /internal/alerts/run,…
+│   │   ├── android.yml                           # Builds and signs the Android APK with Tauri; attaches it to the release
+│   │   ├── ci.yml                                # CI: backend ruff/mypy/pytest + OpenAPI drift, web tsc/lint/vitest/type drift…
+│   │   ├── pages.yml                             # Publishes the static web export to GitHub Pages on pushes to main that touch…
+│   │   └── release.yml                           # Tags and publishes v<version> with desktop installers on main when the…
 │   └── pull_request_template.md                  # Why / what / how verified, plus the regenerate-and-document checklist
 ├── backend/                                      # FastAPI API, background worker, MCP server, safety/valuation maths, Alembic…
 │   ├── app/                                      # The FastAPI application package
@@ -84,6 +88,7 @@ MoatMine/
 │   │   ├── routers/                              # HTTP routes, one module per area
 │   │   │   ├── __init__.py                       # Package marker
 │   │   │   ├── ai.py                             # /ai: chat with tools, model picker, encrypted AI settings, MCP tokens;…
+│   │   │   ├── internal.py                       # Routes for schedulers, not users: start an alert pass (the worker's job) from…
 │   │   │   ├── portfolio.py                      # /accounts, /holdings (safety-checked; paper buys pay from cash), /portfolio…
 │   │   │   ├── safety.py                         # /safety: risk profile, stock safety + AI analyzer, buy check, portfolio risk,…
 │   │   │   ├── stocks.py                         # /stocks: search, quote, candles (X-Data-Source), ratios, research data,…
@@ -99,7 +104,7 @@ MoatMine/
 │   │   │   └── service.py                        # Gathers market data for the pure safety maths, and applies the user's risk…
 │   │   ├── __init__.py                           # Package marker
 │   │   ├── analytics.py                          # Price-derived ratios computed locally from candles (no provider needed).
-│   │   ├── auth.py                               # Current_user: dev mode trusts the bearer as user id; clerk mode verifies the…
+│   │   ├── auth.py                               # Current_user: dev mode trusts the bearer as user id; firebase mode verifies…
 │   │   ├── cache.py                              # Tiny in-process TTL cache for expensive, user-independent market computations.
 │   │   ├── clock.py                              # The current time, injected so cooling-off waits and holding ages can be…
 │   │   ├── config.py                             # Settings from env/.env; refuses unsafe auth setups and never echoes secret…
@@ -130,15 +135,16 @@ MoatMine/
 │   │   ├── conftest.py                           # Test app on a throwaway SQLite DB (migrated), mock market data,…
 │   │   ├── test_analytics.py                     # Price-derived ratios with hand-checkable numbers.
 │   │   ├── test_api.py                           # End-to-end API: portfolio, stock data, notes, targets, worker alerts, AI…
-│   │   ├── test_auth.py                          # Clerk JWT verification, with a locally generated key standing in for Clerk's…
+│   │   ├── test_auth.py                          # Firebase ID token verification, with a locally generated key standing in for…
 │   │   ├── test_cache.py                         # The TTL cache: expiry, eviction order, lock pruning and per-key single flight…
-│   │   ├── test_config.py                        # Settings refuse dev auth on Postgres and incomplete Clerk config
+│   │   ├── test_config.py                        # Settings refuse dev auth on Postgres and incomplete Firebase or Fernet config
 │   │   ├── test_crises.py                        # Crisis drawdown/recovery and worst-drawdown maths on hand-built bars
 │   │   ├── test_crypto.py                        # Encryption round trips, tampering, masking, MCP token hashing
 │   │   ├── test_db.py                            # Migrations match the models; readiness check reports DB and schema state
 │   │   ├── test_dispatcher.py                    # The server-wide AI budget: per-user quotas alone don't stop many accounts…
 │   │   ├── test_finnhub.py                       # Finnhub provider against canned HTTP responses (no network).
 │   │   ├── test_fmp.py                           # FMP provider against canned HTTP responses (no network).
+│   │   ├── test_internal.py                      # The scheduler route that starts an alert pass on hosting without background…
 │   │   ├── test_llm_json.py                      # Finding the JSON object in a model reply.
 │   │   ├── test_log_config.py                    # Secret redaction, JSON/text formatters, request-id middleware
 │   │   ├── test_portfolio.py                     # Paper (practice) and real-money accounts are separate books everywhere money…
@@ -151,8 +157,7 @@ MoatMine/
 │   │   ├── test_sources.py                       # Results built from fallback (sample) candles say so, however deep the candles…
 │   │   ├── test_targets.py                       # PAPI evaluation never turns a missing price into a plausible-looking number.
 │   │   ├── test_tools.py                         # The agent's tools hold model-supplied arguments to the same bounds as the…
-│   │   ├── test_valuation.py                     # Fair-value models and quality scores with hand-checkable numbers
-│   │   └── … 1 more
+│   │   └── … 2 more
 │   ├── .env.example                              # Every backend setting with safe local defaults (AUTH_MODE=dev, mock market…
 │   ├── alembic.ini                               # Alembic CLI config; the database URL comes from app settings
 │   ├── pyproject.toml                            # Ruff and mypy (strict) configuration
@@ -177,7 +182,7 @@ MoatMine/
 │   │   ├── Cargo.lock                            # Pinned Rust dependencies
 │   │   ├── Cargo.toml                            # Rust crate for the Tauri shell
 │   │   ├── build.rs                              # Tauri-build hook
-│   │   └── tauri.conf.json                       # Window, CSP (API + Clerk hosts) and bundle settings; serves web/out
+│   │   └── tauri.conf.json                       # Window, CSP (API + Firebase sign-in hosts) and bundle settings; serves web/out
 │   ├── app-icon.png                              # Source image for `npm run icons`
 │   ├── package-lock.json                         # Pinned npm dependencies (Tauri CLI)
 │   └── package.json                              # Tauri CLI scripts: dev (over the Next dev server) and build (static export →…
@@ -214,7 +219,11 @@ MoatMine/
 │   ├── LLD.md                                    # MoatMine — Low-Level Design
 │   ├── RUNBOOK.md                                # MoatMine runbook
 │   └── STRUCTURE.md                              # Repository structure
-├── web/                                          # Next.js UI for Vercel; the same code is static-exported for the desktop app
+├── web/                                          # Next.js UI, static-exported for GitHub Pages and the desktop app
+│   ├── public/
+│   │   └── icons/                                # App icons for the install manifest (192 and 512 px, from desktop/app-icon.png)
+│   │       ├── icon-192.png
+│   │       └── icon-512.png
 │   ├── src/                                      # App source
 │   │   ├── app/                                  # Routes (App Router): one folder per page
 │   │   │   ├── agent/                            # AI agent page (ChatPanel)
@@ -229,12 +238,13 @@ MoatMine/
 │   │   │   ├── favicon.ico                       # Browser tab icon
 │   │   │   ├── globals.css                       # Design tokens and every shared class (cards, grids, tables, buttons,…
 │   │   │   ├── layout.tsx                        # Root layout: auth shell, side nav, main area
+│   │   │   ├── manifest.ts                       # Web app manifest (name, icons, standalone window) so browsers offer Install…
 │   │   │   └── page.tsx                          # Dashboard: totals, value chart, allocation, holdings, targets, news;…
 │   │   ├── components/                           # Shared UI components
 │   │   │   ├── AiSettingsCard.tsx                # Provider keys, model picker and external agent settings
 │   │   │   ├── AlertsBell.tsx                    # Unread alerts popover with mark-all-read
 │   │   │   ├── AllocationPie.tsx                 # Donut of holdings and cash weights
-│   │   │   ├── AuthShell.tsx                     # Clerk sign-in gate (when configured) and the nav's sign-out link
+│   │   │   ├── AuthShell.tsx                     # Firebase sign-in gate (when configured) and the nav's sign-out link
 │   │   │   ├── BadTimesPanel.tsx                 # Crisis drawdowns vs a benchmark and the stock's worst falls
 │   │   │   ├── BookToggle.tsx                    # Real money / Paper switch and the paper-mode notice
 │   │   │   ├── ChatPanel.tsx                     # Agent chat with model picker, tool use and suggestions
@@ -247,24 +257,27 @@ MoatMine/
 │   │   │   ├── ResearchPanels.tsx                # Company card, earnings, dividends, analysts and news panels
 │   │   │   ├── SafetyBits.tsx                    # Grade badge, score ring and safety-check result view
 │   │   │   ├── SafetyPanel.tsx                   # Stock safety report, AI analyzer and the buy check / buy plan form
+│   │   │   ├── SignInForm.test.tsx
+│   │   │   ├── SignInForm.tsx                    # Sign-in screen: email/password (create, reset) everywhere, Google in browsers…
 │   │   │   ├── SymbolSearch.tsx                  # Debounced ticker search with a results dropdown
 │   │   │   ├── ValuationPanel.tsx                # Fair-value models with editable assumptions
 │   │   │   └── ValueChart.tsx                    # Holdings value over time for one book
 │   │   ├── lib/                                  # API client, formatters and hooks
 │   │   │   ├── api-schema.ts                     # Types generated from openapi.json (npm run gen:api); don't edit
-│   │   │   ├── api.ts                            # API client (Clerk or dev token), error type, and the response types mirrored…
+│   │   │   ├── api.ts                            # API client (Firebase ID token or dev token), error type, and the response…
 │   │   │   ├── dataSource.test.ts                # Which data-source labels count as sample data
 │   │   │   ├── dataSource.ts                     # IsSampleData: whether a result's data source is the mock provider or its…
+│   │   │   ├── firebase.ts                       # Firebase app and Auth from the NEXT_PUBLIC_FIREBASE_* settings; detects the…
 │   │   │   ├── format.ts                         # Money, number, percent, date and tone formatters (en-US)
 │   │   │   ├── useApi.test.ts
 │   │   │   ├── useApi.ts                         # Fetch hook; ignores responses from superseded requests
 │   │   │   └── useBookMode.ts                    # Shared real/paper choice, remembered in localStorage
 │   │   └── copy.test.ts                          # Fails if any UI copy calls an investment safe or its returns guaranteed
-│   ├── .env.example                              # API URL and (optional) Clerk publishable key
+│   ├── .env.example                              # API URL and (optional) Firebase web-app settings
 │   ├── .gitignore                                # Next.js build output and local env files
 │   ├── README.md                                 # How the web app is built, configured and exported for desktop
 │   ├── eslint.config.mjs                         # ESLint flat config: Next.js core-web-vitals + typescript rules,…
-│   ├── next.config.ts                            # Vercel build vs static export for Tauri (swaps @clerk/nextjs for @clerk/react)
+│   ├── next.config.ts                            # Server build vs static export (with the GitHub Pages base path)
 │   ├── openapi.json                              # The API's OpenAPI schema (python -m app.openapi_spec); CI fails if it is stale
 │   ├── package-lock.json                         # Pinned npm dependencies
 │   ├── package.json                              # Next.js 16 / React 19 app; scripts for dev, build and build:desktop
@@ -281,6 +294,6 @@ MoatMine/
 ├── README.md                                     # What MoatMine is, features, how to run, test and deploy it
 ├── ai-config.local.md                            # MoatMine-specific notes merged into AGENTS.md/CLAUDE.md by ai-sync
 ├── ai-config.toml                                # Manifest for ai-sync: stack, practices and targets for the generated AI config
-└── render.yaml                                   # Render blueprint: Postgres, API (pre-deploy alembic upgrade, /health/ready…
+└── render.yaml                                   # Render blueprint: one free API web service (migrates at start, /health/ready…
 ```
 <!-- END GENERATED TREE -->

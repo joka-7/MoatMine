@@ -1,0 +1,34 @@
+name: Alert pass
+
+# Starts one alert pass on the API every trading day, just after the US market opens: targets,
+# watch prices, concentration and the loss limit for every user, written as alerts they see in the
+# app. It replaces a background worker, which Render's free plan doesn't offer. Each run takes about
+# a minute of the account's Actions minutes.
+# Needs the repository variable API_URL and the secret ALERTS_RUN_TOKEN (same value as on Render).
+on:
+  schedule:
+    # Mon-Fri 14:47 UTC: after the 9:30 New York open in both summer (13:30 UTC) and winter
+    # (14:30 UTC), and off the top of the hour, when GitHub delays scheduled runs most
+    - cron: "47 14 * * 1-5"
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Start an alert pass
+        env:
+          API_URL: ${{ vars.API_URL }}
+          TOKEN: ${{ secrets.ALERTS_RUN_TOKEN }}
+        run: |
+          if [ -z "$API_URL" ] || [ -z "$TOKEN" ]; then
+            echo "::error::Set the repository variable API_URL and the secret ALERTS_RUN_TOKEN."
+            exit 1
+          fi
+          # a sleeping free instance takes about a minute to wake: retry until it answers
+          curl --fail-with-body --silent --show-error --max-time 90 \
+            --retry 4 --retry-delay 20 --retry-all-errors \
+            -X POST -H "Authorization: Bearer $TOKEN" "$API_URL/internal/alerts/run"

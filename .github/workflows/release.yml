@@ -1,0 +1,124 @@
+name: Release
+
+# Publishes release v<version> (version from desktop/src-tauri/tauri.conf.json) with the desktop
+# installers (Windows, macOS, Linux) and the Android APK, and creates the tag.
+# - Push to main: releases automatically when that version has no tag yet, so bumping the version
+#   is all a release takes. Pushes that keep the version do nothing.
+# - Manual run (Actions tab): releases the current version, or re-uploads its assets.
+# - Pull requests that change the release setup: build everything, publish nothing.
+# The installers point at the repository variable API_URL and sign in with the FIREBASE_* variables.
+on:
+  push:
+    branches: [main]
+    paths: ["desktop/**", "web/**", ".github/workflows/release.yml", ".github/workflows/android.yml"]
+  pull_request:
+    paths: ["desktop/**", ".github/workflows/release.yml", ".github/workflows/android.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      publish: ${{ steps.plan.outputs.publish }}
+      build: ${{ steps.plan.outputs.build }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: plan
+        env:
+          EVENT: ${{ github.event_name }}
+          API_URL: ${{ vars.API_URL }}
+        run: |
+          VERSION=$(node -p "require('./desktop/src-tauri/tauri.conf.json').version")
+          if [ "$EVENT" = "pull_request" ]; then
+            echo "publish=false" >> "$GITHUB_OUTPUT"; echo "build=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::Pull request: building v$VERSION without publishing."
+            exit 0
+          fi
+          if [ "$EVENT" = "push" ] && git ls-remote --exit-code --tags origin "refs/tags/v$VERSION" > /dev/null; then
+            echo "publish=false" >> "$GITHUB_OUTPUT"; echo "build=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::v$VERSION is already released; bump the version in desktop/src-tauri/tauri.conf.json to release again."
+            exit 0
+          fi
+          if [ -z "$API_URL" ]; then
+            echo "::error::Set the repository variable API_URL (the Render API address) before releasing: the apps would otherwise point at localhost."
+            exit 1
+          fi
+          echo "publish=true" >> "$GITHUB_OUTPUT"; echo "build=true" >> "$GITHUB_OUTPUT"
+          echo "::notice::Releasing v$VERSION."
+
+  desktop:
+    needs: plan
+    if: needs.plan.outputs.build == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: windows-latest
+            args: ""
+          - platform: ubuntu-24.04
+            args: ""
+          - platform: macos-latest
+            args: "--target universal-apple-darwin"
+    runs-on: ${{ matrix.platform }}
+    env:
+      NEXT_PUBLIC_API_URL: ${{ vars.API_URL }}
+      NEXT_PUBLIC_FIREBASE_API_KEY: ${{ vars.FIREBASE_API_KEY }}
+      NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: ${{ vars.FIREBASE_AUTH_DOMAIN }}
+      NEXT_PUBLIC_FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
+      NEXT_PUBLIC_FIREBASE_APP_ID: ${{ vars.FIREBASE_APP_ID }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Linux dependencies
+        if: startsWith(matrix.platform, 'ubuntu')
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev librsvg2-dev libayatana-appindicator3-dev patchelf
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ startsWith(matrix.platform, 'macos') && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: "./desktop/src-tauri -> target"
+
+      # the Tauri build runs `npm --prefix ../web run build:desktop`, so both need their packages
+      - run: npm ci
+        working-directory: web
+      - run: npm ci
+        working-directory: desktop
+
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          projectPath: desktop
+          tagName: ${{ needs.plan.outputs.publish == 'true' && 'v__VERSION__' || '' }}
+          releaseName: ${{ needs.plan.outputs.publish == 'true' && 'MoatMine v__VERSION__' || '' }}
+          releaseBody: |
+            Download the installer for your system from the assets below; the Android app is `MoatMine_<version>_android.apk`.
+            The installers are not code-signed, so Windows SmartScreen and macOS Gatekeeper warn on first launch (macOS: right-click the app → Open).
+            Changes: see CHANGELOG.md.
+          releaseDraft: false
+          prerelease: false
+          args: ${{ matrix.args }}
+
+  android:
+    needs: [plan, desktop]
+    if: needs.plan.outputs.build == 'true'
+    uses: ./.github/workflows/android.yml
+    with:
+      publish: ${{ needs.plan.outputs.publish == 'true' }}
+    secrets: inherit

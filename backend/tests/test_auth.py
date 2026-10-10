@@ -1,4 +1,4 @@
-"""Clerk JWT verification, with a locally generated key standing in for Clerk's JWKS."""
+"""Firebase ID token verification, with a locally generated key standing in for Google's JWKS."""
 
 import time
 
@@ -11,7 +11,8 @@ from fastapi.security import HTTPAuthorizationCredentials
 from app import auth
 from app.config import Settings
 
-ISSUER = "https://clerk.example"
+PROJECT = "moatmine-test"
+ISSUER = f"https://securetoken.google.com/{PROJECT}"
 KEY = rsa.generate_private_key(public_exponent=65537, key_size=2048)
 OTHER_KEY = rsa.generate_private_key(public_exponent=65537, key_size=2048)
 
@@ -22,14 +23,15 @@ class _FakeJwks:
 
 
 @pytest.fixture
-def clerk_mode(monkeypatch):
-    s = Settings(auth_mode="clerk", database_url="sqlite:///./x.db", clerk_jwks_url=f"{ISSUER}/jwks", clerk_issuer=ISSUER)
+def firebase_mode(monkeypatch):
+    s = Settings(auth_mode="firebase", database_url="sqlite:///./x.db", firebase_project_id=PROJECT)
     monkeypatch.setattr(auth, "get_settings", lambda: s)
     monkeypatch.setattr(auth, "_jwks_client", lambda _url: _FakeJwks())
 
 
 def _token(key=KEY, alg="RS256", **overrides) -> str:
-    claims = {"sub": "user_123", "iss": ISSUER, "exp": int(time.time()) + 60, **overrides}
+    now = int(time.time())
+    claims = {"sub": "user_123", "iss": ISSUER, "aud": PROJECT, "iat": now, "exp": now + 60, **overrides}
     claims = {k: v for k, v in claims.items() if v is not None}
     return jwt.encode(claims, key, algorithm=alg)
 
@@ -38,7 +40,7 @@ def _bearer(token: str) -> HTTPAuthorizationCredentials:
     return HTTPAuthorizationCredentials(scheme="Bearer", credentials=token)
 
 
-def test_current_user_accepts_a_valid_clerk_token(clerk_mode):
+def test_current_user_accepts_a_valid_firebase_token(firebase_mode):
     assert auth.current_user(_bearer(_token())) == "user_123"
 
 
@@ -48,6 +50,10 @@ def test_current_user_accepts_a_valid_clerk_token(clerk_mode):
         pytest.param(None, id="missing header"),
         pytest.param(lambda: _bearer(_token(exp=int(time.time()) - 10)), id="expired"),
         pytest.param(lambda: _bearer(_token(iss="https://evil.example")), id="wrong issuer"),
+        # a real token from another Firebase project: right signature, wrong project
+        pytest.param(lambda: _bearer(_token(aud="other-project", iss="https://securetoken.google.com/other-project")), id="other project"),
+        pytest.param(lambda: _bearer(_token(aud=None)), id="no audience"),
+        pytest.param(lambda: _bearer(_token(sub="")), id="empty subject"),
         pytest.param(lambda: _bearer(_token(key=OTHER_KEY)), id="signed by another key"),
         pytest.param(lambda: _bearer(_token(sub=None)), id="no subject"),
         pytest.param(lambda: _bearer(_token(exp=None)), id="no expiry"),
@@ -55,27 +61,10 @@ def test_current_user_accepts_a_valid_clerk_token(clerk_mode):
         pytest.param(lambda: _bearer("not-a-jwt"), id="garbage"),
     ],
 )
-def test_current_user_rejects_bad_clerk_tokens(clerk_mode, creds):
+def test_current_user_rejects_bad_firebase_tokens(firebase_mode, creds):
     with pytest.raises(HTTPException) as e:
         auth.current_user(creds() if callable(creds) else creds)
     assert e.value.status_code == 401 and e.value.detail in ("missing token", "invalid token")
-
-
-@pytest.mark.parametrize(
-    ("azp", "accepted"),
-    [("https://app.example", True), ("https://app.example/", True), ("https://other.example", False), (None, False)],
-)
-def test_current_user_checks_the_authorized_party(monkeypatch, azp, accepted):
-    s = Settings(auth_mode="clerk", database_url="sqlite:///./x.db", clerk_jwks_url=f"{ISSUER}/jwks", clerk_issuer=ISSUER,
-                 clerk_authorized_parties="https://app.example, tauri://localhost")
-    monkeypatch.setattr(auth, "get_settings", lambda: s)
-    monkeypatch.setattr(auth, "_jwks_client", lambda _url: _FakeJwks())
-    if accepted:
-        assert auth.current_user(_bearer(_token(azp=azp))) == "user_123"
-    else:
-        with pytest.raises(HTTPException) as e:
-            auth.current_user(_bearer(_token(azp=azp)))
-        assert e.value.status_code == 401
 
 
 @pytest.mark.parametrize(("creds", "user"), [(None, "dev"), (_bearer("alice"), "alice")])
