@@ -144,7 +144,7 @@ Read in `app/config.py` `Settings`, through `get_settings()` (cached once per pr
 | `AI_REQUESTS_PER_MIN`, `AI_TOKENS_PER_MIN`, `AI_TOKENS_PER_DAY` | 20 / 60 000 / 1 000 000 | `dispatcher._tenant` |
 | `AI_TIMEOUT_SECONDS` | 90 | `dispatcher._run` |
 | `AI_SERVER_TOKENS_PER_DAY` | 5 000 000 (0 = no cap) | `dispatcher._registry`: once all users together reach it, server keys stop being offered until UTC midnight |
-| `WORKER_INTERVAL_SECONDS` | 300 (3600 in `render.yaml`, matching the hourly schedule) | `app/worker.py` loop; `/health/worker` staleness |
+| `WORKER_INTERVAL_SECONDS` | 300 (90 000 in `render.yaml`: a day plus an hour, so 3× covers a weekend without runs) | `app/worker.py` loop; `/health/worker` staleness |
 | `ALERTS_RUN_TOKEN` | `""` (route off; at least 32 characters when set) | `app/routers/internal.py`: bearer for `POST /internal/alerts/run` |
 | `RATE_LIMIT_MARKET_PER_MIN`, `RATE_LIMIT_AI_PER_MIN` | 240 / 30 | `app/ratelimit.py`: per user, on `/stocks/*`, `/news/feed`, stock safety (market) and chat or the safety analyzer (AI) |
 | `LOG_LEVEL`, `LOG_FORMAT` | `INFO`, `text` (`json` in `render.yaml`) | `app/log_config.py` via the entry points |

@@ -90,7 +90,7 @@ flowchart LR
 | Market data | Provider protocol, mock/Finnhub/FMP, routing and fallback, provenance | `app/market/*` |
 | AI | Tool catalogue, ModelDispatcher wiring, encrypted per-user settings | `app/ai/*` |
 | MCP server | Read-only tools for external agents, behind an MCP-token gate | `app/mcp_server.py` |
-| Alert pass | Periodic alert evaluation, started hourly by a scheduled GitHub workflow | `app/worker.py`, `app/routers/internal.py`, `.github/workflows/alerts.yml` |
+| Alert pass | Alert evaluation for every user, started each trading day by a scheduled GitHub workflow | `app/worker.py`, `app/routers/internal.py`, `.github/workflows/alerts.yml` |
 | Persistence | ORM models, sessions, Alembic migrations | `app/models.py`, `app/db.py`, `backend/migrations/` |
 
 ## Dynamic view
@@ -121,7 +121,7 @@ sequenceDiagram
 
 ### Other flows
 - **Alert pass** (`app/worker.py` `run_once`), every `WORKER_INTERVAL_SECONDS`. In production a
-  scheduled GitHub workflow (`.github/workflows/alerts.yml`, hourly) calls
+  scheduled GitHub workflow (`.github/workflows/alerts.yml`, Mon–Fri 14:47 UTC, after the US open) calls
   `POST /internal/alerts/run` (`app/routers/internal.py`, bearer `ALERTS_RUN_TOKEN`), which starts
   the pass in the API process and returns 202; Render's free plan has no background workers.
   `python -m app.worker` runs the same pass in a loop where workers exist.

@@ -1,7 +1,7 @@
 # MoatMine runbook
 
 What to do when something goes wrong in production (Render: the free `moatmine-api` service from
-`render.yaml`; the database on Neon; the hourly alert pass started by `.github/workflows/alerts.yml`). Each step names the file, command or endpoint it relies
+`render.yaml`; the database on Neon; the daily alert pass started by `.github/workflows/alerts.yml`). Each step names the file, command or endpoint it relies
 on. Anything this repo can't confirm is marked **Check** — it depends on your Render or Neon plan.
 
 ## Health signals
@@ -10,7 +10,7 @@ on. Anything this repo can't confirm is marked **Check** — it depends on your 
 |---|---|---|---|
 | `GET /health` | API | `{"ok": true}` | The process is down or not routing |
 | `GET /health/ready` | API; Render's deploy health check (`healthCheckPath`) | `{"ok": true, "database": "ok"}` | 503 `unreachable`: Postgres down or out of connections. 503 `schema behind the code`: a migration didn't run |
-| `GET /health/worker` | API, reads `worker_heartbeats` | `ok: true`, `age_seconds` under 3 × `WORKER_INTERVAL_SECONDS` (3600 s in `render.yaml`) | 503: the alert worker hasn't finished a pass recently. `users_failed > 0`: some users' alerts failed (see the worker logs) |
+| `GET /health/worker` | API, reads `worker_heartbeats` | `ok: true`, `age_seconds` under 3 × `WORKER_INTERVAL_SECONDS` (90 000 s in `render.yaml`, so 75 hours: a weekend doesn't trip it) | 503: the alert worker hasn't finished a pass recently. `users_failed > 0`: some users' alerts failed (see the worker logs) |
 
 Point an external uptime monitor at `/health/ready` and `/health/worker`; nothing in this repo pages anyone.
 
@@ -21,7 +21,7 @@ returned to clients in the `X-Request-ID` header — ask users for it when they 
 
 Symptom: `/health/worker` returns 503, or alerts stop appearing.
 
-1. GitHub → Actions → **Alert pass**: is it running every hour, and green?
+1. GitHub → Actions → **Alert pass**: did it run on the last weekday (14:47 UTC), and is it green?
    - Red with "Set the repository variable API_URL and the secret ALERTS_RUN_TOKEN": set them.
    - Red with HTTP 401: the GitHub secret and Render's `ALERTS_RUN_TOKEN` differ. 404: Render has
      no `ALERTS_RUN_TOKEN`.

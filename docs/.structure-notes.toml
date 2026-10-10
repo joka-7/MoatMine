@@ -16,7 +16,7 @@
 ".github/workflows/ci.yml" = "CI: backend ruff/mypy/pytest + OpenAPI drift, web tsc/lint/vitest/type drift + both builds, desktop cargo check, repo map"
 ".github/workflows/release.yml" = "Tags and publishes v<version> with desktop installers on main when the version is new; build-only on PRs"
 ".github/workflows/android.yml" = "Builds and signs the Android APK with Tauri; attaches it to the release"
-".github/workflows/alerts.yml" = "Hourly: calls POST /internal/alerts/run on the API, replacing a background worker"
+".github/workflows/alerts.yml" = "Each trading day after the US open: calls POST /internal/alerts/run, replacing a background worker"
 ".github/workflows/pages.yml" = "Publishes the static web export to GitHub Pages on pushes to main that touch web/"
 ".github/pull_request_template.md" = "Why / what / how verified, plus the regenerate-and-document checklist"
 "CHANGELOG.md" = "Notable changes per release (Keep a Changelog), from v0.1.0"

@@ -52,8 +52,8 @@ services:
       - key: CORS_ORIGINS
         sync: false # e.g. https://<owner>.github.io,tauri://localhost,http://tauri.localhost
       # No background worker (none on the free plan): .github/workflows/alerts.yml calls
-      # POST /internal/alerts/run with this token every hour instead.
+      # POST /internal/alerts/run with this token every trading day instead.
       - key: ALERTS_RUN_TOKEN
         sync: false # python -c "import secrets; print(secrets.token_urlsafe(32))"; same value as the GitHub secret
       - key: WORKER_INTERVAL_SECONDS
-        value: "3600" # matches the hourly schedule, so /health/worker knows when a pass is late
+        value: "90000" # a day plus an hour: /health/worker reports stale after 3x, which covers a weekend
