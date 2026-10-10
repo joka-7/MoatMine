@@ -9,6 +9,7 @@ describe("money", () => {
     [1234.5, undefined, undefined, iso("$1,234.50")],
     [-20, undefined, undefined, iso("-$20.00")],
     [1234567.89, "USD", 0, iso("$1,234,568")],
+    [1000, "JPY", undefined, iso("¥1,000")],
     [null, undefined, undefined, "—"],
   ] as const)("%s %s %s → %s", (n, cur, d, expected) => {
     expect(money(n, cur, d)).toBe(expected);

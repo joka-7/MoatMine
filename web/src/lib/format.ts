@@ -4,7 +4,7 @@ import type { Lang } from "./i18n/translate";
 export const ltr = (s: string) => `⁦${s}⁩`;
 
 export const money = (n: number | null | undefined, cur = "USD", d = 2) =>
-  n == null ? "—" : ltr(new Intl.NumberFormat("en-US", { style: "currency", currency: cur, minimumFractionDigits: Math.min(d, 2), maximumFractionDigits: d }).format(n));
+  n == null ? "—" : ltr(new Intl.NumberFormat("en-US", { style: "currency", currency: cur, maximumFractionDigits: d, ...(d < 2 ? { minimumFractionDigits: d } : {}) }).format(n));
 
 export const num = (n: number | null | undefined, d = 2) => (n == null ? "—" : ltr(n.toLocaleString("en-US", { maximumFractionDigits: d })));
 
