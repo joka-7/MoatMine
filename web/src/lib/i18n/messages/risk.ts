@@ -225,7 +225,7 @@ export const he: { readonly [K in keyof typeof en]: string } = {
   "risk.beta": "בטא מול S&P 500",
   "risk.betaHint": "1 = נע יחד עם השוק",
   "risk.var": "ערך בסיכון (VaR) · חודש",
-  "risk.varHint": "חודש רע (1 מתוך 20) עלול לעלות בערך כך",
+  "risk.varHint": "חודש רע (1 מתוך 20) עלול לגרום להפסד של בערך כך",
   "risk.worstFall": "הירידה הגדולה ביותר · שנה",
   "risk.worstFallHint": "מהשיא לשפל, לפי האחזקות הנוכחיות",
   "risk.largestPosition": "הפוזיציה הגדולה ביותר",
