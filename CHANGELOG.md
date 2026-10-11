@@ -6,6 +6,8 @@ API share one version.
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-11
+
 ### Added
 - The web UI deploys to GitHub Pages; Vercel is no longer needed.
 - "Install app" from Chrome and Edge, and Add to Home Screen on phones.
@@ -49,4 +51,5 @@ The first tagged release: the version the first desktop builds are cut from.
 - The external-agent URL must resolve to a public address; agent write tools act only on a
   symbol the user named; the desktop's production CSP has no `'unsafe-inline'` scripts.
 
+[0.2.0]: https://github.com/joka-7/MoatMine/releases/tag/v0.2.0
 [0.1.0]: https://github.com/joka-7/MoatMine/releases/tag/v0.1.0
