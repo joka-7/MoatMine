@@ -21,13 +21,20 @@ export default function LearnPage() {
 
 function Learn() {
   const { t, lang } = useI18n();
-  const [progress, record] = useLearnProgress();
+  const [progress, mark] = useLearnProgress();
   const id = useSearchParams().get("m");
 
   if (id !== null) {
     const selected = LEARN_MODULES.find((m) => m.id === id);
     if (!selected) return <div className="empty">{t("learn.notFound")}</div>;
-    return <LearnModuleView key={selected.id} module={selected} onScore={(score) => record(selected.id, score)} />;
+    return (
+      <LearnModuleView
+        key={selected.id}
+        module={selected}
+        complete={isComplete(selected, progress)}
+        onToggleComplete={(done) => mark(selected.id, done)}
+      />
+    );
   }
 
   return (
@@ -39,19 +46,16 @@ function Learn() {
       <p className="sub">{t("learn.sub")}</p>
       <div className="grid g2">
         {LEARN_MODULES.map((m, i) => {
-          const best = progress[m.id];
+          const done = isComplete(m, progress);
           return (
             <div key={m.id} className="card">
               <h2>{i + 1} · {t("learn.lessons", { count: m.lessons.length })}</h2>
               <h3>{m.title[lang]}</h3>
               <p className="sub">{m.summary[lang]}</p>
               <div className="row" style={{ alignItems: "center", justifyContent: "space-between" }}>
-                <span className={isComplete(m, progress) ? "up" : "sub"}>
-                  {isComplete(m, progress) ? t("learn.completed") : null}
-                  {best !== undefined ? ` ${t("learn.best", { score: best, total: m.quiz.length })}` : null}
-                </span>
+                <span className="up">{done ? t("learn.completed") : null}</span>
                 <Link href={`/learn?m=${m.id}`} className="btn primary">
-                  {best === undefined ? t("learn.start") : t("learn.review")}
+                  {done ? t("learn.review") : t("learn.start")}
                 </Link>
               </div>
             </div>

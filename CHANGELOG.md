@@ -6,6 +6,16 @@ API share one version.
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-19
+
+### Added
+- A welcome tour for first-time users: six steps on what MoatMine does, shown once and replayable
+  from Settings.
+- Learn pages: seven beginner finance modules in English and Hebrew, from what investing is to how
+  MoatMine checks risk. Every lesson has expandable more details and three worked examples, and a
+  module can be marked complete.
+- End-to-end smoke tests (Playwright) in CI, run against the real API and the static export.
+
 ## [0.2.0] - 2026-10-11
 
 ### Added
@@ -51,5 +61,6 @@ The first tagged release: the version the first desktop builds are cut from.
 - The external-agent URL must resolve to a public address; agent write tools act only on a
   symbol the user named; the desktop's production CSP has no `'unsafe-inline'` scripts.
 
+[0.3.0]: https://github.com/joka-7/MoatMine/releases/tag/v0.3.0
 [0.2.0]: https://github.com/joka-7/MoatMine/releases/tag/v0.2.0
 [0.1.0]: https://github.com/joka-7/MoatMine/releases/tag/v0.1.0

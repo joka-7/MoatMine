@@ -144,6 +144,7 @@ label.f { display: flex; flex-direction: column; gap: 4px; font-size: 12px; colo
 .steps i.on { background: var(--accent); }
 .lesson { margin-bottom: 16px; max-width: 760px; }
 .lesson h3 { font-size: 17px; margin: 0 0 8px; }
-.quiz-q { border: 0; padding: 0; margin: 0 0 16px; }
-.quiz-q legend { font-weight: 600; padding: 0; margin-bottom: 6px; }
-.quiz-opt { display: flex; gap: 8px; align-items: center; padding: 4px 0; }
+.more { margin: 8px 0; }
+.more summary { cursor: pointer; color: var(--accent); }
+.more ul { padding-inline-start: 20px; }
+.more li { margin: 6px 0; }

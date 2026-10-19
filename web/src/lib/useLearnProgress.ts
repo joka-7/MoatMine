@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { parseProgress, recordScore, type Progress } from "./learn/progress";
+import { parseProgress, setComplete, type Progress } from "./learn/progress";
 
 const KEY = "moatmine.learn";
 
@@ -9,21 +9,21 @@ function stored(): Progress {
   try {
     return parseProgress(window.localStorage.getItem(KEY));
   } catch {
-    return {};
+    return [];
   }
 }
 
-/** Quiz progress for the Learn pages, kept in this browser only. */
-export function useLearnProgress(): [Progress, (moduleId: string, score: number) => void] {
-  const [progress, setProgress] = useState<Progress>({});
+/** Which Learn modules are marked complete, kept in this browser only. */
+export function useLearnProgress(): [Progress, (moduleId: string, done: boolean) => void] {
+  const [progress, setProgress] = useState<Progress>([]);
 
   useEffect(() => {
     setProgress(stored());
   }, []);
 
-  const record = useCallback((moduleId: string, score: number) => {
+  const mark = useCallback((moduleId: string, done: boolean) => {
     setProgress((current) => {
-      const next = recordScore(current, moduleId, score);
+      const next = setComplete(current, moduleId, done);
       try {
         window.localStorage.setItem(KEY, JSON.stringify(next));
       } catch {}
@@ -31,5 +31,5 @@ export function useLearnProgress(): [Progress, (moduleId: string, score: number)
     });
   }, []);
 
-  return [progress, record];
+  return [progress, mark];
 }

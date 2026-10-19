@@ -19,10 +19,9 @@ describe("LearnPage", () => {
   });
 
   it("shows saved progress on the list", () => {
-    window.localStorage.setItem("moatmine.learn", '{"investing":3,"risk":1}');
+    window.localStorage.setItem("moatmine.learn", '["investing","risk"]');
     render(<LearnPage />);
-    expect(screen.getByText("1 of 7 modules complete")).toBeTruthy();
-    expect(screen.getByText(/Best score 1\/3/)).toBeTruthy();
+    expect(screen.getByText("2 of 7 modules complete")).toBeTruthy();
     expect(screen.getAllByRole("link", { name: "Review" })).toHaveLength(2);
   });
 
@@ -34,14 +33,24 @@ describe("LearnPage", () => {
     expect(screen.getByRole("link", { name: "Next module" }).getAttribute("href")).toBe("/learn?m=assets");
   });
 
-  it("saves the quiz score so the list counts the module", () => {
+  it("gives every lesson a collapsed 'More details' and 'Examples' section with the extra content inside", () => {
+    query = "m=investing";
+    const { container } = render(<LearnPage />);
+    const sections = [...container.querySelectorAll("details")];
+    expect(sections).toHaveLength(8);
+    expect(sections.every((d) => !d.open)).toBe(true);
+    expect(screen.getAllByText("More details")).toHaveLength(4);
+    expect(screen.getAllByText("Examples (3)")).toHaveLength(4);
+    expect(screen.getByText(/Emergency fund: you keep three to six months/)).toBeTruthy();
+  });
+
+  it("marks the module complete, saves it, and can undo it", () => {
     query = "m=investing";
     render(<LearnPage />);
-    for (const answer of ["An investment's value can rise or fall", "It shrinks each year", "There is more time to recover from falls"]) {
-      fireEvent.click(screen.getByLabelText(answer));
-    }
-    fireEvent.click(screen.getByRole("button", { name: "Check answers" }));
-    expect(JSON.parse(window.localStorage.getItem("moatmine.learn") ?? "{}")).toEqual({ investing: 3 });
+    fireEvent.click(screen.getByRole("button", { name: "Mark module as complete" }));
+    expect(JSON.parse(window.localStorage.getItem("moatmine.learn") ?? "[]")).toEqual(["investing"]);
+    fireEvent.click(screen.getByRole("button", { name: "Mark as not complete" }));
+    expect(JSON.parse(window.localStorage.getItem("moatmine.learn") ?? "[]")).toEqual([]);
   });
 
   it("says so for a module that doesn't exist", () => {
