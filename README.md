@@ -125,6 +125,7 @@ cp .env.example .env.local
 npm install && npm run dev        # http://localhost:3000
 npm run lint                      # ESLint (config in eslint.config.mjs)
 npm test                          # vitest unit tests (src/**/*.test.ts[x])
+npm run build:desktop && npx playwright install chromium && npm run test:e2e   # smoke tests against the real API (dev auth, mock data) and the static export
 
 # Desktop (needs Rust + Tauri system deps: https://tauri.app/start/prerequisites/)
 cd desktop
@@ -133,9 +134,10 @@ npm run dev     # opens a native window on top of the Next dev server
 npm run build   # static-exports web/ and bundles installers (.msi/.dmg/.deb/.AppImage)
 ```
 
-**CI** (`.github/workflows/ci.yml`) runs on every push to `main` and every PR, in four parallel jobs:
+**CI** (`.github/workflows/ci.yml`) runs on every push to `main` and every PR, in five parallel jobs:
 - backend: `ruff`, `mypy --strict` and `pytest` on Python 3.12, and a check that `web/openapi.json` matches the routes
 - web: `tsc`, `npm run lint` (ESLint: Next.js rules plus typescript-eslint strict), a check that the generated API types are current, `npm test` (vitest), `npm run build` and `npm run build:desktop`
+- e2e: Playwright smoke tests (`web/e2e/`) against the real API with dev auth and mock market data, and the static export: welcome tour, dashboard data via the dev token, a Learn module, the sample-data label
 - desktop: `cargo check` for the Tauri shell
 - docs: the generated repo maps in `README.md` and `docs/STRUCTURE.md` match the tree
 

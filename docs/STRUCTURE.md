@@ -4,7 +4,7 @@ Every file in this repo and what is inside it. The tree below is **generated** �
 run `python .ai/skills/repo_tree/gen_tree.py --project . --output docs/STRUCTURE.md`
 to refresh it, and never edit between the markers by hand.
 
-<!-- BEGIN GENERATED TREE (depth=4 entries=25) -->
+<!-- BEGIN GENERATED TREE (depth=all entries=all) -->
 ```text
 MoatMine/
 ├── .claude/                                      # Claude Code agents, commands and skills synced from .ai (ai-sync)
@@ -57,6 +57,16 @@ MoatMine/
 │       │   └── run_manifest.py                   # Track role-review runs in a target repo's .ai-reviews/ directory.
 │       ├── scaffold-python-service/
 │       │   ├── template/                         # Scaffold template
+│       │   │   ├── src/
+│       │   │   │   └── example_service/
+│       │   │   │       ├── __init__.py           # TODO: one-line package summary.
+│       │   │   │       ├── errors.py             # Custom exception hierarchy, rooted at one base class per the Python rules.
+│       │   │   │       ├── logging_config.py     # Called once, from the application entry point only.
+│       │   │   │       └── main.py               # Typed FastAPI entrypoint.
+│       │   │   ├── tests/
+│       │   │   │   └── test_smoke.py             # One real smoke test exercising the entrypoint end to end, per the skill's…
+│       │   │   ├── README.md                     # Scaffold template
+│       │   │   └── pyproject.toml
 │       │   └── SKILL.md                          # Scaffold a new Python backend service or package with the standard project…
 │       ├── write-design-doc/
 │       │   └── SKILL.md                          # Produce an HLD/LLD design document — either documenting an existing repo's…
@@ -123,7 +133,10 @@ MoatMine/
 │   │   ├── research.py                           # Research helpers shared by the API, AI tools and MCP: valuation, news feed,…
 │   │   ├── rotate_keys.py                        # Re-encrypt every stored AI setting with the newest FERNET_KEY (step 2 of a…
 │   │   ├── schemas.py                            # Pydantic request/response models for accounts, holdings, watchlist, notes,…
-│   │   └── … 4 more
+│   │   ├── seed.py                               # Demo data for local dev: python -m app.seed [user_id] (default user: dev)
+│   │   ├── targets.py                            # PAPI (Profit, Amount, Period, Intent) evaluation against MAMI (min/max)…
+│   │   ├── valuation.py                          # Value estimator: classic fair-value models, valuation indicators and quality…
+│   │   └── worker.py                             # Background worker (Render "Background Worker" service).
 │   ├── migrations/                               # Alembic environment and revisions
 │   │   ├── versions/                             # One file per schema revision
 │   │   │   ├── 0001_baseline_schema.py           # Baseline schema: every table as it stood when Alembic replaced create_all.
@@ -157,7 +170,8 @@ MoatMine/
 │   │   ├── test_sources.py                       # Results built from fallback (sample) candles say so, however deep the candles…
 │   │   ├── test_targets.py                       # PAPI evaluation never turns a missing price into a plausible-looking number.
 │   │   ├── test_tools.py                         # The agent's tools hold model-supplied arguments to the same bounds as the…
-│   │   └── … 2 more
+│   │   ├── test_valuation.py                     # Fair-value models and quality scores with hand-checkable numbers
+│   │   └── test_worker.py                        # Worker isolates a failing user; failed sector lookups count as Unknown
 │   ├── .env.example                              # Every backend setting with safe local defaults (AUTH_MODE=dev, mock market…
 │   ├── alembic.ini                               # Alembic CLI config; the database URL comes from app settings
 │   ├── pyproject.toml                            # Ruff and mypy (strict) configuration
@@ -213,13 +227,31 @@ MoatMine/
 │   │   ├── stock-analysts-1400.png
 │   │   ├── stock-analysts-390.png
 │   │   ├── stock-badtimes-1400.png
-│   │   └── … 17 more
+│   │   ├── stock-badtimes-390.png
+│   │   ├── stock-financials-1400.png
+│   │   ├── stock-financials-390.png
+│   │   ├── stock-news-1400.png
+│   │   ├── stock-news-390.png
+│   │   ├── stock-notes-1400.png
+│   │   ├── stock-notes-390.png
+│   │   ├── stock-overview-1400.png
+│   │   ├── stock-overview-390.png
+│   │   ├── stock-safety-1400.png
+│   │   ├── stock-safety-390.png
+│   │   ├── stock-valuation-1400.png
+│   │   ├── stock-valuation-390.png
+│   │   ├── targets-1400.png
+│   │   ├── targets-390.png
+│   │   ├── watchlist-1400.png
+│   │   └── watchlist-390.png
 │   ├── .structure-notes.toml                     # Hand-written notes for this tree, for files that can't describe themselves
 │   ├── HLD.md                                    # MoatMine — High-Level Design
 │   ├── LLD.md                                    # MoatMine — Low-Level Design
 │   ├── RUNBOOK.md                                # MoatMine runbook
 │   └── STRUCTURE.md                              # Repository structure
 ├── web/                                          # Next.js UI, static-exported for GitHub Pages and the desktop app
+│   ├── e2e/
+│   │   └── smoke.spec.ts
 │   ├── public/
 │   │   └── icons/                                # App icons for the install manifest (192 and 512 px, from desktop/app-icon.png)
 │   │       ├── icon-192.png
@@ -227,14 +259,29 @@ MoatMine/
 │   ├── src/                                      # App source
 │   │   ├── app/                                  # Routes (App Router): one folder per page
 │   │   │   ├── agent/                            # AI agent page (ChatPanel)
+│   │   │   │   └── page.tsx
+│   │   │   ├── learn/
+│   │   │   │   ├── page.test.tsx
+│   │   │   │   └── page.tsx
 │   │   │   ├── plans/                            # Buy plans: status, cooling-off, execute or cancel
+│   │   │   │   └── page.tsx
 │   │   │   ├── portfolio/                        # Accounts and positions management; real/paper toggle for positions
+│   │   │   │   └── page.tsx
 │   │   │   ├── risk/                             # Portfolio risk tiles, sectors, correlation and stress tests; real/paper toggle
+│   │   │   │   └── page.tsx
 │   │   │   ├── risk-profile/                     # Risk questionnaire and editable rules
+│   │   │   │   └── page.tsx
 │   │   │   ├── settings/                         # AI settings, API connection, MCP tokens
+│   │   │   │   └── page.tsx
 │   │   │   ├── stock/                            # Stock page: chart and tabs (safety, valuation, bad times, earnings, analysts,…
+│   │   │   │   └── page.tsx
 │   │   │   ├── targets/                          # PAPI targets with MAMI bounds and live evaluation
+│   │   │   │   └── page.tsx
 │   │   │   ├── watchlist/                        # Watchlist with price alerts
+│   │   │   │   └── page.tsx
+│   │   │   ├── welcome/
+│   │   │   │   ├── page.test.tsx
+│   │   │   │   └── page.tsx
 │   │   │   ├── favicon.ico                       # Browser tab icon
 │   │   │   ├── globals.css                       # Design tokens and every shared class (cards, grids, tables, buttons,…
 │   │   │   ├── layout.tsx                        # Root layout: auth shell, side nav, main area
@@ -249,6 +296,9 @@ MoatMine/
 │   │   │   ├── BookToggle.tsx                    # Real money / Paper switch and the paper-mode notice
 │   │   │   ├── ChatPanel.tsx                     # Agent chat with model picker, tool use and suggestions
 │   │   │   ├── LanguageSwitch.tsx
+│   │   │   ├── LearnModuleView.tsx
+│   │   │   ├── LearnQuiz.test.tsx
+│   │   │   ├── LearnQuiz.tsx
 │   │   │   ├── MoatCard.tsx                      # Moat grade: return on capital, margin stability, growth over the years
 │   │   │   ├── Nav.tsx                           # Side navigation
 │   │   │   ├── NewsFeed.tsx                      # News across holdings and watchlist, filterable
@@ -265,6 +315,34 @@ MoatMine/
 │   │   │   └── ValueChart.tsx                    # Holdings value over time for one book
 │   │   ├── lib/                                  # API client, formatters and hooks
 │   │   │   ├── i18n/                             # English and Hebrew: LanguageProvider/useI18n, one messages module per area,…
+│   │   │   │   ├── messages/
+│   │   │   │   │   ├── ai.ts
+│   │   │   │   │   ├── common.ts
+│   │   │   │   │   ├── dashboard.ts
+│   │   │   │   │   ├── learn.ts
+│   │   │   │   │   ├── risk.ts
+│   │   │   │   │   ├── shell.ts
+│   │   │   │   │   └── stock.ts
+│   │   │   │   ├── index.test.tsx
+│   │   │   │   ├── index.tsx
+│   │   │   │   ├── messages.test.ts
+│   │   │   │   ├── messages.ts
+│   │   │   │   ├── translate.test.ts
+│   │   │   │   └── translate.ts
+│   │   │   ├── learn/
+│   │   │   │   ├── modules/
+│   │   │   │   │   ├── assets.ts
+│   │   │   │   │   ├── company.ts
+│   │   │   │   │   ├── investing.ts
+│   │   │   │   │   ├── markets.ts
+│   │   │   │   │   ├── moatmine.ts
+│   │   │   │   │   ├── portfolio.ts
+│   │   │   │   │   └── risk.ts
+│   │   │   │   ├── index.test.ts
+│   │   │   │   ├── index.ts
+│   │   │   │   ├── progress.test.ts
+│   │   │   │   ├── progress.ts
+│   │   │   │   └── types.ts
 │   │   │   ├── api-schema.ts                     # Types generated from openapi.json (npm run gen:api); don't edit
 │   │   │   ├── api.ts                            # API client (Firebase ID token or dev token), error type, and the response…
 │   │   │   ├── dataSource.test.ts                # Which data-source labels count as sample data
@@ -274,7 +352,11 @@ MoatMine/
 │   │   │   ├── format.ts                         # Money, number, percent, date and tone formatters (en-US)
 │   │   │   ├── useApi.test.ts
 │   │   │   ├── useApi.ts                         # Fetch hook; ignores responses from superseded requests
-│   │   │   └── useBookMode.ts                    # Shared real/paper choice, remembered in localStorage
+│   │   │   ├── useBookMode.ts                    # Shared real/paper choice, remembered in localStorage
+│   │   │   ├── useIntroSeen.test.ts
+│   │   │   ├── useIntroSeen.ts
+│   │   │   ├── useLearnProgress.test.ts
+│   │   │   └── useLearnProgress.ts
 │   │   └── copy.test.ts                          # Fails if any UI copy calls an investment safe or its returns guaranteed
 │   ├── .env.example                              # API URL and (optional) Firebase web-app settings
 │   ├── .gitignore                                # Next.js build output and local env files
@@ -284,6 +366,7 @@ MoatMine/
 │   ├── openapi.json                              # The API's OpenAPI schema (python -m app.openapi_spec); CI fails if it is stale
 │   ├── package-lock.json                         # Pinned npm dependencies
 │   ├── package.json                              # Next.js 16 / React 19 app; scripts for dev, build and build:desktop
+│   ├── playwright.config.ts
 │   ├── tsconfig.json                             # TypeScript config (strict)
 │   └── vitest.config.mts                         # Vitest: jsdom, React plugin, the @/ alias; tests are src/**/*.test.ts[x]
 ├── .ai                                           # The ogen-ai submodule: shared AI-assistant rules, agents and skills (don't…

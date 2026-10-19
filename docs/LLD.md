@@ -17,6 +17,8 @@ Contracts and the logic that isn't obvious, as built. Each section names the
 | ORM models (`app/models.py`) | SQLAlchemy 2.0 `Mapped` | Routers and services through a `Session` | Data storage |
 | `useI18n()` → `{lang, setLang, t}` (`web/src/lib/i18n/index.tsx`) | React context from `LanguageProvider` | Every screen; `t(key, vars)` fills `{name}` placeholders and throws on a missing one. Outside a provider it renders English | Functional: English and Hebrew |
 | `MessageKey` (`web/src/lib/i18n/messages.ts`) | union of every module's `en` keys | Each `messages/<area>.ts` types its `he` against its `en`, so a missing Hebrew text fails `tsc` | Functional: English and Hebrew |
+| `LearnModule`, `Lesson`, `Question`, `Localized` (`web/src/lib/learn/types.ts`) | interfaces; `Localized = Record<Lang, string>` | Lesson text in `web/src/lib/learn/modules/*.ts`, listed in `LEARN_MODULES` | Functional: Learn pages; a missing Hebrew text fails `tsc` |
+| `Progress` (`web/src/lib/learn/progress.ts`) | `Record<moduleId, best quiz score>` | `useLearnProgress` reads and writes it under `moatmine.learn`; pure `parseProgress` drops anything malformed. A module is complete at `passMark` (two thirds of its quiz, rounded up) | Functional: Learn pages |
 
 The business logic takes a `MarketProvider` argument. The concrete provider comes from the
 `get_provider()` composition point (see DI wiring).
@@ -262,4 +264,5 @@ I/O boundaries (HTTP transport, LLM vendor, JWKS).
 | Paper cash, failed quotes, value history over gaps | `test_portfolio.py` | none |
 | Upstream retry and backoff | `test_retry.py` | `httpx.MockTransport` |
 | Web: sample-data detection, `useApi` superseded responses, Ratios sample label, UI copy never promising safety (English and Hebrew), sign-in errors, i18n (placeholders, Hebrew covers English, language switch sets `<html dir>`), number formatting isolated left to right | `web/src/**/*.test.ts[x]` (vitest + Testing Library, jsdom) | `@/lib/api` / `@/lib/useApi` mocked |
+| Web end to end: first-visit welcome tour, dashboard read through the dev token, completing a Learn module, sample-data label on a stock page | `web/e2e/smoke.spec.ts` (Playwright, Chromium) | none: real FastAPI (`AUTH_MODE=dev`, `MARKET_PROVIDER=mock`, throwaway SQLite) and the static export |
 | Chat, tools, MCP, settings, news summary | `test_api.py`, `test_research.py` | ModelDispatcher `MockProvider` |
