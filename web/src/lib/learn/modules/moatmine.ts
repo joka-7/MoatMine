@@ -20,6 +20,30 @@ export const moatmine: LearnModule = {
           "האפליקציה נותנת מידע שעוזר לשלוט בסיכון. היא אינה ייעוץ פיננסי.",
         ),
       ],
+      details: [
+        text(
+          "The profile has two parts: five questions that place you on a risk level, and the rules that come with that level, which you can review and adjust. A buy check compares a proposed purchase with those rules and with the portfolio you already hold.",
+          "לפרופיל שני חלקים: חמש שאלות שממקמות אתכם ברמת סיכון, והכללים שמגיעים עם הרמה הזו, שאפשר לעיין בהם ולהתאים אותם. בדיקת קנייה משווה קנייה מוצעת לכללים האלה ולתיק שכבר יש לכם.",
+        ),
+        text(
+          "Answer for the person you are when markets fall, not when they rise. Revisit the profile when your goals, income or time horizon change.",
+          "ענו בשביל האדם שאתם כשהשווקים יורדים, לא כשהם עולים. חזרו לפרופיל כשהיעדים, ההכנסה או אופק הזמן משתנים.",
+        ),
+      ],
+      examples: [
+        text(
+          "Honest answers: if you say you would sell after a 20% fall, the profile should reflect a lower risk level, even if you wish you were bolder.",
+          "תשובות כנות: אם אתם אומרים שהייתם מוכרים אחרי ירידה של 20%, הפרופיל צריך לשקף רמת סיכון נמוכה יותר, גם אם הייתם רוצים להיות נועזים יותר.",
+        ),
+        text(
+          "Before buying: you consider a new stock. The buy check measures it against your rules and portfolio instead of leaving you to judge it by gut feeling.",
+          "לפני קנייה: אתם שוקלים מניה חדשה. בדיקת הקנייה מודדת אותה מול הכללים והתיק שלכם במקום להשאיר אתכם לשפוט לפי תחושת בטן.",
+        ),
+        text(
+          "Life changes: after a new job or a child, you retake the questionnaire, because your answers, and so your rules, may have moved.",
+          "שינוי בחיים: אחרי עבודה חדשה או ילד, אתם עונים שוב על השאלון, כי התשובות שלכם, ולכן הכללים, אולי זזו.",
+        ),
+      ],
       tryIt: "/risk-profile",
     },
     {
@@ -32,6 +56,30 @@ export const moatmine: LearnModule = {
         text(
           "MAMI sets a maximum and minimum for each of those. For Intent, the bounds apply to risk, measured as annualised volatility in percent.",
           "MAMI קובע מקסימום ומינימום לכל אחד מהם. עבור Intent, הגבולות חלים על סיכון, הנמדד כתנודתיות שנתית באחוזים.",
+        ),
+      ],
+      details: [
+        text(
+          "Each target also records a purpose, such as growth, income, speculation, hedge or retirement. Against your bounds, the app reports where you stand for each dimension: reached, within bounds, below the minimum, above the maximum, or no data.",
+          "כל יעד מתעד גם מטרה, כמו צמיחה, הכנסה, ספקולציה, גידור או פרישה. מול הגבולות שלכם, האפליקציה מדווחת איפה אתם עומדים בכל ממד: הושג, בתוך הגבולות, מתחת למינימום, מעל המקסימום, או אין נתונים.",
+        ),
+        text(
+          "The risk dimension needs real price history. If real prices cannot be fetched and the app would have to fall back to sample prices, it does not report a volatility made from them, so a risk target shows no data.",
+          "ממד הסיכון צריך היסטוריית מחירים אמיתית. אם אי אפשר להביא מחירים אמיתיים והאפליקציה הייתה נאלצת לעבור למחירי דוגמה, היא לא מדווחת תנודתיות שנבנתה מהם, ולכן יעד סיכון מציג אין נתונים.",
+        ),
+      ],
+      examples: [
+        text(
+          "Portfolio target: you want growth over about three years, with annualised volatility between 10% and 20%. If the portfolio's measured volatility is 24%, it is above the maximum, a signal to look at what is driving it.",
+          "יעד לתיק: אתם רוצים צמיחה לאורך כשלוש שנים, עם תנודתיות שנתית בין 10% ל-20%. אם התנודתיות שנמדדה בתיק היא 24%, היא מעל המקסימום, סימן לבדוק מה מניע אותה.",
+        ),
+        text(
+          "Stock target: for one symbol you set a maximum amount you are willing to hold. When the position grows past it, the target reports above the maximum.",
+          "יעד למניה: לסימול אחד אתם קובעים סכום מרבי שאתם מוכנים להחזיק. כשהפוזיציה גדלה מעבר לו, היעד מדווח מעל המקסימום.",
+        ),
+        text(
+          "Reading a status: below the minimum on Amount means you have put in less than planned; reached on Profit means the goal is met, and it is a good time to ask whether to keep holding.",
+          "קריאת סטטוס: מתחת למינימום ב-Amount פירושו שהכנסתם פחות מהמתוכנן; הושג ב-Profit פירושו שהיעד התמלא, וזה זמן טוב לשאול אם להמשיך להחזיק.",
         ),
       ],
       tryIt: "/targets",
@@ -48,6 +96,30 @@ export const moatmine: LearnModule = {
           "ציון טוב אומר שהמניה מתאימה לכללים שלכם, לא שאי אפשר להפסיד בה כסף.",
         ),
       ],
+      details: [
+        text(
+          "The score runs from 0 to 100 and maps to a letter: A from 80, B from 65, C from 50, D from 35, and F below that. It blends financial strength, quality, leverage, price risk, behaviour in past crises, size, earnings stability, valuation and moat.",
+          "הציון נע בין 0 ל-100 ומתורגם לאות: A מ-80, B מ-65, C מ-50, D מ-35, ו-F מתחת לזה. הוא משלב חוסן פיננסי, איכות, מינוף, סיכון מחיר, התנהגות במשברי עבר, גודל, יציבות רווחים, תמחור וחפיר.",
+        ),
+        text(
+          "When a component has no data it is left out and the score is recalculated over the rest, and a coverage figure shows how much of the picture was available. A high score with low coverage deserves less trust.",
+          "כשלרכיב אין נתונים הוא מושמט והציון מחושב מחדש על השאר, ומדד כיסוי מראה כמה מהתמונה היה זמין. ציון גבוה עם כיסוי נמוך ראוי ליותר חשדנות.",
+        ),
+      ],
+      examples: [
+        text(
+          "A stock scores 82, a grade of A. It is strong on financial health and moat, and its behaviour in past crises was mild. It still can fall, and it is only an A against the factors the score measures.",
+          "מניה מקבלת 82, ציון A. היא חזקה בבריאות פיננסית ובחפיר, והתנהגותה במשברי עבר הייתה מתונה. היא עדיין יכולה לרדת, והיא A רק מול הגורמים שהציון מודד.",
+        ),
+        text(
+          "Two stocks score 70 and 55: grades B and C. The lower one may be more leveraged or more volatile, which is worth reading before you decide.",
+          "שתי מניות מקבלות 70 ו-55: ציוני B ו-C. הנמוכה יותר אולי ממונפת יותר או תנודתית יותר, וכדאי לקרוא על כך לפני שמחליטים.",
+        ),
+        text(
+          "A stock shows a score of 78 but with coverage of only 40%. Most inputs were missing, so treat the number as a rough hint and look for more information.",
+          "מניה מציגה ציון 78 אבל עם כיסוי של 40% בלבד. רוב הקלטים חסרו, ולכן התייחסו למספר כרמז גס וחפשו מידע נוסף.",
+        ),
+      ],
       tryIt: "/watchlist",
     },
     {
@@ -62,48 +134,31 @@ export const moatmine: LearnModule = {
           "בלי מפתחות נתוני שוק האפליקציה פועלת על נתוני דוגמה ומסמנת זאת. התייחסו למספרים האלה כהדגמה, לא כמחירים אמיתיים.",
         ),
       ],
+      details: [
+        text(
+          "For each known crisis, such as the dot-com crash, the Bad times tab shows how deep the stock fell inside the crisis window, how long it took to get back to its earlier price, and the same numbers for a market benchmark so you can compare.",
+          "לכל משבר מוכר, כמו קריסת הדוט-קום, לשונית זמנים רעים מראה עד כמה המניה ירדה בחלון המשבר, כמה זמן לקח לה לחזור למחיר הקודם, ואת אותם מספרים למדד שוק להשוואה.",
+        ),
+        text(
+          "Value at risk is an estimate, such as 'a bad month, 1 in 20, could cost about this'. It is not a worst case. A past crisis is also not a forecast: the next one will differ.",
+          "ערך בסיכון הוא אומדן, כמו 'חודש רע, אחד מתוך 20, עלול לעלות בערך כך'. זה אינו המקרה הגרוע ביותר. גם משבר עבר אינו תחזית: הבא יהיה שונה.",
+        ),
+      ],
+      examples: [
+        text(
+          "A stock fell 55% during a past crisis while the benchmark fell 45%. It took the stock three years to recover and the market two. This tells you it fell harder and recovered more slowly than the market.",
+          "מניה ירדה 55% במהלך משבר עבר בעוד מדד השוק ירד 45%. לקח למניה שלוש שנים להתאושש ולשוק שתיים. זה מלמד שהיא ירדה חזק יותר והתאוששה לאט יותר מהשוק.",
+        ),
+        text(
+          "Your portfolio is worth 20,000 and the value-at-risk estimate for a bad month is about 8%. That means roughly 1,600 at risk in a bad month, which you can compare with how much loss you could stand.",
+          "התיק שלכם שווה 20,000 ואומדן הערך בסיכון לחודש רע הוא כ-8%. זה אומר בערך 1,600 בסיכון בחודש רע, וזה אפשר להשוות לכמה הפסד אתם יכולים לעמוד בו.",
+        ),
+        text(
+          "You see a sample-data label next to a price. The price is for demonstration, so do not trade or judge risk from it until real market data is connected.",
+          "אתם רואים תווית נתוני דוגמה ליד מחיר. המחיר להדגמה, ולכן אל תסחרו ואל תשפטו סיכון לפיו עד שמחוברים נתוני שוק אמיתיים.",
+        ),
+      ],
       tryIt: "/risk",
-    },
-  ],
-  quiz: [
-    {
-      prompt: text("What does the Intent in PAPI describe?", "מה מתאר ה-Intent ב-PAPI?"),
-      options: [
-        text("How much risk you accept", "כמה סיכון אתם מקבלים"),
-        text("Which broker you use", "באיזה ברוקר אתם משתמשים"),
-        text("The stock's ticker", "הסימול של המניה"),
-      ],
-      answer: 0,
-      explanation: text(
-        "Its MAMI bounds apply to risk, measured as annualised volatility.",
-        "גבולות ה-MAMI שלו חלים על סיכון, הנמדד כתנודתיות שנתית.",
-      ),
-    },
-    {
-      prompt: text("A stock gets a good safety grade. What does that mean?", "מניה מקבלת ציון בטיחות טוב. מה זה אומר?"),
-      options: [
-        text("It cannot lose money", "אי אפשר להפסיד בה כסף"),
-        text("It fits your risk rules better", "היא מתאימה טוב יותר לכללי הסיכון שלכם"),
-        text("It will rise", "היא תעלה"),
-      ],
-      answer: 1,
-      explanation: text(
-        "The grade measures fit to your rules, with no promise about the price.",
-        "הציון מודד התאמה לכללים שלכם, בלי הבטחה לגבי המחיר.",
-      ),
-    },
-    {
-      prompt: text("The app shows a sample-data label. How should you read the numbers?", "האפליקציה מציגה תווית נתוני דוגמה. איך לקרוא את המספרים?"),
-      options: [
-        text("As today's real prices", "כמחירים אמיתיים של היום"),
-        text("As a demo of how the app works", "כהדגמה של אופן פעולת האפליקציה"),
-        text("As a forecast", "כתחזית"),
-      ],
-      answer: 1,
-      explanation: text(
-        "Sample data lets every feature run without keys; it is not real market data.",
-        "נתוני דוגמה מאפשרים לכל התכונות לפעול בלי מפתחות; אלה אינם נתוני שוק אמיתיים.",
-      ),
     },
   ],
 };

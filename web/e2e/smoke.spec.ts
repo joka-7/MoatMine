@@ -35,19 +35,25 @@ test("the dashboard reads the signed-in user's data from the API with the dev to
   await expect(page.getByText(/Can't reach the API/)).toHaveCount(0);
 });
 
-test("a Learn module can be completed and is counted on the module list", async ({ page }) => {
+test("a Learn module opens its details and examples and can be marked complete", async ({ page }) => {
   await page.addInitScript(() => window.localStorage.setItem("moatmine.intro", "seen"));
   await page.goto("/learn/");
   await expect(page.getByText("0 of 7 modules complete")).toBeVisible();
 
   await page.getByRole("link", { name: "Start" }).first().click();
   await expect(page.getByRole("heading", { name: "What investing is" })).toBeVisible();
-  await page.getByLabel("An investment's value can rise or fall").check();
-  await page.getByLabel("It shrinks each year").check();
-  await page.getByLabel("There is more time to recover from falls").check();
-  await button(page, "Check answers").click();
-  await expect(page.getByText("Module complete.")).toBeVisible();
 
+  const example = page.getByText(/Emergency fund: you keep three to six months/);
+  await expect(example).toBeHidden();
+  await page.getByText("Examples (3)").first().click();
+  await expect(example).toBeVisible();
+
+  const detail = page.getByText(/Risk is not only losing money/);
+  await expect(detail).toBeHidden();
+  await page.getByText("More details").first().click();
+  await expect(detail).toBeVisible();
+
+  await button(page, "Mark module as complete").click();
   await page.getByRole("link", { name: "All modules" }).click();
   await expect(page.getByText("1 of 7 modules complete")).toBeVisible();
 });

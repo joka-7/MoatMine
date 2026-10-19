@@ -41,7 +41,8 @@ and the logic that isn't obvious, see [`LLD.md`](LLD.md).
   `ChatIn.language`). Texts the API writes (safety-check reasons, alerts) are still English.
 - **First-run intro and Learn pages.** A new browser is sent from the dashboard to a six-step tour
   at `/welcome` once (`web/src/app/welcome/page.tsx`, `web/src/lib/useIntroSeen.ts`; replayable from
-  Settings). `/learn` holds seven finance modules, each with lessons and a short quiz
+  Settings). `/learn` holds seven finance modules; each lesson has expandable more details and
+  several examples, and a module can be marked complete
   (`web/src/lib/learn/`, `web/src/app/learn/page.tsx`). Both are static, need no API call, and keep
   their state in this browser's `localStorage` only.
 

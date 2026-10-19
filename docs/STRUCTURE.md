@@ -297,8 +297,6 @@ MoatMine/
 │   │   │   ├── ChatPanel.tsx                     # Agent chat with model picker, tool use and suggestions
 │   │   │   ├── LanguageSwitch.tsx
 │   │   │   ├── LearnModuleView.tsx
-│   │   │   ├── LearnQuiz.test.tsx
-│   │   │   ├── LearnQuiz.tsx
 │   │   │   ├── MoatCard.tsx                      # Moat grade: return on capital, margin stability, growth over the years
 │   │   │   ├── Nav.tsx                           # Side navigation
 │   │   │   ├── NewsFeed.tsx                      # News across holdings and watchlist, filterable
