@@ -13,6 +13,7 @@ const LINKS: readonly (readonly [string, MessageKey])[] = [
   ["/plans", "nav.plans"],
   ["/targets", "nav.targets"],
   ["/agent", "nav.agent"],
+  ["/learn", "nav.learn"],
 ];
 
 export default function Nav() {

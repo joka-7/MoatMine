@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import AiSettingsCard from "@/components/AiSettingsCard";
 import LanguageSwitch from "@/components/LanguageSwitch";
@@ -18,6 +19,11 @@ export default function SettingsPage() {
         <div className="card">
           <h2>{t("lang.label")}</h2>
           <LanguageSwitch />
+        </div>
+        <div className="card">
+          <h2>{t("intro.replay.title")}</h2>
+          <p className="sub">{t("intro.replay.body")}</p>
+          <Link href="/welcome" className="btn">{t("intro.replay.button")}</Link>
         </div>
         <AiSettingsCard />
         <Connection />

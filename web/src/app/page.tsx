@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useEffect } from "react";
 import AlertsBell from "@/components/AlertsBell";
 import AllocationPie from "@/components/AllocationPie";
 import BookToggle, { PaperNotice } from "@/components/BookToggle";
@@ -12,6 +14,7 @@ import { money, pct, tone } from "@/lib/format";
 import { useI18n } from "@/lib/i18n";
 import { useApi } from "@/lib/useApi";
 import { useBookMode } from "@/lib/useBookMode";
+import { useIntroSeen } from "@/lib/useIntroSeen";
 
 export default function Dashboard() {
   const [mode, setMode] = useBookMode();
@@ -20,6 +23,12 @@ export default function Dashboard() {
   const { data: profile } = useApi<RiskProfile>("/safety/profile");
   const totals = p?.totals;
   const { t } = useI18n();
+  const router = useRouter();
+  const { seen } = useIntroSeen();
+  // a first visit opens the welcome tour; leaving it marks it seen, so this runs once
+  useEffect(() => {
+    if (seen === false) router.replace("/welcome");
+  }, [seen, router]);
 
   return (
     <>

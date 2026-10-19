@@ -39,6 +39,11 @@ and the logic that isn't obvious, see [`LLD.md`](LLD.md).
 - **English and Hebrew.** A language switch in Settings and on the sign-in screen. Hebrew lays the
   page out right to left, and the AI agent answers in the chosen language (`web/src/lib/i18n/`,
   `ChatIn.language`). Texts the API writes (safety-check reasons, alerts) are still English.
+- **First-run intro and Learn pages.** A new browser is sent from the dashboard to a six-step tour
+  at `/welcome` once (`web/src/app/welcome/page.tsx`, `web/src/lib/useIntroSeen.ts`; replayable from
+  Settings). `/learn` holds seven finance modules, each with lessons and a short quiz
+  (`web/src/lib/learn/`, `web/src/app/learn/page.tsx`). Both are static, need no API call, and keep
+  their state in this browser's `localStorage` only.
 
 ### Non-functional (what the code enforces)
 - **Runs without keys.** The mock market provider serves deterministic sample data

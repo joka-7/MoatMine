@@ -17,6 +17,8 @@ Contracts and the logic that isn't obvious, as built. Each section names the
 | ORM models (`app/models.py`) | SQLAlchemy 2.0 `Mapped` | Routers and services through a `Session` | Data storage |
 | `useI18n()` → `{lang, setLang, t}` (`web/src/lib/i18n/index.tsx`) | React context from `LanguageProvider` | Every screen; `t(key, vars)` fills `{name}` placeholders and throws on a missing one. Outside a provider it renders English | Functional: English and Hebrew |
 | `MessageKey` (`web/src/lib/i18n/messages.ts`) | union of every module's `en` keys | Each `messages/<area>.ts` types its `he` against its `en`, so a missing Hebrew text fails `tsc` | Functional: English and Hebrew |
+| `LearnModule`, `Lesson`, `Question`, `Localized` (`web/src/lib/learn/types.ts`) | interfaces; `Localized = Record<Lang, string>` | Lesson text in `web/src/lib/learn/modules/*.ts`, listed in `LEARN_MODULES` | Functional: Learn pages; a missing Hebrew text fails `tsc` |
+| `Progress` (`web/src/lib/learn/progress.ts`) | `Record<moduleId, best quiz score>` | `useLearnProgress` reads and writes it under `moatmine.learn`; pure `parseProgress` drops anything malformed. A module is complete at `passMark` (two thirds of its quiz, rounded up) | Functional: Learn pages |
 
 The business logic takes a `MarketProvider` argument. The concrete provider comes from the
 `get_provider()` composition point (see DI wiring).

@@ -1,13 +1,14 @@
 import * as ai from "./messages/ai";
 import * as common from "./messages/common";
 import * as dashboard from "./messages/dashboard";
+import * as learn from "./messages/learn";
 import * as risk from "./messages/risk";
 import * as shell from "./messages/shell";
 import * as stock from "./messages/stock";
 import type { Lang } from "./translate";
 
 // One module per area of the app; add a module here and its keys become valid for t().
-export const MODULES = { common, shell, dashboard, risk, stock, ai } as const;
+export const MODULES = { common, shell, dashboard, risk, stock, ai, learn } as const;
 
 export type MessageKey = { [M in keyof typeof MODULES]: keyof (typeof MODULES)[M]["en"] }[keyof typeof MODULES];
 
