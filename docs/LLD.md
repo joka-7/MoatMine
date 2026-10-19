@@ -264,4 +264,5 @@ I/O boundaries (HTTP transport, LLM vendor, JWKS).
 | Paper cash, failed quotes, value history over gaps | `test_portfolio.py` | none |
 | Upstream retry and backoff | `test_retry.py` | `httpx.MockTransport` |
 | Web: sample-data detection, `useApi` superseded responses, Ratios sample label, UI copy never promising safety (English and Hebrew), sign-in errors, i18n (placeholders, Hebrew covers English, language switch sets `<html dir>`), number formatting isolated left to right | `web/src/**/*.test.ts[x]` (vitest + Testing Library, jsdom) | `@/lib/api` / `@/lib/useApi` mocked |
+| Web end to end: first-visit welcome tour, dashboard read through the dev token, completing a Learn module, sample-data label on a stock page | `web/e2e/smoke.spec.ts` (Playwright, Chromium) | none: real FastAPI (`AUTH_MODE=dev`, `MARKET_PROVIDER=mock`, throwaway SQLite) and the static export |
 | Chat, tools, MCP, settings, news summary | `test_api.py`, `test_research.py` | ModelDispatcher `MockProvider` |
