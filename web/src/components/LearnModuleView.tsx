@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useI18n } from "@/lib/i18n";
-import { LEARN_MODULES, type LearnModule } from "@/lib/learn";
+import { LEARN_MODULES, LESSON_MEDIA, type LearnModule, type MediaLink } from "@/lib/learn";
 
 interface Props {
   readonly module: LearnModule;
@@ -35,6 +35,7 @@ export default function LearnModuleView({ module, complete, onToggleComplete }: 
               {lesson.examples.map((e) => <li key={e.en}>{e[lang]}</li>)}
             </ul>
           </details>
+          <LessonMedia links={LESSON_MEDIA[module.id]?.[i] ?? []} />
           {lesson.tryIt ? <Link href={lesson.tryIt} className="btn sm">{t("learn.tryIt")}</Link> : null}
         </article>
       ))}
@@ -46,5 +47,28 @@ export default function LearnModuleView({ module, complete, onToggleComplete }: 
         {next ? <Link href={`/learn?m=${next.id}`} className="btn">{t("learn.nextModule")}</Link> : null}
       </div>
     </>
+  );
+}
+
+/** Links to other people's videos and podcasts, those in the display language first. */
+function LessonMedia({ links }: { readonly links: readonly MediaLink[] }) {
+  const { t, lang } = useI18n();
+  if (links.length === 0) return null;
+  const ordered = [...links].sort((a, b) => Number(b.lang === lang) - Number(a.lang === lang));
+  return (
+    <details className="more">
+      <summary>{t("learn.media", { count: links.length })}</summary>
+      <p className="sub">{t("learn.mediaNote")}</p>
+      <ul>
+        {ordered.map((m) => (
+          <li key={m.url}>
+            <a href={m.url} target="_blank" rel="noreferrer" dir="auto">{m.title}</a>
+            <div className="sub">
+              {[m.channel, t(m.kind === "video" ? "learn.kind.video" : "learn.kind.podcast"), t("learn.minutes", { n: m.minutes }), t(m.lang === "he" ? "lang.he" : "lang.en")].join(" · ")}
+            </div>
+          </li>
+        ))}
+      </ul>
+    </details>
   );
 }

@@ -37,11 +37,22 @@ describe("LearnPage", () => {
     query = "m=investing";
     const { container } = render(<LearnPage />);
     const sections = [...container.querySelectorAll("details")];
-    expect(sections).toHaveLength(8);
+    expect(sections).toHaveLength(12);
     expect(sections.every((d) => !d.open)).toBe(true);
     expect(screen.getAllByText("More details")).toHaveLength(4);
     expect(screen.getAllByText("Examples (3)")).toHaveLength(4);
+    expect(screen.getAllByText(/^Watch or listen \(\d+\)$/)).toHaveLength(4);
     expect(screen.getByText(/Emergency fund: you keep three to six months/)).toBeTruthy();
+  });
+
+  it("lists outside videos and podcasts per lesson as new-tab links, with their channel, length and language", () => {
+    query = "m=investing";
+    render(<LearnPage />);
+    const link = screen.getByRole("link", { name: "5 Questions To Ask Before Investing" });
+    expect(link.getAttribute("href")).toBe("https://www.youtube.com/watch?v=y72iyLPOv8E");
+    expect(link.getAttribute("target")).toBe("_blank");
+    expect(link.getAttribute("rel")).toContain("noreferrer");
+    expect(screen.getByText("Two Cents (PBS) · Video · 6 min · English")).toBeTruthy();
   });
 
   it("marks the module complete, saves it, and can undo it", () => {

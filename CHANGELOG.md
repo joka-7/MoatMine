@@ -6,6 +6,9 @@ API share one version.
 
 ## [Unreleased]
 
+### Added
+- Learn lessons link to short outside videos and podcasts (English, and Hebrew where one exists). They open in a new tab on the author's own site.
+
 ## [0.3.0] - 2026-10-19
 
 ### Added

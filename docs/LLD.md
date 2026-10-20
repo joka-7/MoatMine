@@ -19,6 +19,7 @@ Contracts and the logic that isn't obvious, as built. Each section names the
 | `MessageKey` (`web/src/lib/i18n/messages.ts`) | union of every module's `en` keys | Each `messages/<area>.ts` types its `he` against its `en`, so a missing Hebrew text fails `tsc` | Functional: English and Hebrew |
 | `LearnModule`, `Lesson`, `Localized` (`web/src/lib/learn/types.ts`) | interfaces; `Localized = Record<Lang, string>` | Lesson text in `web/src/lib/learn/modules/*.ts`, listed in `LEARN_MODULES`. Each lesson has a body, more `details` and `examples`; a missing Hebrew text fails `tsc` | Functional: Learn pages |
 | `Progress` (`web/src/lib/learn/progress.ts`) | `readonly string[]`, ids of modules marked complete | `useLearnProgress` reads and writes it under `moatmine.learn`; pure `parseProgress` drops anything malformed | Functional: Learn pages |
+| `MediaLink`, `LESSON_MEDIA` (`web/src/lib/learn/media.ts`) | interface; `Record<moduleId, MediaLink[][]>`, one list per lesson in lesson order | `LessonMedia` in `web/src/components/LearnModuleView.tsx` renders them as plain links; `index.test.ts` checks alignment with the lessons, https, and the allowed hosts (YouTube, kan.org.il) | Functional: Learn pages |
 
 The business logic takes a `MarketProvider` argument. The concrete provider comes from the
 `get_provider()` composition point (see DI wiring).
