@@ -10,6 +10,7 @@ import {
 } from "@firebase/auth";
 import { useState, type FormEvent } from "react";
 import { firebaseAuth, inAppWindow } from "@/lib/firebase";
+import { appGoogleConfigured, GoogleSignInError, signInWithGoogleApp } from "@/lib/googleApp";
 import { useI18n, type I18n, type MessageKey } from "@/lib/i18n";
 import LanguageSwitch from "./LanguageSwitch";
 import ThemeSwitch from "./ThemeSwitch";
@@ -28,18 +29,25 @@ const MESSAGES: Readonly<Record<string, MessageKey>> = {
 };
 
 function describe(e: unknown, t: I18n["t"]): string {
+  if (e instanceof GoogleSignInError) return t("signin.err.googleApp");
   if (!(e instanceof FirebaseError)) return t("signin.failed");
   const known = MESSAGES[e.code];
   return known ? t(known) : t("signin.failedCode", { code: e.code });
 }
 
-/** Email and password (works everywhere) plus Google (browsers only: Google blocks it in app windows). */
+/**
+ * Email and password (works everywhere) plus Google: a popup in browsers, and in the desktop and
+ * Android apps (where Google blocks popups) a round trip through the system browser, offered only
+ * when the build was made with a Google client (lib/googleApp.ts).
+ */
 export default function SignInForm() {
   const { t } = useI18n();
   const [mode, setMode] = useState<Mode>("sign-in");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
+  const inApp = inAppWindow();
+  const showGoogle = mode !== "reset" && (!inApp || appGoogleConfigured());
   const [message, setMessage] = useState<{ kind: "err" | "sub"; text: string } | null>(null);
 
   const run = async (action: () => Promise<unknown>, done?: string) => {
@@ -79,9 +87,9 @@ export default function SignInForm() {
         <button className="btn primary" type="submit" disabled={busy}>
           {t(mode === "create" ? "signin.createSubmit" : mode === "reset" ? "signin.resetSubmit" : "signin.submit")}
         </button>
-        {!inAppWindow() && mode !== "reset" && (
+        {showGoogle && (
           <button className="btn" type="button" disabled={busy}
-                  onClick={() => void run(() => signInWithPopup(firebaseAuth(), new GoogleAuthProvider()))}>
+                  onClick={() => void run(() => (inApp ? signInWithGoogleApp() : signInWithPopup(firebaseAuth(), new GoogleAuthProvider())))}>
             {t("signin.google")}
           </button>
         )}

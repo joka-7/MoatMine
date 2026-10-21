@@ -192,7 +192,8 @@ MoatMine/
 │   │   │   └── icon.png
 │   │   ├── src/                                  # Rust entry points
 │   │   │   ├── lib.rs                            # Thin shell: opens the static-exported UI; no business logic
-│   │   │   └── main.rs                           # Binary entry point calling lib::run()
+│   │   │   ├── main.rs                           # Binary entry point calling lib::run()
+│   │   │   └── oauth.rs
 │   │   ├── Cargo.lock                            # Pinned Rust dependencies
 │   │   ├── Cargo.toml                            # Rust crate for the Tauri shell
 │   │   ├── build.rs                              # Tauri-build hook
@@ -350,6 +351,8 @@ MoatMine/
 │   │   │   ├── firebase.ts                       # Firebase app and Auth from the NEXT_PUBLIC_FIREBASE_* settings; detects the…
 │   │   │   ├── format.test.ts
 │   │   │   ├── format.ts                         # Money, number, percent, date and tone formatters (en-US)
+│   │   │   ├── googleApp.test.ts
+│   │   │   ├── googleApp.ts
 │   │   │   ├── theme.test.tsx
 │   │   │   ├── theme.tsx
 │   │   │   ├── useApi.test.ts

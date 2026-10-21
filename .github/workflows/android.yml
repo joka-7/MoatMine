@@ -31,6 +31,8 @@ jobs:
       NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: ${{ vars.FIREBASE_AUTH_DOMAIN }}
       NEXT_PUBLIC_FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
       NEXT_PUBLIC_FIREBASE_APP_ID: ${{ vars.FIREBASE_APP_ID }}
+      # Google sign-in in the app (empty = the sign-in screen offers email and password only)
+      NEXT_PUBLIC_GOOGLE_ANDROID_CLIENT_ID: ${{ vars.GOOGLE_ANDROID_CLIENT_ID }}
     steps:
       - uses: actions/checkout@v4
 
@@ -72,7 +74,17 @@ jobs:
 
       - name: Build APK
         working-directory: desktop
-        run: npx tauri android build --apk --target aarch64 armv7
+        # Google sends the browser back to the app through the client id's reversed scheme, so the
+        # deep-link plugin registers it as an intent filter; without a client id there is none.
+        env:
+          ANDROID_CLIENT_ID: ${{ vars.GOOGLE_ANDROID_CLIENT_ID }}
+        run: |
+          args=()
+          if [ -n "$ANDROID_CLIENT_ID" ]; then
+            SCHEME="com.googleusercontent.apps.${ANDROID_CLIENT_ID%.apps.googleusercontent.com}"
+            args+=(--config "{\"plugins\":{\"deep-link\":{\"mobile\":[{\"scheme\":[\"$SCHEME\"]}]}}}")
+          fi
+          npx tauri android build --apk --target aarch64 armv7 "${args[@]}"
 
       - name: Sign APK
         env:
