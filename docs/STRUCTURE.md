@@ -248,6 +248,7 @@ MoatMine/
 │   ├── .structure-notes.toml                     # Hand-written notes for this tree, for files that can't describe themselves
 │   ├── HLD.md                                    # MoatMine — High-Level Design
 │   ├── LLD.md                                    # MoatMine — Low-Level Design
+│   ├── LOCAL-FIRST.md                            # Local-first MoatMine: design proposal
 │   ├── RUNBOOK.md                                # MoatMine runbook
 │   └── STRUCTURE.md                              # Repository structure
 ├── web/                                          # Next.js UI, static-exported for GitHub Pages and the desktop app

@@ -34,6 +34,7 @@ Every file: [`docs/STRUCTURE.md`](docs/STRUCTURE.md).
 How it fits together: [`docs/HLD.md`](docs/HLD.md) (components, flows, storage, config).
 Contracts and the logic that isn't obvious: [`docs/LLD.md`](docs/LLD.md).
 Every page at desktop and phone width: [`docs/screenshots/`](docs/screenshots/).
+Proposal, not built: keeping each user's portfolio on their own devices: [`docs/LOCAL-FIRST.md`](docs/LOCAL-FIRST.md).
 Operating it (health checks, rollbacks, backups, `FERNET_KEY` rotation, outages): [`docs/RUNBOOK.md`](docs/RUNBOOK.md).
 
 ## Features
