@@ -108,15 +108,15 @@ export default function ValuationPanel({ symbol }: { symbol: string }) {
             <div style={{ height: Math.max(180, chart.length * 34) }}>
               <ResponsiveContainer>
                 <BarChart data={chart} layout="vertical" margin={{ left: 40, right: 24 }}>
-                  <XAxis type="number" stroke="#8b909a" fontSize={11} tickFormatter={(x) => `$${x}`} />
-                  <YAxis type="category" dataKey="name" stroke="#8b909a" fontSize={12} width={150} tickLine={false} axisLine={false} />
-                  <Tooltip formatter={(x: number) => money(x)} cursor={{ fill: "rgba(255,255,255,0.04)" }}
-                    contentStyle={{ background: "#14171c", border: "1px solid #262a32", borderRadius: 8 }} />
+                  <XAxis type="number" stroke="var(--chart-axis)" fontSize={11} tickFormatter={(x) => `$${x}`} />
+                  <YAxis type="category" dataKey="name" stroke="var(--chart-axis)" fontSize={12} width={150} tickLine={false} axisLine={false} />
+                  <Tooltip formatter={(x: number) => money(x)} cursor={{ fill: "var(--chart-cursor)" }}
+                    contentStyle={{ background: "var(--chart-tooltip-bg)", border: "1px solid var(--chart-tooltip-border)", borderRadius: 8 }} />
                   <Bar dataKey="value" radius={[0, 4, 4, 0]}>
-                    {chart.map((c, i) => <Cell key={i} fill={v && c.value >= v.price ? "#49c58c" : "#ec6650"} fillOpacity={0.75} />)}
+                    {chart.map((c, i) => <Cell key={i} fill={v && c.value >= v.price ? "var(--up)" : "var(--down)"} fillOpacity={0.75} />)}
                   </Bar>
-                  {v && <ReferenceLine x={v.price} stroke="#ece8df" strokeDasharray="4 3" label={{ value: t("stock.val.priceMark"), fill: "#ece8df", fontSize: 11, position: "top" }} />}
-                  {s?.fair_value && <ReferenceLine x={s.fair_value} stroke="#e8b04a" label={{ value: t("stock.val.fairMark"), fill: "#e8b04a", fontSize: 11, position: "top" }} />}
+                  {v && <ReferenceLine x={v.price} stroke="var(--text)" strokeDasharray="4 3" label={{ value: t("stock.val.priceMark"), fill: "var(--text)", fontSize: 11, position: "top" }} />}
+                  {s?.fair_value && <ReferenceLine x={s.fair_value} stroke="var(--accent)" label={{ value: t("stock.val.fairMark"), fill: "var(--accent)", fontSize: 11, position: "top" }} />}
                 </BarChart>
               </ResponsiveContainer>
             </div>

@@ -63,6 +63,21 @@ test("a Learn module opens its details and examples and can be marked complete",
   await expect(page.getByText("1 of 7 modules complete")).toBeVisible();
 });
 
+test("the daylight view can be chosen in Settings and is remembered after a reload", async ({ page }) => {
+  await page.addInitScript(() => window.localStorage.setItem("moatmine.intro", "seen"));
+  await page.goto("/settings/");
+  const html = page.locator("html");
+  await expect(html).toHaveAttribute("data-theme", "dark");
+
+  await button(page, "Light").click();
+  await expect(html).toHaveAttribute("data-theme", "light");
+  const bg = await page.evaluate(() => getComputedStyle(document.body).backgroundColor);
+  expect(bg).not.toBe("rgb(12, 14, 17)");
+
+  await page.reload();
+  await expect(html).toHaveAttribute("data-theme", "light");
+});
+
 test("a stock page labels mock market data as sample data", async ({ page }) => {
   await page.addInitScript(() => window.localStorage.setItem("moatmine.intro", "seen"));
   await page.goto("/stock/?s=AAPL");

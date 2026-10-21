@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import AiSettingsCard from "@/components/AiSettingsCard";
 import LanguageSwitch from "@/components/LanguageSwitch";
+import ThemeSwitch from "@/components/ThemeSwitch";
 import { api, apiBase, devToken } from "@/lib/api";
 import { FIREBASE_CONFIGURED } from "@/lib/firebase";
 import { date } from "@/lib/format";
@@ -19,6 +20,10 @@ export default function SettingsPage() {
         <div className="card">
           <h2>{t("lang.label")}</h2>
           <LanguageSwitch />
+        </div>
+        <div className="card">
+          <h2>{t("theme.label")}</h2>
+          <ThemeSwitch />
         </div>
         <div className="card">
           <h2>{t("intro.replay.title")}</h2>

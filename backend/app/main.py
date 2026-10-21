@@ -33,7 +33,7 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
         yield
 
 
-app = FastAPI(title="MoatMine API", version="0.3.0", lifespan=lifespan)
+app = FastAPI(title="MoatMine API", version="0.4.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,

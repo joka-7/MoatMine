@@ -12,6 +12,7 @@ import { useState, type FormEvent } from "react";
 import { firebaseAuth, inAppWindow } from "@/lib/firebase";
 import { useI18n, type I18n, type MessageKey } from "@/lib/i18n";
 import LanguageSwitch from "./LanguageSwitch";
+import ThemeSwitch from "./ThemeSwitch";
 
 type Mode = "sign-in" | "create" | "reset";
 
@@ -23,6 +24,7 @@ const MESSAGES: Readonly<Record<string, MessageKey>> = {
   "auth/too-many-requests": "signin.err.tooManyRequests",
   "auth/popup-closed-by-user": "signin.err.popupClosed",
   "auth/network-request-failed": "signin.err.network",
+  "auth/admin-restricted-operation": "signin.err.signupsClosed",
 };
 
 function describe(e: unknown, t: I18n["t"]): string {
@@ -96,6 +98,7 @@ export default function SignInForm() {
         </div>
       </form>
       <LanguageSwitch />
+      <ThemeSwitch />
     </div>
   );
 }

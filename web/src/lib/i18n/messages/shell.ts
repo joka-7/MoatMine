@@ -13,6 +13,10 @@ export const en = {
   "lang.label": "Language",
   "lang.en": "English",
   "lang.he": "עברית",
+  "theme.label": "Appearance",
+  "theme.light": "Light",
+  "theme.dark": "Dark",
+  "theme.system": "Match device",
   "signin.title": "Sign in",
   "signin.createTitle": "Create an account",
   "signin.resetTitle": "Reset your password",
@@ -35,6 +39,7 @@ export const en = {
   "signin.err.tooManyRequests": "Too many attempts. Wait a moment and try again.",
   "signin.err.popupClosed": "Google sign-in was closed before it finished.",
   "signin.err.network": "Can't reach the sign-in service. Check your connection.",
+  "signin.err.signupsClosed": "Sign-ups are closed. Ask the owner to add your account.",
 } as const;
 
 export const he: { readonly [K in keyof typeof en]: string } = {
@@ -51,6 +56,10 @@ export const he: { readonly [K in keyof typeof en]: string } = {
   "lang.label": "שפה",
   "lang.en": "English",
   "lang.he": "עברית",
+  "theme.label": "מראה",
+  "theme.light": "בהיר",
+  "theme.dark": "כהה",
+  "theme.system": "לפי המכשיר",
   "signin.title": "התחברות",
   "signin.createTitle": "יצירת חשבון",
   "signin.resetTitle": "איפוס סיסמה",
@@ -73,4 +82,5 @@ export const he: { readonly [K in keyof typeof en]: string } = {
   "signin.err.tooManyRequests": "יותר מדי ניסיונות. המתינו רגע ונסו שוב.",
   "signin.err.popupClosed": "חלון ההתחברות של Google נסגר לפני הסיום.",
   "signin.err.network": "אין חיבור לשירות ההתחברות. בדקו את החיבור לאינטרנט.",
+  "signin.err.signupsClosed": "ההרשמה סגורה. אפשר לבקש מהבעלים להוסיף את החשבון שלך.",
 };
