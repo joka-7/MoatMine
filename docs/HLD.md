@@ -39,6 +39,10 @@ and the logic that isn't obvious, see [`LLD.md`](LLD.md).
 - **English and Hebrew.** A language switch in Settings and on the sign-in screen. Hebrew lays the
   page out right to left, and the AI agent answers in the chosen language (`web/src/lib/i18n/`,
   `ChatIn.language`). Texts the API writes (safety-check reasons, alerts) are still English.
+- **Light and dark views.** Settings (and the sign-in screen) offer Light, Dark and Match device; dark is
+  the default. The choice lives in `localStorage` and is applied as `<html data-theme>`
+  (`web/src/lib/theme.tsx`); every colour is a CSS variable in `web/src/app/globals.css`, including the
+  chart colours, so switching needs no re-render. The two canvas charts read `CANVAS_COLORS` instead.
 - **First-run intro and Learn pages.** A new browser is sent from the dashboard to a six-step tour
   at `/welcome` once (`web/src/app/welcome/page.tsx`, `web/src/lib/useIntroSeen.ts`; replayable from
   Settings). `/learn` holds seven finance modules; each lesson has expandable more details and

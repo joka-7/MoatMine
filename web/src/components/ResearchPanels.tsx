@@ -7,8 +7,8 @@ import { date, money, num, pct, tone } from "@/lib/format";
 import { useI18n, type MessageKey } from "@/lib/i18n";
 import { useApi } from "@/lib/useApi";
 
-const TT = { background: "#14171c", border: "1px solid #262a32", borderRadius: 8 };
-const AX = { stroke: "#8b909a", fontSize: 11, tickLine: false, axisLine: false } as const;
+const TT = { background: "var(--chart-tooltip-bg)", border: "1px solid var(--chart-tooltip-border)", borderRadius: 8 };
+const AX = { stroke: "var(--chart-axis)", fontSize: 11, tickLine: false, axisLine: false } as const;
 
 export function CompanyCard({ symbol }: { symbol: string }) {
   const { t } = useI18n();
@@ -56,13 +56,13 @@ export function EarningsPanel({ symbol }: { symbol: string }) {
           <div style={{ height: 240 }}>
             <ResponsiveContainer>
               <BarChart data={rows}>
-                <CartesianGrid stroke="#1d2128" vertical={false} />
+                <CartesianGrid stroke="var(--chart-grid)" vertical={false} />
                 <XAxis dataKey="period" {...AX} />
                 <YAxis {...AX} />
-                <Tooltip contentStyle={TT} cursor={{ fill: "rgba(255,255,255,0.04)" }} />
+                <Tooltip contentStyle={TT} cursor={{ fill: "var(--chart-cursor)" }} />
                 <Legend wrapperStyle={{ fontSize: 12 }} />
-                <Bar dataKey="estimate" name={t("stock.earnings.estimate")} fill="#3a404a" radius={[3, 3, 0, 0]} />
-                <Bar dataKey="actual" name={t("stock.earnings.actual")} fill="#e8b04a" radius={[3, 3, 0, 0]} />
+                <Bar dataKey="estimate" name={t("stock.earnings.estimate")} fill="var(--chart-neutral)" radius={[3, 3, 0, 0]} />
+                <Bar dataKey="actual" name={t("stock.earnings.actual")} fill="var(--accent)" radius={[3, 3, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -103,8 +103,8 @@ export function DividendsPanel({ symbol }: { symbol: string }) {
             <BarChart data={divs}>
               <XAxis dataKey="date" {...AX} tickFormatter={(d: string) => d.slice(0, 7)} />
               <YAxis {...AX} />
-              <Tooltip contentStyle={TT} formatter={(x: number) => money(x)} cursor={{ fill: "rgba(255,255,255,0.04)" }} />
-              <Bar dataKey="amount" name={t("stock.dividends.dividend")} fill="#49c58c" fillOpacity={0.75} radius={[3, 3, 0, 0]} />
+              <Tooltip contentStyle={TT} formatter={(x: number) => money(x)} cursor={{ fill: "var(--chart-cursor)" }} />
+              <Bar dataKey="amount" name={t("stock.dividends.dividend")} fill="var(--up)" fillOpacity={0.75} radius={[3, 3, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </div>
@@ -149,12 +149,12 @@ export function AnalystsPanel({ symbol }: { symbol: string }) {
                 <BarChart data={recs}>
                   <XAxis dataKey="period" {...AX} tickFormatter={(d: string) => d.slice(0, 7)} />
                   <YAxis {...AX} />
-                  <Tooltip contentStyle={TT} cursor={{ fill: "rgba(255,255,255,0.04)" }} />
+                  <Tooltip contentStyle={TT} cursor={{ fill: "var(--chart-cursor)" }} />
                   <Legend wrapperStyle={{ fontSize: 12 }} />
                   <Bar dataKey="strong_buy" name={t("stock.analysts.strongBuy")} stackId="a" fill="#2f9e6e" />
-                  <Bar dataKey="buy" name={t("stock.analysts.buy")} stackId="a" fill="#49c58c" />
-                  <Bar dataKey="hold" name={t("stock.analysts.hold")} stackId="a" fill="#d9a13b" />
-                  <Bar dataKey="sell" name={t("stock.analysts.sell")} stackId="a" fill="#ec6650" />
+                  <Bar dataKey="buy" name={t("stock.analysts.buy")} stackId="a" fill="var(--up)" />
+                  <Bar dataKey="hold" name={t("stock.analysts.hold")} stackId="a" fill="var(--warn)" />
+                  <Bar dataKey="sell" name={t("stock.analysts.sell")} stackId="a" fill="var(--down)" />
                   <Bar dataKey="strong_sell" name={t("stock.analysts.strongSell")} stackId="a" fill="#a8382a" />
                 </BarChart>
               </ResponsiveContainer>

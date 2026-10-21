@@ -10,7 +10,7 @@ import { useApi } from "@/lib/useApi";
 import { useBookMode } from "@/lib/useBookMode";
 import { isSampleData } from "@/lib/dataSource";
 
-const TT = { background: "#14171c", border: "1px solid #262a32", borderRadius: 8 };
+const TT = { background: "var(--chart-tooltip-bg)", border: "1px solid var(--chart-tooltip-border)", borderRadius: 8 };
 const KIND = { historical: "risk.kind.historical", hypothetical: "risk.kind.hypothetical" } as const satisfies Record<string, MessageKey>;
 
 function corrColor(c: number | null) {
@@ -86,12 +86,12 @@ export default function RiskPage() {
             <div style={{ height: Math.max(160, sectors.length * 32) }}>
               <ResponsiveContainer>
                 <BarChart data={sectors} layout="vertical" margin={{ left: 30, right: 20 }}>
-                  <XAxis type="number" stroke="#8b909a" fontSize={11} tickFormatter={(x) => `${x}%`} />
-                  <YAxis type="category" dataKey="name" stroke="#8b909a" fontSize={12} width={120} tickLine={false} axisLine={false} />
-                  <Tooltip contentStyle={TT} formatter={(x: number) => `${x}%`} cursor={{ fill: "rgba(255,255,255,0.04)" }} />
-                  <ReferenceLine x={r.rules.max_sector_pct} stroke="#ec6650" strokeDasharray="4 3" label={{ value: t("risk.chartLimit"), fill: "#ec6650", fontSize: 11, position: "top" }} />
+                  <XAxis type="number" stroke="var(--chart-axis)" fontSize={11} tickFormatter={(x) => `${x}%`} />
+                  <YAxis type="category" dataKey="name" stroke="var(--chart-axis)" fontSize={12} width={120} tickLine={false} axisLine={false} />
+                  <Tooltip contentStyle={TT} formatter={(x: number) => `${x}%`} cursor={{ fill: "var(--chart-cursor)" }} />
+                  <ReferenceLine x={r.rules.max_sector_pct} stroke="var(--down)" strokeDasharray="4 3" label={{ value: t("risk.chartLimit"), fill: "var(--down)", fontSize: 11, position: "top" }} />
                   <Bar dataKey="value" radius={[0, 4, 4, 0]}>
-                    {sectors.map((x) => <Cell key={x.name} fill={x.value > r.rules.max_sector_pct ? "#ec6650" : "#e8b04a"} />)}
+                    {sectors.map((x) => <Cell key={x.name} fill={x.value > r.rules.max_sector_pct ? "var(--down)" : "var(--accent)"} />)}
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
@@ -128,12 +128,12 @@ export default function RiskPage() {
             <div style={{ height: 280 }}>
               <ResponsiveContainer>
                 <BarChart data={stress} margin={{ bottom: 20 }}>
-                  <XAxis dataKey="name" stroke="#8b909a" fontSize={11} interval={0} angle={-15} textAnchor="end" />
-                  <YAxis stroke="#8b909a" fontSize={11} tickFormatter={(x) => `${x}%`} />
-                  <Tooltip contentStyle={TT} formatter={(x: number) => `${x}%`} cursor={{ fill: "rgba(255,255,255,0.04)" }} />
-                  <ReferenceLine y={s.loss_limit_pct} stroke="#ec6650" strokeDasharray="4 3" label={{ value: t("risk.yourLimit", { pct: share(s.loss_limit_pct) }), fill: "#ec6650", fontSize: 11, position: "insideBottomRight" }} />
+                  <XAxis dataKey="name" stroke="var(--chart-axis)" fontSize={11} interval={0} angle={-15} textAnchor="end" />
+                  <YAxis stroke="var(--chart-axis)" fontSize={11} tickFormatter={(x) => `${x}%`} />
+                  <Tooltip contentStyle={TT} formatter={(x: number) => `${x}%`} cursor={{ fill: "var(--chart-cursor)" }} />
+                  <ReferenceLine y={s.loss_limit_pct} stroke="var(--down)" strokeDasharray="4 3" label={{ value: t("risk.yourLimit", { pct: share(s.loss_limit_pct) }), fill: "var(--down)", fontSize: 11, position: "insideBottomRight" }} />
                   <Bar dataKey="value" radius={[0, 0, 4, 4]}>
-                    {stress.map((x) => <Cell key={x.name} fill={x.breach ? "#ec6650" : "#3a404a"} />)}
+                    {stress.map((x) => <Cell key={x.name} fill={x.breach ? "var(--down)" : "var(--chart-neutral)"} />)}
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>

@@ -35,6 +35,7 @@ describe("SignInForm", () => {
   it.each([
     ["auth/invalid-credential", "Wrong email or password."],
     ["auth/too-many-requests", "Too many attempts. Wait a moment and try again."],
+    ["auth/admin-restricted-operation", "Sign-ups are closed. Ask the owner to add your account."],
     ["auth/some-new-code", "Sign-in failed (auth/some-new-code)."],
   ])("shows a readable message for %s", async (code, text) => {
     vi.mocked(signInWithEmailAndPassword).mockRejectedValue(new FirebaseError(code, "raw"));

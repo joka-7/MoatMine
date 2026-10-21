@@ -7,7 +7,11 @@ API share one version.
 ## [Unreleased]
 
 ### Added
+- A light (daylight) view: Light, Dark or Match device in Settings and on the sign-in screen. Dark stays the default.
 - Learn lessons link to short outside videos and podcasts (English, and Hebrew where one exists). They open in a new tab on the author's own site.
+
+### Changed
+- When sign-ups are closed, trying to create an account (or sign in with Google as a new user) says so instead of showing an error code.
 
 ## [0.3.0] - 2026-10-19
 

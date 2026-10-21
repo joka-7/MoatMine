@@ -309,6 +309,7 @@ MoatMine/
 │   │   │   ├── SignInForm.test.tsx
 │   │   │   ├── SignInForm.tsx                    # Sign-in screen: email/password (create, reset) everywhere, Google in browsers…
 │   │   │   ├── SymbolSearch.tsx                  # Debounced ticker search with a results dropdown
+│   │   │   ├── ThemeSwitch.tsx
 │   │   │   ├── ValuationPanel.tsx                # Fair-value models with editable assumptions
 │   │   │   └── ValueChart.tsx                    # Holdings value over time for one book
 │   │   ├── lib/                                  # API client, formatters and hooks
@@ -349,6 +350,8 @@ MoatMine/
 │   │   │   ├── firebase.ts                       # Firebase app and Auth from the NEXT_PUBLIC_FIREBASE_* settings; detects the…
 │   │   │   ├── format.test.ts
 │   │   │   ├── format.ts                         # Money, number, percent, date and tone formatters (en-US)
+│   │   │   ├── theme.test.tsx
+│   │   │   ├── theme.tsx
 │   │   │   ├── useApi.test.ts
 │   │   │   ├── useApi.ts                         # Fetch hook; ignores responses from superseded requests
 │   │   │   ├── useBookMode.ts                    # Shared real/paper choice, remembered in localStorage

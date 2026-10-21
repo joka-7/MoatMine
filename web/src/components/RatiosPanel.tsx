@@ -72,11 +72,11 @@ export default function RatiosPanel({ symbol }: { symbol: string }) {
         <div style={{ height: 160, marginTop: 14 }}>
           <ResponsiveContainer>
             <BarChart data={bars} margin={{ left: -20 }}>
-              <XAxis dataKey="name" stroke="#8b909a" fontSize={12} tickLine={false} axisLine={false} />
-              <YAxis stroke="#8b909a" fontSize={11} tickLine={false} axisLine={false} />
-              <Tooltip cursor={{ fill: "rgba(255,255,255,0.04)" }} contentStyle={{ background: "#14171c", border: "1px solid #262a32", borderRadius: 8 }} />
+              <XAxis dataKey="name" stroke="var(--chart-axis)" fontSize={12} tickLine={false} axisLine={false} />
+              <YAxis stroke="var(--chart-axis)" fontSize={11} tickLine={false} axisLine={false} />
+              <Tooltip cursor={{ fill: "var(--chart-cursor)" }} contentStyle={{ background: "var(--chart-tooltip-bg)", border: "1px solid var(--chart-tooltip-border)", borderRadius: 8 }} />
               <Bar dataKey="value" radius={[4, 4, 0, 0]}>
-                {bars.map((_, i) => <Cell key={i} fill={i === 0 ? "#e8b04a" : "#3a404a"} />)}
+                {bars.map((_, i) => <Cell key={i} fill={i === 0 ? "var(--accent)" : "var(--chart-neutral)"} />)}
               </Bar>
             </BarChart>
           </ResponsiveContainer>

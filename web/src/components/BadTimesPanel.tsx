@@ -8,8 +8,8 @@ import { useApi } from "@/lib/useApi";
 import { isSampleData } from "@/lib/dataSource";
 import { useI18n, type I18n } from "@/lib/i18n";
 
-const TT = { background: "#14171c", border: "1px solid #262a32", borderRadius: 8 };
-const AX = { stroke: "#8b909a", fontSize: 11, tickLine: false, axisLine: false } as const;
+const TT = { background: "var(--chart-tooltip-bg)", border: "1px solid var(--chart-tooltip-border)", borderRadius: 8 };
+const AX = { stroke: "var(--chart-axis)", fontSize: 11, tickLine: false, axisLine: false } as const;
 
 function span(t: I18n["t"], days: number | null) {
   if (days == null) return "—";
@@ -66,13 +66,13 @@ export default function BadTimesPanel({ symbol }: { symbol: string }) {
           <div style={{ height: 260 }}>
             <ResponsiveContainer>
               <BarChart data={chart}>
-                <CartesianGrid stroke="#1d2128" vertical={false} />
+                <CartesianGrid stroke="var(--chart-grid)" vertical={false} />
                 <XAxis dataKey="name" {...AX} />
                 <YAxis {...AX} tickFormatter={(x) => `${x}%`} />
-                <Tooltip contentStyle={TT} formatter={(x: number) => `${x}%`} cursor={{ fill: "rgba(255,255,255,0.04)" }} />
+                <Tooltip contentStyle={TT} formatter={(x: number) => `${x}%`} cursor={{ fill: "var(--chart-cursor)" }} />
                 <Legend wrapperStyle={{ fontSize: 12 }} />
-                <Bar dataKey={symbol} fill="#ec6650" radius={[0, 0, 3, 3]} />
-                <Bar dataKey={bench} fill="#3a404a" radius={[0, 0, 3, 3]} />
+                <Bar dataKey={symbol} fill="var(--down)" radius={[0, 0, 3, 3]} />
+                <Bar dataKey={bench} fill="var(--chart-neutral)" radius={[0, 0, 3, 3]} />
               </BarChart>
             </ResponsiveContainer>
           </div>

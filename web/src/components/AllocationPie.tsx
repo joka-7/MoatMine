@@ -25,8 +25,8 @@ export default function AllocationPie({ holdings, cash }: { holdings: HoldingRow
             </Pie>
             <Tooltip
               formatter={(v: number) => money(v)}
-              contentStyle={{ background: "#14171c", border: "1px solid #262a32", borderRadius: 8 }}
-              itemStyle={{ color: "#ece8df" }}
+              contentStyle={{ background: "var(--chart-tooltip-bg)", border: "1px solid var(--chart-tooltip-border)", borderRadius: 8 }}
+              itemStyle={{ color: "var(--text)" }}
             />
           </PieChart>
         </ResponsiveContainer>

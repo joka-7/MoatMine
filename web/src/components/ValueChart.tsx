@@ -6,6 +6,7 @@ import { apiWithHeaders } from "@/lib/api";
 import type { BookMode } from "@/lib/useBookMode";
 import { isSampleData } from "@/lib/dataSource";
 import { useI18n, type MessageKey } from "@/lib/i18n";
+import { CANVAS_COLORS, useTheme } from "@/lib/theme";
 
 const SPANS = [30, 90, 180, 365, 1095] as const;
 const LABEL: Record<(typeof SPANS)[number], MessageKey> = {
@@ -14,6 +15,8 @@ const LABEL: Record<(typeof SPANS)[number], MessageKey> = {
 
 export default function ValueChart({ mode }: { mode: BookMode }) {
   const { t } = useI18n();
+  const { theme } = useTheme();
+  const C = CANVAS_COLORS[theme];
   const el = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const [days, setDays] = useState<number>(180);
@@ -36,20 +39,20 @@ export default function ValueChart({ mode }: { mode: BookMode }) {
       height: 260,
       // fixed locale: the default (navigator.language) can be "en-US@posix" on Linux/C locales, which Intl rejects
       localization: { locale: "en-US" },
-      layout: { background: { type: ColorType.Solid, color: "transparent" }, textColor: "#8b909a" },
-      grid: { vertLines: { visible: false }, horzLines: { color: "#1d2128" } },
+      layout: { background: { type: ColorType.Solid, color: "transparent" }, textColor: C.text },
+      grid: { vertLines: { visible: false }, horzLines: { color: C.grid } },
       rightPriceScale: { borderVisible: false },
       timeScale: { borderVisible: false },
     });
     chartRef.current = chart;
     const up = points[points.length - 1].value >= points[0].value;
-    const line = up ? "#49c58c" : "#ec6650";
+    const line = up ? C.up : C.down;
     chart
-      .addSeries(AreaSeries, { lineColor: line, topColor: up ? "rgba(73,197,140,.22)" : "rgba(236,102,80,.22)", bottomColor: "rgba(0,0,0,0)", lineWidth: 2 })
+      .addSeries(AreaSeries, { lineColor: line, topColor: `rgba(${up ? C.upFill : C.downFill},.22)`, bottomColor: "rgba(0,0,0,0)", lineWidth: 2 })
       .setData(points.map((p) => ({ time: p.t as UTCTimestamp, value: p.value })));
     chart.timeScale().fitContent();
     return () => chart.remove();
-  }, [points]);
+  }, [points, C]);
 
   return (
     <div className="card">

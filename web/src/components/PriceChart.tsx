@@ -15,6 +15,7 @@ import { useEffect, useRef, useState } from "react";
 import { apiWithHeaders, Candle } from "@/lib/api";
 import { isSampleData } from "@/lib/dataSource";
 import { useI18n } from "@/lib/i18n";
+import { CANVAS_COLORS, useTheme } from "@/lib/theme";
 
 const RANGES = [
   { id: "1D", res: "5", days: 1, unit: "stock.range.days", n: 1 },
@@ -24,8 +25,6 @@ const RANGES = [
   { id: "1Y", res: "D", days: 365, unit: "stock.range.years", n: 1 },
   { id: "5Y", res: "W", days: 1825, unit: "stock.range.years", n: 5 },
 ] as const;
-
-const C = { up: "#49c58c", down: "#ec6650", text: "#8b909a", grid: "#1d2128", accent: "#e8b04a", blue: "#6aa5ff" };
 
 function sma(bars: Candle[], n: number) {
   const out: { time: UTCTimestamp; value: number }[] = [];
@@ -40,6 +39,8 @@ function sma(bars: Candle[], n: number) {
 
 export default function PriceChart({ symbol }: { symbol: string }) {
   const { t } = useI18n();
+  const { theme } = useTheme();
+  const C = CANVAS_COLORS[theme];
   const el = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const [range, setRange] = useState<(typeof RANGES)[number]>(RANGES[4]);
@@ -89,7 +90,7 @@ export default function PriceChart({ symbol }: { symbol: string }) {
       }).setData(bars.map((b) => ({ time: b.t as UTCTimestamp, open: b.o, high: b.h, low: b.l, close: b.c })));
     } else {
       chart.addSeries(AreaSeries, {
-        lineColor: C.accent, topColor: "rgba(232,176,74,0.25)", bottomColor: "rgba(232,176,74,0)", lineWidth: 2,
+        lineColor: C.accent, topColor: `rgba(${C.accentFill},0.25)`, bottomColor: `rgba(${C.accentFill},0)`, lineWidth: 2,
       }).setData(bars.map((b) => ({ time: b.t as UTCTimestamp, value: b.c })));
     }
     if (overlays.sma20) chart.addSeries(LineSeries, { color: C.blue, lineWidth: 1, priceLineVisible: false, lastValueVisible: false }).setData(sma(bars, 20));
@@ -97,11 +98,11 @@ export default function PriceChart({ symbol }: { symbol: string }) {
     if (overlays.volume) {
       const vol = chart.addSeries(HistogramSeries, { priceScaleId: "", priceFormat: { type: "volume" }, lastValueVisible: false, priceLineVisible: false });
       vol.priceScale().applyOptions({ scaleMargins: { top: 0.82, bottom: 0 } });
-      vol.setData(bars.map((b) => ({ time: b.t as UTCTimestamp, value: b.v, color: b.c >= b.o ? "rgba(73,197,140,0.35)" : "rgba(236,102,80,0.35)" })));
+      vol.setData(bars.map((b) => ({ time: b.t as UTCTimestamp, value: b.v, color: b.c >= b.o ? `rgba(${C.upFill},0.35)` : `rgba(${C.downFill},0.35)` })));
     }
     chart.timeScale().fitContent();
     return () => { chart.remove(); chartRef.current = null; };
-  }, [bars, kind, overlays, range.res]);
+  }, [bars, kind, overlays, range.res, C]);
 
   const zoom = (factor: number) => {
     const ts = chartRef.current?.timeScale();
