@@ -53,6 +53,11 @@ test("a Learn module opens its details and examples and can be marked complete",
   await page.getByText("More details").first().click();
   await expect(detail).toBeVisible();
 
+  await page.getByText(/^Watch or listen \(\d+\)$/).first().click();
+  const outside = page.getByRole("link", { name: "5 Questions To Ask Before Investing" });
+  await expect(outside).toBeVisible();
+  await expect(outside).toHaveAttribute("target", "_blank");
+
   await button(page, "Mark module as complete").click();
   await page.getByRole("link", { name: "All modules" }).click();
   await expect(page.getByText("1 of 7 modules complete")).toBeVisible();
