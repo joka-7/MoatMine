@@ -6,6 +6,8 @@ API share one version.
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-10-21
+
 ### Added
 - A light (daylight) view: Light, Dark or Match device in Settings and on the sign-in screen. Dark stays the default.
 - Learn lessons link to short outside videos and podcasts (English, and Hebrew where one exists). They open in a new tab on the author's own site.
@@ -68,6 +70,7 @@ The first tagged release: the version the first desktop builds are cut from.
 - The external-agent URL must resolve to a public address; agent write tools act only on a
   symbol the user named; the desktop's production CSP has no `'unsafe-inline'` scripts.
 
+[0.4.0]: https://github.com/joka-7/MoatMine/releases/tag/v0.4.0
 [0.3.0]: https://github.com/joka-7/MoatMine/releases/tag/v0.3.0
 [0.2.0]: https://github.com/joka-7/MoatMine/releases/tag/v0.2.0
 [0.1.0]: https://github.com/joka-7/MoatMine/releases/tag/v0.1.0
