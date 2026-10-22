@@ -21,6 +21,8 @@ envVarGroups:
         value: firebase
       - key: FIREBASE_PROJECT_ID
         sync: false
+      - key: ALLOWED_EMAILS
+        sync: false # comma-separated emails that may sign in; the API refuses to start if this is empty
       - key: ANTHROPIC_API_KEY
         sync: false
       - key: OPENAI_API_KEY

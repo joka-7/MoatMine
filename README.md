@@ -153,7 +153,7 @@ The app runs with **no API keys**: `MARKET_PROVIDER=mock` serves deterministic s
 3. **Authentication → Settings → Authorized domains:** add `<owner>.github.io` (and `localhost` for local testing).
 4. **Project settings → Your apps → Add app → Web.** Note the `apiKey`, `authDomain`, `projectId` and `appId`. None of them is secret.
 
-The API checks every request's Firebase ID token against Google's public keys, for this project only. It refuses to start with `AUTH_MODE=dev` on Postgres, and with `AUTH_MODE=firebase` without `FIREBASE_PROJECT_ID`.
+The API checks every request's Firebase ID token against Google's public keys, for this project only. It refuses to start with `AUTH_MODE=dev` on Postgres, and with `AUTH_MODE=firebase` without `FIREBASE_PROJECT_ID` or without `ALLOWED_EMAILS`. A valid token whose email is not verified or not on the list gets 403. MCP tokens remember their owner's email and stop working when it leaves the list.
 
 **Database (Neon).** Render has no free database, so the data lives in Postgres on [Neon](https://neon.tech) (free tier):
 1. Create a Neon project and database.
@@ -170,6 +170,7 @@ The API checks every request's Firebase ID token against Google's public keys, f
 - `FMP_API_KEY` (optional). Company descriptions, statements (Piotroski, Altman), price targets and dividend history need it or a paid Finnhub plan; without them those sections say so instead of breaking. The FMP mapping follows FMP's documented `/stable` fields but hasn't been run against a live key yet.
 - `FERNET_KEY`
 - `FIREBASE_PROJECT_ID` (the blueprint sets `AUTH_MODE=firebase`)
+- `ALLOWED_EMAILS`: comma-separated emails that may use the app, matched without regard to case against the token's verified email. The API refuses to start without it; `ALLOW_ANY_USER=true` instead lets every Firebase account in. To add or remove someone, edit the variable and redeploy. This sits on top of turning off sign-ups in Firebase (Authentication → Settings → User actions), which stops strangers from creating accounts at all.
 - AI keys (optional)
 - `CORS_ORIGINS` = your web app's origin (`https://<owner>.github.io` on GitHub Pages) plus `tauri://localhost,http://tauri.localhost`
 

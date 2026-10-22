@@ -97,6 +97,7 @@ cancel:  any status except executed
 Settings._auth_is_safe:
     dev   and DATABASE_URL starts with "postgres"     → error
     firebase and FIREBASE_PROJECT_ID isn't a Firebase project id → error
+    firebase and ALLOWED_EMAILS has no address and ALLOW_ANY_USER is false → error
 get_settings(): ValidationError → ConfigError(reasons only, no values), raised from None
 ```
 
@@ -141,7 +142,8 @@ Read in `app/config.py` `Settings`, through `get_settings()` (cached once per pr
 | `DATABASE_URL` | `sqlite:///./moatmine.db` | `app/db.py` (engine; `postgres://` is rewritten to `postgresql+psycopg://`) |
 | `DB_POOL_SIZE`, `DB_MAX_OVERFLOW`, `DB_POOL_TIMEOUT_SECONDS` | 5 / 5 / 10 | `app/db.py` `_make_engine` (Postgres only) |
 | `AUTH_MODE` | `dev` (`dev`\|`firebase`) | `app/auth.py` |
-| `FIREBASE_PROJECT_ID` | `""` (required in firebase mode) | `app/auth.py` `current_user`: the token's `aud` and `iss` must name it |
+| `FIREBASE_PROJECT_ID` | `""` (required in firebase mode) | `app/auth.py` `current_identity`: the token's `aud` and `iss` must name it |
+| `ALLOWED_EMAILS`, `ALLOW_ANY_USER` | `""`, `false` (one is required in firebase mode) | `app/auth.py` `email_allowed`, `current_identity`; `app/mcp_server.py` `_user_for_token`. Comma-separated, case-insensitive; the token's email must be verified |
 | `CORS_ORIGINS`, `CORS_ORIGIN_REGEX` | localhost:3000 + Tauri origins | `app/main.py` |
 | `MARKET_PROVIDER` | `mock` | `app/market/__init__.py` `get_provider` (finnhub only when `FINNHUB_API_KEY` is set) |
 | `FINNHUB_API_KEY`, `FMP_API_KEY` | `""` | `get_provider` |

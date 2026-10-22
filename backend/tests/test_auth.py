@@ -24,14 +24,15 @@ class _FakeJwks:
 
 @pytest.fixture
 def firebase_mode(monkeypatch):
-    s = Settings(auth_mode="firebase", database_url="sqlite:///./x.db", firebase_project_id=PROJECT)
+    s = Settings(auth_mode="firebase", database_url="sqlite:///./x.db", firebase_project_id=PROJECT, allowed_emails="Alice@Example.com, bob@example.com")
     monkeypatch.setattr(auth, "get_settings", lambda: s)
     monkeypatch.setattr(auth, "_jwks_client", lambda _url: _FakeJwks())
 
 
 def _token(key=KEY, alg="RS256", **overrides) -> str:
     now = int(time.time())
-    claims = {"sub": "user_123", "iss": ISSUER, "aud": PROJECT, "iat": now, "exp": now + 60, **overrides}
+    claims = {"sub": "user_123", "iss": ISSUER, "aud": PROJECT, "iat": now, "exp": now + 60,
+              "email": "alice@example.com", "email_verified": True, **overrides}
     claims = {k: v for k, v in claims.items() if v is not None}
     return jwt.encode(claims, key, algorithm=alg)
 
@@ -65,6 +66,41 @@ def test_current_user_rejects_bad_firebase_tokens(firebase_mode, creds):
     with pytest.raises(HTTPException) as e:
         auth.current_user(creds() if callable(creds) else creds)
     assert e.value.status_code == 401 and e.value.detail in ("missing token", "invalid token")
+
+
+def test_current_identity_carries_the_verified_email(firebase_mode):
+    assert auth.current_identity(_bearer(_token())) == auth.Identity("user_123", "alice@example.com")
+
+
+@pytest.mark.parametrize("email", ["alice@example.com", "ALICE@example.COM", "bob@example.com"])
+def test_allowed_emails_get_in_whatever_their_case(firebase_mode, email):
+    assert auth.current_user(_bearer(_token(email=email))) == "user_123"
+
+
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        pytest.param({"email": "mallory@example.com"}, id="not on the list"),
+        pytest.param({"email": "alice@example.com", "email_verified": False}, id="address not verified"),
+        pytest.param({"email": "alice@example.com", "email_verified": None}, id="verification missing"),
+        pytest.param({"email": "alice@example.com", "email_verified": "true"}, id="verified is not a real boolean"),
+        pytest.param({"email": None, "email_verified": None}, id="no email at all (a phone or anonymous account)"),
+        pytest.param({"email": 123}, id="email is not a string"),
+        pytest.param({"email": "alice@example.com.evil.test"}, id="look-alike domain"),
+        pytest.param({"email": "x@example.com,alice@example.com"}, id="list syntax in the claim"),
+    ],
+)
+def test_valid_tokens_of_people_not_on_the_list_are_refused_without_saying_why(firebase_mode, overrides):
+    with pytest.raises(HTTPException) as e:
+        auth.current_user(_bearer(_token(**overrides)))
+    assert e.value.status_code == 403 and e.value.detail == "not allowed"
+
+
+def test_allow_any_user_lets_every_verified_firebase_account_in(monkeypatch):
+    s = Settings(auth_mode="firebase", database_url="sqlite:///./x.db", firebase_project_id=PROJECT, allow_any_user=True)
+    monkeypatch.setattr(auth, "get_settings", lambda: s)
+    monkeypatch.setattr(auth, "_jwks_client", lambda _url: _FakeJwks())
+    assert auth.current_user(_bearer(_token(email="anyone@example.com", email_verified=False))) == "user_123"
 
 
 @pytest.mark.parametrize(("creds", "user"), [(None, "dev"), (_bearer("alice"), "alice")])

@@ -56,6 +56,24 @@ Symptom: `/health/worker` returns 503, or alerts stop appearing.
   used `AI_SERVER_TOKENS_PER_DAY` on the server's keys, server keys stop until UTC midnight and
   only users' own keys work. Raise the cap or add a key.
 
+## Who can sign in
+
+- **Add or remove someone.** Edit `ALLOWED_EMAILS` in the Render env group (comma-separated, case does not
+  matter) and redeploy. A removed person's session stops working on the next request (403) and their
+  MCP tokens stop working too, because each token's stored email is checked on every `/mcp` call.
+  Their data is not deleted.
+- **A person on the list gets 403.** Their email must be *verified* in Firebase and match the list
+  exactly. Google accounts are verified already. An email and password account added by hand in the
+  console is **not** verified, and the app does not send a verification email, so it is refused until
+  verified another way (not yet built or tested here). Accounts with no email (phone, anonymous) can
+  never pass.
+- **MCP token stopped working after the allow-list was introduced.** Tokens made before it have no email
+  on record and are refused. The owner creates a new one in Settings → AI.
+- **The deploy fails with "AUTH_MODE=firebase needs ALLOWED_EMAILS".** Set it in the env group first.
+  Render keeps the previous deploy running while the new one fails its health check.
+- Also turn off sign-ups in the Firebase console (Authentication → Settings → User actions → untick
+  Enable create) so strangers cannot create accounts at all, and add people there by hand.
+
 ## Rolling back a deploy
 
 The start command runs `alembic upgrade head` before the server, and `/health/ready` fails while the database

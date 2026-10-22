@@ -141,7 +141,8 @@ MoatMine/
 │   │   ├── versions/                             # One file per schema revision
 │   │   │   ├── 0001_baseline_schema.py           # Baseline schema: every table as it stood when Alembic replaced create_all.
 │   │   │   ├── 0002_auto_target_loss_limit.py    # Stop mirroring the loss limit into the auto target's profit floor.
-│   │   │   └── 0003_worker_heartbeat_alert_dedupe.py  # Worker heartbeat table, and one unread alert per condition enforced by a…
+│   │   │   ├── 0003_worker_heartbeat_alert_dedupe.py  # Worker heartbeat table, and one unread alert per condition enforced by a…
+│   │   │   └── 0004_mcp_token_email.py           # MCP tokens remember their owner's verified email, so the allow-list can be…
 │   │   ├── env.py                                # Alembic environment: runs migrations against the app's own DATABASE_URL.
 │   │   └── script.py.mako                        # Template for new Alembic revisions
 │   ├── tests/                                    # Pytest suite (SQLite, mock market data, no network)
@@ -160,6 +161,7 @@ MoatMine/
 │   │   ├── test_internal.py                      # The scheduler route that starts an alert pass on hosting without background…
 │   │   ├── test_llm_json.py                      # Finding the JSON object in a model reply.
 │   │   ├── test_log_config.py                    # Secret redaction, JSON/text formatters, request-id middleware
+│   │   ├── test_mcp_allowlist.py                 # An MCP token only works while its owner's email is on the allow-list.
 │   │   ├── test_portfolio.py                     # Paper (practice) and real-money accounts are separate books everywhere money…
 │   │   ├── test_ratelimit.py
 │   │   ├── test_research.py                      # Company/earnings/analyst data, news feed and AI news summary

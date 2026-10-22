@@ -57,7 +57,12 @@ and the logic that isn't obvious, see [`LLD.md`](LLD.md).
 - **Honest data provenance.** Results built from fallback candles are labelled `mock-fallback`
   for each request (`app/market/sources.py`).
 - **Fail closed on auth.** The API refuses to start with `AUTH_MODE=dev` on Postgres, or in firebase
-  mode without a valid `FIREBASE_PROJECT_ID` (`app/config.py` `_auth_is_safe`).
+  mode without a valid `FIREBASE_PROJECT_ID` (`app/config.py` `_auth_is_safe`) or without
+  `ALLOWED_EMAILS` (`_someone_is_allowed`; `ALLOW_ANY_USER=true` is the explicit opt-out).
+- **Allow-list.** In firebase mode a valid ID token is not enough: its email must be verified and on
+  `ALLOWED_EMAILS`, else 403 (`app/auth.py` `current_identity`, which every route passes through via
+  `current_user`). `/mcp` tokens carry no email, so each stores its owner's verified email when it is
+  made (`mcp_tokens.email`) and `_user_for_token` re-checks it on every call.
 - **Secrets stay out of logs.** Finnhub's key is sent as a header, and `token=`/`apikey=` values
   are redacted in every log line (`app/log_config.py`).
 - **Per-user AI limits:** requests per minute, tokens per minute and tokens per day
@@ -240,7 +245,7 @@ sequenceDiagram
   (`settings_store.check_public_https_url`). Checked when saved and again before every request
   (`dispatcher._ExternalAgentProvider`), which also never follows redirects, so a public host
   can't bounce the call to an internal one.
-- **Firebase ID tokens** must be signed by Google and name this project as audience and issuer (`FIREBASE_PROJECT_ID`), so a token from another Firebase project is refused.
+- **Firebase ID tokens** must be signed by Google and name this project as audience and issuer (`FIREBASE_PROJECT_ID`), so a token from another Firebase project is refused. They must also carry a verified email on `ALLOWED_EMAILS` (403 otherwise, with no detail).
 
 ## Integration test strategy
 - **API level:** `backend/tests/` drives the real FastAPI app through `TestClient` (`conftest.py`):

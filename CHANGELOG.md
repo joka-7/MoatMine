@@ -6,6 +6,9 @@ API share one version.
 
 ## [Unreleased]
 
+### Security
+- **Action needed before deploying:** set `ALLOWED_EMAILS` (comma-separated) in Render. In firebase mode the API now only lets in accounts with a verified email on that list (403 otherwise) and refuses to start without it; `ALLOW_ANY_USER=true` is the explicit opt-out. MCP tokens remember their owner's email (migration 0004) and stop working when it leaves the list; tokens made before this must be recreated.
+
 ## [0.4.0] - 2026-10-21
 
 ### Added

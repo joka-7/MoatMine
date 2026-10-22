@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from app.ai.dispatcher import VENDORS, available, chat
 from app.ai.settings_store import SUPPORTED, load_ai_settings, masked, save_ai_settings
 from app.ai.tools import registry
-from app.auth import current_user
+from app.auth import Identity, current_identity, current_user
 from app.crypto import new_mcp_token
 from app.db import get_db
 from app.jsontypes import JSONDict
@@ -99,9 +99,9 @@ def list_mcp_tokens(user: str = Depends(current_user), db: Session = Depends(get
 
 
 @router.post("/mcp-tokens", status_code=201)
-def create_mcp_token(label: str = "", user: str = Depends(current_user), db: Session = Depends(get_db)) -> JSONDict:
+def create_mcp_token(label: str = "", who: Identity = Depends(current_identity), db: Session = Depends(get_db)) -> JSONDict:
     token, digest = new_mcp_token()
-    row = MCPToken(user_id=user, token_hash=digest, label=label[:120])
+    row = MCPToken(user_id=who.user_id, email=who.email, token_hash=digest, label=label[:120])
     db.add(row)
     db.commit()
     return {"id": row.id, "token": token, "note": "Shown once. Use as: Authorization: Bearer <token> against /mcp"}

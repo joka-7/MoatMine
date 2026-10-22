@@ -22,6 +22,10 @@ class Settings(BaseSettings):
     # Firebase Authentication ID token issued for this project
     auth_mode: Literal["dev", "firebase"] = "dev"
     firebase_project_id: str = ""
+    # who may use the app in firebase mode: comma-separated, matched against the token's verified
+    # email. Empty refuses everyone, unless ALLOW_ANY_USER opens the app to every Firebase account.
+    allowed_emails: str = ""
+    allow_any_user: bool = False
 
     # CORS: Vercel URL(s) plus the Tauri origins
     cors_origins: str = "http://localhost:3000,tauri://localhost,http://tauri.localhost"
@@ -76,6 +80,16 @@ class Settings(BaseSettings):
         return self
 
     @model_validator(mode="after")
+    def _someone_is_allowed(self) -> Self:
+        """Production must say who may sign in; forgetting the list must not open the app."""
+        if self.auth_mode == "firebase" and not self.allowed_email_set and not self.allow_any_user:
+            raise ValueError(
+                "AUTH_MODE=firebase needs ALLOWED_EMAILS (comma-separated), "
+                "or ALLOW_ANY_USER=true to let every Firebase account in"
+            )
+        return self
+
+    @model_validator(mode="after")
     def _fernet_key_is_usable(self) -> Self:
         """Production must be able to store user AI keys; a bad key should stop startup, not a save."""
         if self.auth_mode == "firebase" and not self.fernet_key:
@@ -93,6 +107,11 @@ class Settings(BaseSettings):
         if self.alerts_run_token and len(self.alerts_run_token) < 32:
             raise ValueError("ALERTS_RUN_TOKEN must be at least 32 characters (e.g. python -c \"import secrets; print(secrets.token_urlsafe(32))\")")
         return self
+
+    @property
+    def allowed_email_set(self) -> frozenset[str]:
+        """The allowed addresses, lower-cased: email addresses are matched without regard to case."""
+        return frozenset(e.strip().lower() for e in self.allowed_emails.split(",") if e.strip())
 
     @property
     def fernet_keys(self) -> list[str]:
