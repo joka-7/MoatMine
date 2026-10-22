@@ -1,6 +1,6 @@
 # Local-first MoatMine: design proposal
 
-Status: **proposal, nothing here is built.** It answers one question: what would it take for a
+Status: **in progress.** Slice 0 (the store layer in `web/src/lib/store/`) is built and tested but no screen uses it yet; everything after it is a proposal. It answers one question: what would it take for a
 user's portfolio to live on their own devices, with the server holding no holdings?
 
 ## 1. Why
