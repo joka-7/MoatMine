@@ -1,6 +1,7 @@
 """FMP provider against canned HTTP responses (no network)."""
 
 import asyncio
+from datetime import UTC, datetime
 
 import httpx
 import pytest
@@ -62,3 +63,69 @@ def test_routed_provider_logs_fmp_fallback_without_the_key(caplog):
     assert company["sector"]  # served by the primary provider
     rec = next(r for r in caplog.records if r.name == "app.market")
     assert rec.status_code == 402 and rec.method == "company" and "test-key" not in rec.getMessage()
+
+
+def _day(date: str, o: float, h: float, lo: float, c: float, v: float = 100) -> dict[str, object]:
+    return {"symbol": "AAPL", "date": date, "open": o, "high": h, "low": lo, "close": c, "volume": v}
+
+
+def _ts(date: str) -> int:
+    return int(datetime.fromisoformat(date).replace(tzinfo=UTC).timestamp())
+
+
+# FMP returns newest first
+WEEKS = [
+    _day("2024-01-10", 12, 15, 11, 14, 30),  # Wed, week 2
+    _day("2024-01-09", 11, 13, 10, 12, 20),  # Tue, week 2
+    _day("2024-01-05", 10, 12, 9, 11, 40),  # Fri, week 1
+    _day("2024-01-02", 8, 11, 7, 10, 50),  # Tue, week 1
+    _day("2023-12-29", 7, 9, 6, 8, 60),  # Fri, December
+]
+
+
+def test_eod_candles_are_daily_bars_oldest_first_within_the_range():
+    p = provider({"/historical-price-eod/full": WEEKS})
+    bars = asyncio.run(p.eod_candles("AAPL", "D", _ts("2024-01-01"), _ts("2024-01-09")))
+    assert [(b["t"], b["o"], b["h"], b["l"], b["c"], b["v"]) for b in bars] == [
+        (_ts("2024-01-02"), 8, 11, 7, 10, 50),
+        (_ts("2024-01-05"), 10, 12, 9, 11, 40),
+        (_ts("2024-01-09"), 11, 13, 10, 12, 20),
+    ]
+
+
+@pytest.mark.parametrize(
+    ("resolution", "expected"),
+    [
+        # a week opens with its first day, closes with its last, and adds up the volume
+        ("W", [(_ts("2023-12-29"), 7, 9, 6, 8, 60), (_ts("2024-01-02"), 8, 12, 7, 11, 90), (_ts("2024-01-09"), 11, 15, 10, 14, 50)]),
+        ("M", [(_ts("2023-12-29"), 7, 9, 6, 8, 60), (_ts("2024-01-02"), 8, 15, 7, 14, 140)]),
+    ],
+)
+def test_eod_candles_roll_up_to_weeks_and_months(resolution, expected):
+    p = provider({"/historical-price-eod/full": WEEKS})
+    bars = asyncio.run(p.eod_candles("AAPL", resolution, _ts("2023-12-01"), _ts("2024-02-01")))
+    assert [(b["t"], b["o"], b["h"], b["l"], b["c"], b["v"]) for b in bars] == expected
+
+
+def test_eod_candles_skip_rows_they_cannot_read_instead_of_failing():
+    rows = [_day("2024-01-02", 8, 11, 7, 10), {"date": "2024-01-03"}, {"date": "bad", "open": 1, "high": 1, "low": 1, "close": 1}, "x", None,
+            {**_day("2024-01-04", 9, 9, 9, 9), "volume": None}]
+    p = provider({"/historical-price-eod/full": rows})
+    bars = asyncio.run(p.eod_candles("AAPL", "D", _ts("2024-01-01"), _ts("2024-02-01")))
+    assert [(b["t"], b["v"]) for b in bars] == [(_ts("2024-01-02"), 100), (_ts("2024-01-04"), 0.0)]
+
+
+@pytest.mark.parametrize("body", [[], {"Error Message": "Limit Reach"}, "oops"])
+def test_eod_candles_of_an_unknown_symbol_or_a_strange_reply_are_empty(body):
+    p = provider({"/historical-price-eod/full": body})
+    assert asyncio.run(p.eod_candles("NOPE", "D", _ts("2024-01-01"), _ts("2024-02-01"))) == []
+
+
+def test_eod_candles_refuse_intraday_resolutions():
+    with pytest.raises(ValueError, match="no '60' bars"):
+        asyncio.run(provider({}).eod_candles("AAPL", "60", 0, 1))
+
+
+def test_eod_candles_raise_when_the_plan_refuses_so_the_router_falls_back():
+    with pytest.raises(httpx.HTTPStatusError):
+        asyncio.run(provider({}, status=402).eod_candles("AAPL", "D", _ts("2024-01-01"), _ts("2024-02-01")))

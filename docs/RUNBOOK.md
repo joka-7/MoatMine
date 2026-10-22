@@ -44,7 +44,7 @@ Symptom: `/health/worker` returns 503, or alerts stop appearing.
   (`app/market/retry.py`). Past that:
   - quotes that still fail mark holdings `stale` (priced at cost) and the dashboard says so;
   - `/stocks/*` routes that need a price return 502 with the reason;
-  - Finnhub candles fall back to sample data, labelled `mock-fallback` in every result built on them.
+  - Finnhub candles (a plan without `/stock/candle`) fall back to FMP's end-of-day bars when `FMP_API_KEY` is set, labelled `finnhub+fmp`; daily, weekly and monthly ranges only. With no FMP key, an FMP failure (402/429/5xx, logged as `fmp candles failed`), or an intraday range, they fall back to sample data, labelled `mock-fallback` in every result built on them.
   Nothing to do but wait, or check the provider's status page and your plan's limits.
 - **A Finnhub 401/403.** The key is wrong or the endpoint isn't on your plan. Retries don't help
   (`app/market/retry.py` treats them as final). Check `FINNHUB_API_KEY` in the
