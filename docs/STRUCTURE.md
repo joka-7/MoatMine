@@ -192,7 +192,8 @@ MoatMine/
 │   │   │   └── icon.png
 │   │   ├── src/                                  # Rust entry points
 │   │   │   ├── lib.rs                            # Thin shell: opens the static-exported UI; no business logic
-│   │   │   └── main.rs                           # Binary entry point calling lib::run()
+│   │   │   ├── main.rs                           # Binary entry point calling lib::run()
+│   │   │   └── oauth.rs
 │   │   ├── Cargo.lock                            # Pinned Rust dependencies
 │   │   ├── Cargo.toml                            # Rust crate for the Tauri shell
 │   │   ├── build.rs                              # Tauri-build hook
@@ -247,6 +248,7 @@ MoatMine/
 │   ├── .structure-notes.toml                     # Hand-written notes for this tree, for files that can't describe themselves
 │   ├── HLD.md                                    # MoatMine — High-Level Design
 │   ├── LLD.md                                    # MoatMine — Low-Level Design
+│   ├── LOCAL-FIRST.md                            # Local-first MoatMine: design proposal
 │   ├── RUNBOOK.md                                # MoatMine runbook
 │   └── STRUCTURE.md                              # Repository structure
 ├── web/                                          # Next.js UI, static-exported for GitHub Pages and the desktop app
@@ -350,6 +352,8 @@ MoatMine/
 │   │   │   ├── firebase.ts                       # Firebase app and Auth from the NEXT_PUBLIC_FIREBASE_* settings; detects the…
 │   │   │   ├── format.test.ts
 │   │   │   ├── format.ts                         # Money, number, percent, date and tone formatters (en-US)
+│   │   │   ├── googleApp.test.ts
+│   │   │   ├── googleApp.ts
 │   │   │   ├── theme.test.tsx
 │   │   │   ├── theme.tsx
 │   │   │   ├── useApi.test.ts

@@ -34,6 +34,7 @@ Every file: [`docs/STRUCTURE.md`](docs/STRUCTURE.md).
 How it fits together: [`docs/HLD.md`](docs/HLD.md) (components, flows, storage, config).
 Contracts and the logic that isn't obvious: [`docs/LLD.md`](docs/LLD.md).
 Every page at desktop and phone width: [`docs/screenshots/`](docs/screenshots/).
+Proposal, not built: keeping each user's portfolio on their own devices: [`docs/LOCAL-FIRST.md`](docs/LOCAL-FIRST.md).
 Operating it (health checks, rollbacks, backups, `FERNET_KEY` rotation, outages): [`docs/RUNBOOK.md`](docs/RUNBOOK.md).
 
 ## Features
@@ -179,9 +180,14 @@ The API checks every request's Firebase ID token against Google's public keys, f
 
 With the Firebase settings present, the whole app sits behind sign-in (email and password, or Google in a browser), and every API call sends the user's Firebase ID token (`authToken()` in `web/src/lib/api.ts`). Vercel also works (import the repo with root directory `web` and set the same values as `NEXT_PUBLIC_*` variables), but nothing needs it.
 
+**Google sign-in in the desktop and Android apps.** Google refuses its popup in an app window, so the app opens the system browser, gets the result back (a loopback request on desktop, a deep link on Android) and signs in to Firebase with Google's ID token (`web/src/lib/googleApp.ts`, `desktop/src-tauri/src/oauth.rs`). Without the settings below the apps show email and password only. Once, in the Google Cloud project behind your Firebase project (APIs & Services → Credentials → Create credentials → OAuth client ID):
+1. **Desktop app** client → repository variable `GOOGLE_DESKTOP_CLIENT_ID` and repository *secret* `GOOGLE_DESKTOP_CLIENT_SECRET`. Google requires the secret for this client type and does not treat it as confidential, but it ends up in every installer.
+2. **Android** client with package name `app.moatmine.desktop` and the SHA-1 of the key that signs the APK (`keytool -list -v -keystore <keystore> -alias moatmine`; with no keystore secrets the APK is signed with a throwaway key whose SHA-1 changes every build) → repository variable `GOOGLE_ANDROID_CLIENT_ID`.
+3. If Firebase rejects the sign-in (`auth/invalid-credential`), add both client IDs under Firebase console → Authentication → Sign-in method → Google → Safelist client IDs from external projects.
+
 **Desktop.** For a local installer build, set `NEXT_PUBLIC_API_URL` and the `NEXT_PUBLIC_FIREBASE_*` values before `npm run build` so it points at Render and signs in with Firebase; the release workflow does this from the repository variables. Users can also change the API URL in Settings.
 
-The desktop CSP in `desktop/src-tauri/tauri.conf.json` allows the API on `*.onrender.com` and Firebase's sign-in endpoints (`identitytoolkit.googleapis.com`, `securetoken.googleapis.com`). If your API isn't on `*.onrender.com`, add its domain to `connect-src` (or narrow `*.onrender.com` to your API host if users won't point the app elsewhere).
+The desktop CSP in `desktop/src-tauri/tauri.conf.json` allows the API on `*.onrender.com`, Firebase's sign-in endpoints (`identitytoolkit.googleapis.com`, `securetoken.googleapis.com`) and Google's token endpoint (`oauth2.googleapis.com`, for Google sign-in). If your API isn't on `*.onrender.com`, add its domain to `connect-src` (or narrow `*.onrender.com` to your API host if users won't point the app elsewhere).
 
 The production `csp` has no `'unsafe-inline'` for scripts: Tauri hashes each inline script of the static export into the policy at build time. `devCsp` (used by `npm run dev`) keeps `'unsafe-inline'` and `http://localhost:8000` for the Next dev server and a local API.
 

@@ -121,5 +121,6 @@ order matters:
 | Secret | Where it lives | If it leaks |
 |---|---|---|
 | `FIREBASE_*` | Firebase console | Nothing secret here: the API holds only the project id, and the web the public web-app settings. Protect the Firebase console account itself (two-factor sign-in) |
+| `GOOGLE_DESKTOP_CLIENT_SECRET` (repository secret), `GOOGLE_DESKTOP_CLIENT_ID`, `GOOGLE_ANDROID_CLIENT_ID` | Google Cloud console → Credentials | The desktop secret is inside every installer by design, so a leak changes nothing; to rotate, reset it in the console, update the secret and cut a release. Without these the apps offer email and password only |
 | `FINNHUB_API_KEY`, `FMP_API_KEY`, `*_API_KEY` (AI) | The provider's dashboard | Regenerate there, update the env group, redeploy |
 | MCP tokens | `mcp_tokens` (hashes only) | Users revoke them in Settings → AI |

@@ -6,6 +6,9 @@ API share one version.
 
 ## [Unreleased]
 
+### Added
+- Google sign-in in the desktop and Android apps, through the system browser, once a Google OAuth client is configured (see the README). Until then the apps keep offering email and password only.
+
 ## [0.4.0] - 2026-10-21
 
 ### Added
