@@ -7,7 +7,7 @@ Contracts and the logic that isn't obvious, as built. Each section names the
 
 | Contract | Kind | Implementations / users | Implements (HLD) |
 |---|---|---|---|
-| `MarketProvider` (`app/market/base.py`) | `Protocol`: `quote`, `candles`, `metrics`, `news`, `profile`, `search`, `company`, `earnings`, `recommendations`, `price_target`, `dividends`, `splits`, `fundamentals`, `history` | `MockProvider`, `FinnhubProvider`, `RoutedProvider` (primary + optional `FMPProvider`) | Static view: market data; NFR: runs without keys |
+| `MarketProvider` (`app/market/base.py`) | `Protocol`: `quote`, `candles`, `metrics`, `news`, `profile`, `search`, `company`, `earnings`, `recommendations`, `price_target`, `dividends`, `splits`, `fundamentals`, `history` | `MockProvider`, `FinnhubProvider` (also `live_candles` → bars, `[]` or None when its plan refuses, and `sample_candles`), `RoutedProvider` (primary + optional `FMPProvider`; `candles` goes primary → FMP end-of-day (`eod_candles`, daily/weekly/monthly, cached 6 h per symbol and year) → sample bars) | Static view: market data; NFR: runs without keys |
 | `Quote`, `Candle`, `NewsItem` | `TypedDict` | Returned by every provider | Data validation / I/O |
 | `Rules`, `Candidate`, `Book` (`app/safety/check.py`) | frozen dataclasses | Input to the pure `check_buy` | Functional: buy check |
 | `StockFacts` (`app/safety/score.py`) | frozen dataclass | Input to the pure `safety_score` | Functional: safety score |
