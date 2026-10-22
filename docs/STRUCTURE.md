@@ -346,6 +346,18 @@ MoatMine/
 │   │   │   │   ├── progress.test.ts
 │   │   │   │   ├── progress.ts
 │   │   │   │   └── types.ts
+│   │   │   ├── store/
+│   │   │   │   ├── backend.ts
+│   │   │   │   ├── index.ts
+│   │   │   │   ├── indexeddb.test.ts
+│   │   │   │   ├── indexeddb.ts
+│   │   │   │   ├── memory.ts
+│   │   │   │   ├── store.test.ts
+│   │   │   │   ├── store.ts
+│   │   │   │   ├── testing.ts
+│   │   │   │   ├── types.ts
+│   │   │   │   ├── validate.test.ts
+│   │   │   │   └── validate.ts
 │   │   │   ├── api-schema.ts                     # Types generated from openapi.json (npm run gen:api); don't edit
 │   │   │   ├── api.ts                            # API client (Firebase ID token or dev token), error type, and the response…
 │   │   │   ├── dataSource.test.ts                # Which data-source labels count as sample data
