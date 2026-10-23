@@ -5,19 +5,23 @@ import { useState } from "react";
 import BookToggle from "@/components/BookToggle";
 import SymbolSearch from "@/components/SymbolSearch";
 import { CheckView } from "@/components/SafetyBits";
-import { Account, api, CheckResult, Portfolio } from "@/lib/api";
+import { Account, CheckResult, Portfolio } from "@/lib/api";
+import { addAccount, addHolding, getPortfolio, listAccounts, LOCAL_BOOK, removeAccount, removeHolding } from "@/lib/data/portfolio";
 import { date, money, pct, tone } from "@/lib/format";
 import { useI18n, type I18n } from "@/lib/i18n";
-import { useApi } from "@/lib/useApi";
+import { useLocalMode } from "@/lib/localMode";
+import { useLoader } from "@/lib/useLoader";
 import { useBookMode } from "@/lib/useBookMode";
 
 const accountLabel = (a: Account, t: I18n["t"]) => (a.broker === "paper" ? t("dashboard.portfolio.paperAccount", { name: a.name }) : a.name);
 
 export default function PortfolioPage() {
   const { t, lang } = useI18n();
-  const [mode, setMode] = useBookMode();
-  const { data: p, reload, error } = useApi<Portfolio>(`/portfolio?mode=${mode}`);
-  const { data: accounts, reload: reloadAccounts } = useApi<Account[]>("/accounts");
+  const [chosenMode, setMode] = useBookMode();
+  const { on: local, ready } = useLocalMode();
+  const mode = local ? LOCAL_BOOK : chosenMode;
+  const { data: p, reload, error } = useLoader<Portfolio>(ready ? () => getPortfolio(mode, local) : null, `portfolio:${mode}:${local}`);
+  const { data: accounts, reload: reloadAccounts } = useLoader<Account[]>(ready ? () => listAccounts(local) : null, `accounts:${local}`);
   const [err, setErr] = useState<string | null>(null);
   const [lastCheck, setLastCheck] = useState<CheckResult | null>(null);
   const [acc, setAcc] = useState({ name: "", broker: "manual", currency: "USD", cash: "" });
@@ -43,19 +47,19 @@ export default function PortfolioPage() {
                   <tr key={a.id}>
                     <td>{a.name}</td><td className="sub">{a.broker}</td><td className="n">{money(a.cash, a.currency)}</td>
                     <td style={{ textAlign: "end" }}>
-                      <button className="btn sm" onClick={() => confirm(t("dashboard.portfolio.confirmDelete", { name: a.name })) && run(() => api(`/accounts/${a.id}`, { method: "DELETE" }))}>{t("common.delete")}</button>
+                      <button className="btn sm" onClick={() => confirm(t("dashboard.portfolio.confirmDelete", { name: a.name })) && run(() => removeAccount(a.id))}>{t("common.delete")}</button>
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
-          <form className="row" style={{ marginTop: 12 }} onSubmit={(e) => { e.preventDefault(); run(async () => { await api("/accounts", { method: "POST", json: { ...acc, cash: +acc.cash || 0 } }); setAcc({ ...acc, name: "", cash: "" }); }); }}>
+          <form className="row" style={{ marginTop: 12 }} onSubmit={(e) => { e.preventDefault(); run(async () => { await addAccount({ ...acc, cash: +acc.cash || 0 }); setAcc({ ...acc, name: "", cash: "" }); }); }}>
             <label className="f">{t("dashboard.portfolio.name")}<input required value={acc.name} onChange={(e) => setAcc({ ...acc, name: e.target.value })} placeholder={t("dashboard.portfolio.namePlaceholder")} /></label>
             <label className="f">{t("dashboard.portfolio.type")}
               <select value={acc.broker === "paper" ? "paper" : "manual"} onChange={(e) => setAcc({ ...acc, broker: e.target.value })}>
                 <option value="manual">{t("dashboard.portfolio.typeReal")}</option>
-                <option value="paper">{t("dashboard.portfolio.typePaper")}</option>
+                {!local && <option value="paper">{t("dashboard.portfolio.typePaper")}</option>}
               </select>
             </label>
             <label className="f">{t("common.cash")}<input type="number" step="any" value={acc.cash} onChange={(e) => setAcc({ ...acc, cash: e.target.value })} /></label>
@@ -67,10 +71,10 @@ export default function PortfolioPage() {
         <div className="card">
           <h2>{t("dashboard.portfolio.addHolding")}</h2>
           <form className="grid" onSubmit={(e) => { e.preventDefault(); run(async () => {
-            const out = await api<{ id: number; check: CheckResult }>("/holdings", { method: "POST", json: {
-              account_id: +h.account_id, symbol: h.symbol, quantity: +h.quantity, avg_cost: +h.avg_cost,
+            const out = await addHolding({
+              account_id: local ? h.account_id : +h.account_id, symbol: h.symbol, quantity: +h.quantity, avg_cost: +h.avg_cost,
               ...(h.opened_at ? { opened_at: new Date(h.opened_at).toISOString() } : {}),
-            } });
+            });
             setLastCheck(out.check);
             setH({ ...h, symbol: "", quantity: "", avg_cost: "" });
           }); }}>
@@ -107,7 +111,7 @@ export default function PortfolioPage() {
       <div className="card">
         <div className="row" style={{ justifyContent: "space-between", marginBottom: 8 }}>
           <h2 style={{ margin: 0 }}>{t("dashboard.portfolio.positions")}</h2>
-          <BookToggle mode={mode} onChange={setMode} />
+          {!local && <BookToggle mode={mode} onChange={setMode} />}
         </div>
         <div className="scroll-x">
           <table>
@@ -125,7 +129,7 @@ export default function PortfolioPage() {
                   <td className="n">{money(r.value)}</td>
                   <td className={`n ${tone(r.pnl)}`}>{money(r.pnl)} <span className="sub">{pct(r.pnl_pct)}</span></td>
                   <td className="sub">{date(r.opened_at, lang)}</td>
-                  <td style={{ textAlign: "end" }}><button className="btn sm" onClick={() => run(() => api(`/holdings/${r.id}`, { method: "DELETE" }))}>{t("common.remove")}</button></td>
+                  <td style={{ textAlign: "end" }}><button className="btn sm" onClick={() => run(() => removeHolding(r.id))}>{t("common.remove")}</button></td>
                 </tr>
               ))}
             </tbody>

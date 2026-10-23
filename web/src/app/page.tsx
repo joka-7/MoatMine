@@ -10,15 +10,20 @@ import NewsFeed from "@/components/NewsFeed";
 import SymbolSearch from "@/components/SymbolSearch";
 import ValueChart from "@/components/ValueChart";
 import { Evaluation, Portfolio, RiskProfile } from "@/lib/api";
+import { getPortfolio, LOCAL_BOOK } from "@/lib/data/portfolio";
 import { money, pct, tone } from "@/lib/format";
 import { useI18n } from "@/lib/i18n";
+import { useLocalMode } from "@/lib/localMode";
 import { useApi } from "@/lib/useApi";
+import { useLoader } from "@/lib/useLoader";
 import { useBookMode } from "@/lib/useBookMode";
 import { useIntroSeen } from "@/lib/useIntroSeen";
 
 export default function Dashboard() {
-  const [mode, setMode] = useBookMode();
-  const { data: p, error } = useApi<Portfolio>(`/portfolio?mode=${mode}`);
+  const [chosenMode, setMode] = useBookMode();
+  const { on: local, ready } = useLocalMode();
+  const mode = local ? LOCAL_BOOK : chosenMode;
+  const { data: p, error } = useLoader<Portfolio>(ready ? () => getPortfolio(mode, local) : null, `portfolio:${mode}:${local}`);
   const { data: evals } = useApi<Evaluation[]>("/targets/evaluate");
   const { data: profile } = useApi<RiskProfile>("/safety/profile");
   const totals = p?.totals;
@@ -35,7 +40,7 @@ export default function Dashboard() {
       <div className="topbar">
         <h1>{t("dashboard.title")}</h1>
         <div className="row" style={{ flex: "0 1 auto" }}>
-          <BookToggle mode={mode} onChange={setMode} />
+          {!local && <BookToggle mode={mode} onChange={setMode} />}
           <SymbolSearch />
           <AlertsBell />
         </div>
@@ -64,7 +69,7 @@ export default function Dashboard() {
       </div>
 
       <div className="grid g3" style={{ marginBottom: 16 }}>
-        <div className="span2"><ValueChart mode={mode} /></div>
+        <div className="span2">{!local && <ValueChart mode={mode} />}</div>
         <div className="card">
           <h2>{t("dashboard.allocation")}</h2>
           {p && <AllocationPie holdings={p.holdings} cash={p.totals.cash} />}

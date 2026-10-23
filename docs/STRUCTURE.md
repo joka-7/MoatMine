@@ -330,6 +330,8 @@ MoatMine/
 │   │   │   ├── data/
 │   │   │   │   ├── notes.test.ts
 │   │   │   │   ├── notes.ts
+│   │   │   │   ├── portfolio.test.ts
+│   │   │   │   ├── portfolio.ts
 │   │   │   │   ├── watchlist.test.ts
 │   │   │   │   └── watchlist.ts
 │   │   │   ├── i18n/                             # English and Hebrew: LanguageProvider/useI18n, one messages module per area,…
