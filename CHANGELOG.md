@@ -10,6 +10,7 @@ API share one version.
 - Charts and the numbers built on them use real daily, weekly and monthly prices from FMP when Finnhub's plan has no candles and `FMP_API_KEY` is set. Intraday ranges still show sample data.
 
 ### Added
+- Settings → "Keep my data on this device": an opt-in switch that stores the watchlist and stock notes in this browser or app instead of on the server, with export and import of one JSON file. Off by default; the other screens still use the server.
 - On-device portfolio store (`web/src/lib/store/`): typed collections over IndexedDB, validated JSON export/import and merge rules. Not wired to any screen yet; the first step of keeping the portfolio on the user's device (see `docs/LOCAL-FIRST.md`).
 - Google sign-in in the desktop and Android apps, through the system browser, once a Google OAuth client is configured (see the README). Until then the apps keep offering email and password only.
 

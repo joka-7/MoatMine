@@ -3,14 +3,17 @@
 import Link from "next/link";
 import { useState } from "react";
 import SymbolSearch from "@/components/SymbolSearch";
-import { api, WatchRow } from "@/lib/api";
+import { WatchRow } from "@/lib/api";
+import { addWatch, listWatch, removeWatch } from "@/lib/data/watchlist";
 import { money, pct, tone } from "@/lib/format";
 import { useI18n } from "@/lib/i18n";
-import { useApi } from "@/lib/useApi";
+import { useLoader } from "@/lib/useLoader";
+import { useLocalMode } from "@/lib/localMode";
 
 export default function WatchlistPage() {
   const { t } = useI18n();
-  const { data, reload } = useApi<WatchRow[]>("/watchlist");
+  const { on: local, ready } = useLocalMode();
+  const { data, reload } = useLoader<WatchRow[]>(ready ? () => listWatch(local) : null, `watchlist:${local}`);
   const [err, setErr] = useState<string | null>(null);
   const [form, setForm] = useState({ symbol: "", note: "", alert_above: "", alert_below: "" });
 
@@ -27,7 +30,7 @@ export default function WatchlistPage() {
       <div className="card" style={{ marginBottom: 16 }}>
         <h2>{t("dashboard.watch.add")}</h2>
         <form className="row" onSubmit={(e) => { e.preventDefault(); run(async () => {
-          await api("/watchlist", { method: "POST", json: { symbol: form.symbol, note: form.note, alert_above: n(form.alert_above), alert_below: n(form.alert_below) } });
+          await addWatch({ symbol: form.symbol, note: form.note, alert_above: n(form.alert_above), alert_below: n(form.alert_below) });
           setForm({ symbol: "", note: "", alert_above: "", alert_below: "" });
         }); }}>
           <label className="f">{t("common.symbol")} {form.symbol && <b className="sym" style={{ color: "var(--accent)" }}>{form.symbol}</b>}
@@ -55,7 +58,7 @@ export default function WatchlistPage() {
                     <td className="n">{w.alert_above ?? "—"}</td>
                     <td className="n">{w.alert_below ?? "—"}</td>
                     <td className="sub">{w.note}</td>
-                    <td style={{ textAlign: "end" }}><button className="btn sm" onClick={() => run(() => api(`/watchlist/${w.id}`, { method: "DELETE" }))}>{t("common.remove")}</button></td>
+                    <td style={{ textAlign: "end" }}><button className="btn sm" onClick={() => run(() => removeWatch(w.id))}>{t("common.remove")}</button></td>
                   </tr>
                 );
               })}
