@@ -298,6 +298,7 @@ MoatMine/
 │   │   │   ├── BadTimesPanel.tsx                 # Crisis drawdowns vs a benchmark and the stock's worst falls
 │   │   │   ├── BookToggle.tsx                    # Real money / Paper switch and the paper-mode notice
 │   │   │   ├── ChatPanel.tsx                     # Agent chat with model picker, tool use and suggestions
+│   │   │   ├── DeviceDataCard.tsx
 │   │   │   ├── LanguageSwitch.tsx
 │   │   │   ├── LearnModuleView.tsx
 │   │   │   ├── MoatCard.tsx                      # Moat grade: return on capital, margin stability, growth over the years
@@ -316,6 +317,11 @@ MoatMine/
 │   │   │   ├── ValuationPanel.tsx                # Fair-value models with editable assumptions
 │   │   │   └── ValueChart.tsx                    # Holdings value over time for one book
 │   │   ├── lib/                                  # API client, formatters and hooks
+│   │   │   ├── data/
+│   │   │   │   ├── notes.test.ts
+│   │   │   │   ├── notes.ts
+│   │   │   │   ├── watchlist.test.ts
+│   │   │   │   └── watchlist.ts
 │   │   │   ├── i18n/                             # English and Hebrew: LanguageProvider/useI18n, one messages module per area,…
 │   │   │   │   ├── messages/
 │   │   │   │   │   ├── ai.ts
@@ -352,6 +358,7 @@ MoatMine/
 │   │   │   │   ├── indexeddb.test.ts
 │   │   │   │   ├── indexeddb.ts
 │   │   │   │   ├── memory.ts
+│   │   │   │   ├── shared.ts
 │   │   │   │   ├── store.test.ts
 │   │   │   │   ├── store.ts
 │   │   │   │   ├── testing.ts
@@ -367,6 +374,7 @@ MoatMine/
 │   │   │   ├── format.ts                         # Money, number, percent, date and tone formatters (en-US)
 │   │   │   ├── googleApp.test.ts
 │   │   │   ├── googleApp.ts
+│   │   │   ├── localMode.ts
 │   │   │   ├── theme.test.tsx
 │   │   │   ├── theme.tsx
 │   │   │   ├── useApi.test.ts
@@ -375,7 +383,8 @@ MoatMine/
 │   │   │   ├── useIntroSeen.test.ts
 │   │   │   ├── useIntroSeen.ts
 │   │   │   ├── useLearnProgress.test.ts
-│   │   │   └── useLearnProgress.ts
+│   │   │   ├── useLearnProgress.ts
+│   │   │   └── useLoader.ts
 │   │   └── copy.test.ts                          # Fails if any UI copy calls an investment safe or its returns guaranteed
 │   ├── .env.example                              # API URL and (optional) Firebase web-app settings
 │   ├── .gitignore                                # Next.js build output and local env files

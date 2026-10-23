@@ -92,8 +92,9 @@ export type Portfolio = {
   holdings: HoldingRow[];
   totals: { cash: number; invested_value: number; net_worth: number; cost: number; pnl: number; pnl_pct: number; day_change: number; unpriced: string[] };
 };
-export type WatchRow = { id: number; symbol: string; note: string; alert_above: number | null; alert_below: number | null; quote: Quote | null };
-export type Note = Schemas["NoteOut"];
+export type WatchRow = { id: number | string; symbol: string; note: string; alert_above: number | null; alert_below: number | null; quote: Quote | null };
+/** `id` is a number for notes on the server and a string for notes kept on this device. */
+export type Note = Omit<Schemas["NoteOut"], "id"> & { id: number | string };
 
 export type Intent = "growth" | "income" | "speculation" | "hedge" | "retirement" | "custom";
 export type Target = Schemas["TargetOut"];
