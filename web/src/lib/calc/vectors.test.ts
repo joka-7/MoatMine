@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import vectors from "../../../../backend/tests/vectors/calc.json";
 import type { Portfolio } from "../api";
+import { annualVolatilityPct } from "./analytics";
 import { buildSnapshot } from "./portfolio";
 import { checkBound, evaluateTarget } from "./targets";
 import type { CalcAccount, CalcHolding, CalcQuote, CalcTarget } from "./types";
@@ -29,5 +30,11 @@ describe("evaluateTarget", () => {
       period_target_days: null, period_min_days: null, period_max_days: null, risk_target: null, risk_min: null, risk_max: null,
       ...c.target } as CalcTarget;
     expect(evaluateTarget(target, snapshot, c.risks as Record<string, number | null>, new Date(c.now))).toEqual(c.expect);
+  });
+});
+
+describe("annualVolatilityPct", () => {
+  it.each(vectors.volatility.map((c) => [c.name, c] as const))("%s", (_name, c) => {
+    expect(annualVolatilityPct(c.closes)).toEqual(c.expect);
   });
 });

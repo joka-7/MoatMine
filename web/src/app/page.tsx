@@ -11,6 +11,7 @@ import SymbolSearch from "@/components/SymbolSearch";
 import ValueChart from "@/components/ValueChart";
 import { Evaluation, Portfolio, RiskProfile } from "@/lib/api";
 import { getPortfolio, LOCAL_BOOK } from "@/lib/data/portfolio";
+import { evaluateTargets } from "@/lib/data/targets";
 import { money, pct, tone } from "@/lib/format";
 import { useI18n } from "@/lib/i18n";
 import { useLocalMode } from "@/lib/localMode";
@@ -24,7 +25,7 @@ export default function Dashboard() {
   const { on: local, ready } = useLocalMode();
   const mode = local ? LOCAL_BOOK : chosenMode;
   const { data: p, error } = useLoader<Portfolio>(ready ? () => getPortfolio(mode, local) : null, `portfolio:${mode}:${local}`);
-  const { data: evals } = useApi<Evaluation[]>("/targets/evaluate");
+  const { data: evals } = useLoader<Evaluation[]>(ready ? () => evaluateTargets(local) : null, `evaluations:${local}`);
   const { data: profile } = useApi<RiskProfile>("/safety/profile");
   const totals = p?.totals;
   const { t } = useI18n();
