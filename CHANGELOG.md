@@ -10,6 +10,7 @@ API share one version.
 - Charts and the numbers built on them use real daily, weekly and monthly prices from FMP when Finnhub's plan has no candles and `FMP_API_KEY` is set. Intraday ranges still show sample data.
 
 ### Added
+- Targets (PAPI/MAMI) can also be kept on the device: with the Settings switch on they are saved there and evaluated in the app against the on-device portfolio, using a year of daily prices fetched by symbol. Volatility is computed in the app (checked against the Python on shared vectors) and is shown as unknown when only sample prices exist.
 - The on-device switch in Settings now also keeps real-money accounts and positions on the device: the dashboard and Portfolio page value them from the device's records plus live quotes by symbol. Paper accounts, the value chart and the add-position safety check stay server-only for now.
 - Portfolio valuation and target (PAPI/MAMI) evaluation ported to TypeScript (`web/src/lib/calc/`), checked against the Python on shared test vectors (`backend/tests/vectors/calc.json`). Not used by any screen yet; groundwork for keeping the whole portfolio on the device.
 - Settings → "Keep my data on this device": an opt-in switch that stores the watchlist and stock notes in this browser or app instead of on the server, with export and import of one JSON file. Off by default; the other screens still use the server.

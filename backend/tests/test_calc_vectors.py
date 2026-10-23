@@ -7,6 +7,7 @@ from typing import Any
 
 import pytest
 
+from app.analytics import annual_volatility_pct
 from app.models import Account, Holding, Target
 from app.portfolio import build_snapshot
 from app.targets import check_bound, evaluate
@@ -31,3 +32,8 @@ def test_build_snapshot(case: dict[str, Any]) -> None:
 def test_evaluate_target(case: dict[str, Any]) -> None:
     out = evaluate(Target(**case["target"]), SNAPSHOTS[case["snapshot"]]["expect"], case["risks"], datetime.fromisoformat(case["now"]))
     assert out == case["expect"]
+
+
+@pytest.mark.parametrize("case", VECTORS["volatility"], ids=lambda c: c["name"])
+def test_annual_volatility(case: dict[str, Any]) -> None:
+    assert annual_volatility_pct(case["closes"]) == case["expect"]

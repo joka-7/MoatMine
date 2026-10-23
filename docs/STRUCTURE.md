@@ -321,6 +321,7 @@ MoatMine/
 │   │   │   └── ValueChart.tsx                    # Holdings value over time for one book
 │   │   ├── lib/                                  # API client, formatters and hooks
 │   │   │   ├── calc/
+│   │   │   │   ├── analytics.ts
 │   │   │   │   ├── portfolio.ts
 │   │   │   │   ├── round.test.ts
 │   │   │   │   ├── round.ts
@@ -332,6 +333,8 @@ MoatMine/
 │   │   │   │   ├── notes.ts
 │   │   │   │   ├── portfolio.test.ts
 │   │   │   │   ├── portfolio.ts
+│   │   │   │   ├── targets.test.ts
+│   │   │   │   ├── targets.ts
 │   │   │   │   ├── watchlist.test.ts
 │   │   │   │   └── watchlist.ts
 │   │   │   ├── i18n/                             # English and Hebrew: LanguageProvider/useI18n, one messages module per area,…

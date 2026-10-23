@@ -98,7 +98,8 @@ export type WatchRow = { id: number | string; symbol: string; note: string; aler
 export type Note = Omit<Schemas["NoteOut"], "id"> & { id: number | string };
 
 export type Intent = "growth" | "income" | "speculation" | "hedge" | "retirement" | "custom";
-export type Target = Schemas["TargetOut"];
+/** `id` is a number for targets on the server and a string for targets kept on this device. */
+export type Target = Omit<Schemas["TargetOut"], "id"> & { id: number | string };
 export type CheckStatus = "ok" | "reached" | "below_min" | "above_max" | "unset" | "no_data";
 export type Check = { value: number | null; target: number | null; min: number | null; max: number | null; status: CheckStatus; progress_pct: number | null };
 export type Evaluation = {
