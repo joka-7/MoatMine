@@ -51,6 +51,7 @@ export default function DeviceDataCard() {
     <div className="card">
       <h2>{t("device.title")}</h2>
       <p className="sub">{t("device.body")}</p>
+      <p className="sub">{t("device.limits")}</p>
       <label className="row" style={{ alignItems: "center", gap: 8 }}>
         <input type="checkbox" checked={on} disabled={!ready} onChange={(e) => toggle(e.target.checked)} />
         {t("device.toggle")}
