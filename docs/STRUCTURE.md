@@ -145,11 +145,14 @@ MoatMine/
 │   │   ├── env.py                                # Alembic environment: runs migrations against the app's own DATABASE_URL.
 │   │   └── script.py.mako                        # Template for new Alembic revisions
 │   ├── tests/                                    # Pytest suite (SQLite, mock market data, no network)
+│   │   ├── vectors/
+│   │   │   └── calc.json
 │   │   ├── conftest.py                           # Test app on a throwaway SQLite DB (migrated), mock market data,…
 │   │   ├── test_analytics.py                     # Price-derived ratios with hand-checkable numbers.
 │   │   ├── test_api.py                           # End-to-end API: portfolio, stock data, notes, targets, worker alerts, AI…
 │   │   ├── test_auth.py                          # Firebase ID token verification, with a locally generated key standing in for…
 │   │   ├── test_cache.py                         # The TTL cache: expiry, eviction order, lock pruning and per-key single flight…
+│   │   ├── test_calc_vectors.py                  # Portfolio and target maths against the vectors shared with the TypeScript…
 │   │   ├── test_config.py                        # Settings refuse dev auth on Postgres and incomplete Firebase or Fernet config
 │   │   ├── test_crises.py                        # Crisis drawdown/recovery and worst-drawdown maths on hand-built bars
 │   │   ├── test_crypto.py                        # Encryption round trips, tampering, masking, MCP token hashing
@@ -317,6 +320,13 @@ MoatMine/
 │   │   │   ├── ValuationPanel.tsx                # Fair-value models with editable assumptions
 │   │   │   └── ValueChart.tsx                    # Holdings value over time for one book
 │   │   ├── lib/                                  # API client, formatters and hooks
+│   │   │   ├── calc/
+│   │   │   │   ├── portfolio.ts
+│   │   │   │   ├── round.test.ts
+│   │   │   │   ├── round.ts
+│   │   │   │   ├── targets.ts
+│   │   │   │   ├── types.ts
+│   │   │   │   └── vectors.test.ts
 │   │   │   ├── data/
 │   │   │   │   ├── notes.test.ts
 │   │   │   │   ├── notes.ts

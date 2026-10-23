@@ -80,9 +80,10 @@ type Schemas = components["schemas"];
 export type Quote = Schemas["QuoteOut"];
 export type Candle = Schemas["CandleOut"];
 export type NewsItem = { headline: string; summary: string; url: string; source: string; datetime: number; image: string };
-export type Account = Schemas["AccountOut"];
+/** `id` is a number for accounts on the server and a string for accounts kept on this device. */
+export type Account = Omit<Schemas["AccountOut"], "id"> & { id: number | string };
 export type HoldingRow = {
-  id: number; account_id: number; symbol: string; quantity: number; avg_cost: number; price: number;
+  id: number | string; account_id: number | string; symbol: string; quantity: number; avg_cost: number; price: number;
   value: number; cost: number; pnl: number; pnl_pct: number; day_change_pct: number; weight_pct: number;
   opened_at: string; stale: boolean;
 };
@@ -101,7 +102,7 @@ export type Target = Schemas["TargetOut"];
 export type CheckStatus = "ok" | "reached" | "below_min" | "above_max" | "unset" | "no_data";
 export type Check = { value: number | null; target: number | null; min: number | null; max: number | null; status: CheckStatus; progress_pct: number | null };
 export type Evaluation = {
-  target_id: number; name: string; symbol: string | null; breaches: string[];
+  target_id: number | string; name: string; symbol: string | null; breaches: string[];
   checks: { profit: Check; amount: Check; period: Check; intent: Check & { intent: Intent; note: string } };
 };
 export type Alert = Schemas["AlertOut"];
