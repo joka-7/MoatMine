@@ -1,0 +1,1042 @@
+{
+ "_about": "Shared by backend/tests/test_calc_vectors.py and web/src/lib/calc/*.test.ts; both must produce `expect` from the inputs.",
+ "checkBound": [
+  {
+   "name": "no value",
+   "value": null,
+   "target": 10,
+   "min": 1,
+   "max": 20,
+   "expect": {
+    "value": null,
+    "target": 10,
+    "min": 1,
+    "max": 20,
+    "status": "no_data",
+    "progress_pct": null
+   }
+  },
+  {
+   "name": "below min",
+   "value": 4,
+   "target": null,
+   "min": 5,
+   "max": 10,
+   "expect": {
+    "value": 4,
+    "target": null,
+    "min": 5,
+    "max": 10,
+    "status": "below_min",
+    "progress_pct": null
+   }
+  },
+  {
+   "name": "above max",
+   "value": 11,
+   "target": null,
+   "min": 5,
+   "max": 10,
+   "expect": {
+    "value": 11,
+    "target": null,
+    "min": 5,
+    "max": 10,
+    "status": "above_max",
+    "progress_pct": null
+   }
+  },
+  {
+   "name": "exactly at min is ok",
+   "value": 5,
+   "target": null,
+   "min": 5,
+   "max": 10,
+   "expect": {
+    "value": 5,
+    "target": null,
+    "min": 5,
+    "max": 10,
+    "status": "ok",
+    "progress_pct": null
+   }
+  },
+  {
+   "name": "exactly at max is ok",
+   "value": 10,
+   "target": null,
+   "min": 5,
+   "max": 10,
+   "expect": {
+    "value": 10,
+    "target": null,
+    "min": 5,
+    "max": 10,
+    "status": "ok",
+    "progress_pct": null
+   }
+  },
+  {
+   "name": "nothing set",
+   "value": 3,
+   "target": null,
+   "min": null,
+   "max": null,
+   "expect": {
+    "value": 3,
+    "target": null,
+    "min": null,
+    "max": null,
+    "status": "unset",
+    "progress_pct": null
+   }
+  },
+  {
+   "name": "reached the target",
+   "value": 12,
+   "target": 10,
+   "min": null,
+   "max": 20,
+   "expect": {
+    "value": 12,
+    "target": 10,
+    "min": null,
+    "max": 20,
+    "status": "reached",
+    "progress_pct": 120.0
+   }
+  },
+  {
+   "name": "short of the target",
+   "value": 4,
+   "target": 10,
+   "min": null,
+   "max": 20,
+   "expect": {
+    "value": 4,
+    "target": 10,
+    "min": null,
+    "max": 20,
+    "status": "ok",
+    "progress_pct": 40.0
+   }
+  },
+  {
+   "name": "zero target has no progress",
+   "value": 4,
+   "target": 0,
+   "min": null,
+   "max": null,
+   "expect": {
+    "value": 4,
+    "target": 0,
+    "min": null,
+    "max": null,
+    "status": "reached",
+    "progress_pct": null
+   }
+  },
+  {
+   "name": "negative value progress",
+   "value": -5,
+   "target": 20,
+   "min": -10,
+   "max": null,
+   "expect": {
+    "value": -5,
+    "target": 20,
+    "min": -10,
+    "max": null,
+    "status": "ok",
+    "progress_pct": -25.0
+   }
+  },
+  {
+   "name": "progress rounds to one decimal",
+   "value": 1,
+   "target": 3,
+   "min": null,
+   "max": null,
+   "expect": {
+    "value": 1,
+    "target": 3,
+    "min": null,
+    "max": null,
+    "status": "ok",
+    "progress_pct": 33.3
+   }
+  }
+ ],
+ "snapshot": [
+  {
+   "name": "two priced holdings",
+   "mode": "real",
+   "accounts": [
+    {
+     "id": 1,
+     "name": "Main",
+     "broker": "manual",
+     "currency": "USD",
+     "cash": 500.0
+    }
+   ],
+   "holdings": [
+    {
+     "id": 1,
+     "account_id": 1,
+     "symbol": "AAA",
+     "quantity": 10,
+     "avg_cost": 100.0,
+     "opened_at": "2026-01-01T00:00:00+00:00"
+    },
+    {
+     "id": 2,
+     "account_id": 1,
+     "symbol": "BBB",
+     "quantity": 5,
+     "avg_cost": 40.0,
+     "opened_at": "2026-02-01T00:00:00+00:00"
+    }
+   ],
+   "quotes": {
+    "AAA": {
+     "symbol": "X",
+     "price": 120.0,
+     "change": 6.0,
+     "change_pct": 5.26,
+     "prev_close": 114.0,
+     "ts": 0
+    },
+    "BBB": {
+     "symbol": "X",
+     "price": 30.0,
+     "change": -1.0,
+     "change_pct": -3.23,
+     "prev_close": 31.0,
+     "ts": 0
+    }
+   },
+   "expect": {
+    "mode": "real",
+    "accounts": [
+     {
+      "id": 1,
+      "name": "Main",
+      "broker": "manual",
+      "currency": "USD",
+      "cash": 500.0
+     }
+    ],
+    "holdings": [
+     {
+      "id": 1,
+      "account_id": 1,
+      "symbol": "AAA",
+      "quantity": 10,
+      "avg_cost": 100.0,
+      "price": 120.0,
+      "value": 1200.0,
+      "cost": 1000.0,
+      "pnl": 200.0,
+      "pnl_pct": 20.0,
+      "day_change_pct": 5.26,
+      "opened_at": "2026-01-01T00:00:00+00:00",
+      "stale": false,
+      "weight_pct": 88.89
+     },
+     {
+      "id": 2,
+      "account_id": 1,
+      "symbol": "BBB",
+      "quantity": 5,
+      "avg_cost": 40.0,
+      "price": 30.0,
+      "value": 150.0,
+      "cost": 200.0,
+      "pnl": -50.0,
+      "pnl_pct": -25.0,
+      "day_change_pct": -3.23,
+      "opened_at": "2026-02-01T00:00:00+00:00",
+      "stale": false,
+      "weight_pct": 11.11
+     }
+    ],
+    "totals": {
+     "cash": 500.0,
+     "invested_value": 1350.0,
+     "net_worth": 1850.0,
+     "cost": 1200.0,
+     "pnl": 150.0,
+     "pnl_pct": 12.5,
+     "day_change": 55.0,
+     "unpriced": []
+    }
+   }
+  },
+  {
+   "name": "holding with no quote is valued at cost and listed as unpriced",
+   "mode": "real",
+   "accounts": [
+    {
+     "id": 1,
+     "name": "Main",
+     "broker": "manual",
+     "currency": "USD",
+     "cash": 500.0
+    }
+   ],
+   "holdings": [
+    {
+     "id": 1,
+     "account_id": 1,
+     "symbol": "AAA",
+     "quantity": 10,
+     "avg_cost": 100.0,
+     "opened_at": "2026-01-01T00:00:00+00:00"
+    },
+    {
+     "id": 2,
+     "account_id": 1,
+     "symbol": "BBB",
+     "quantity": 5,
+     "avg_cost": 40.0,
+     "opened_at": "2026-02-01T00:00:00+00:00"
+    }
+   ],
+   "quotes": {
+    "AAA": {
+     "symbol": "X",
+     "price": 120.0,
+     "change": 6.0,
+     "change_pct": 5.26,
+     "prev_close": 114.0,
+     "ts": 0
+    }
+   },
+   "expect": {
+    "mode": "real",
+    "accounts": [
+     {
+      "id": 1,
+      "name": "Main",
+      "broker": "manual",
+      "currency": "USD",
+      "cash": 500.0
+     }
+    ],
+    "holdings": [
+     {
+      "id": 1,
+      "account_id": 1,
+      "symbol": "AAA",
+      "quantity": 10,
+      "avg_cost": 100.0,
+      "price": 120.0,
+      "value": 1200.0,
+      "cost": 1000.0,
+      "pnl": 200.0,
+      "pnl_pct": 20.0,
+      "day_change_pct": 5.26,
+      "opened_at": "2026-01-01T00:00:00+00:00",
+      "stale": false,
+      "weight_pct": 85.71
+     },
+     {
+      "id": 2,
+      "account_id": 1,
+      "symbol": "BBB",
+      "quantity": 5,
+      "avg_cost": 40.0,
+      "price": 40.0,
+      "value": 200.0,
+      "cost": 200.0,
+      "pnl": 0.0,
+      "pnl_pct": 0.0,
+      "day_change_pct": 0.0,
+      "opened_at": "2026-02-01T00:00:00+00:00",
+      "stale": true,
+      "weight_pct": 14.29
+     }
+    ],
+    "totals": {
+     "cash": 500.0,
+     "invested_value": 1400.0,
+     "net_worth": 1900.0,
+     "cost": 1200.0,
+     "pnl": 200.0,
+     "pnl_pct": 16.67,
+     "day_change": 60.0,
+     "unpriced": [
+      "BBB"
+     ]
+    }
+   }
+  },
+  {
+   "name": "empty book",
+   "mode": "paper",
+   "accounts": [
+    {
+     "id": 1,
+     "name": "Main",
+     "broker": "paper",
+     "currency": "USD",
+     "cash": 1000.0
+    }
+   ],
+   "holdings": [],
+   "quotes": {},
+   "expect": {
+    "mode": "paper",
+    "accounts": [
+     {
+      "id": 1,
+      "name": "Main",
+      "broker": "paper",
+      "currency": "USD",
+      "cash": 1000.0
+     }
+    ],
+    "holdings": [],
+    "totals": {
+     "cash": 1000.0,
+     "invested_value": 0.0,
+     "net_worth": 1000.0,
+     "cost": 0.0,
+     "pnl": 0.0,
+     "pnl_pct": 0.0,
+     "day_change": 0.0,
+     "unpriced": []
+    }
+   }
+  },
+  {
+   "name": "zero cost basis gives zero percent",
+   "mode": "real",
+   "accounts": [
+    {
+     "id": 1,
+     "name": "Main",
+     "broker": "manual",
+     "currency": "USD",
+     "cash": 500.0
+    }
+   ],
+   "holdings": [
+    {
+     "id": 1,
+     "account_id": 1,
+     "symbol": "AAA",
+     "quantity": 10,
+     "avg_cost": 0.0,
+     "opened_at": "2026-01-01T00:00:00+00:00"
+    }
+   ],
+   "quotes": {
+    "AAA": {
+     "symbol": "X",
+     "price": 5.0,
+     "change": 0.0,
+     "change_pct": 0.0,
+     "prev_close": 5.0,
+     "ts": 0
+    }
+   },
+   "expect": {
+    "mode": "real",
+    "accounts": [
+     {
+      "id": 1,
+      "name": "Main",
+      "broker": "manual",
+      "currency": "USD",
+      "cash": 500.0
+     }
+    ],
+    "holdings": [
+     {
+      "id": 1,
+      "account_id": 1,
+      "symbol": "AAA",
+      "quantity": 10,
+      "avg_cost": 0.0,
+      "price": 5.0,
+      "value": 50.0,
+      "cost": 0.0,
+      "pnl": 50.0,
+      "pnl_pct": 0.0,
+      "day_change_pct": 0.0,
+      "opened_at": "2026-01-01T00:00:00+00:00",
+      "stale": false,
+      "weight_pct": 100.0
+     }
+    ],
+    "totals": {
+     "cash": 500.0,
+     "invested_value": 50.0,
+     "net_worth": 550.0,
+     "cost": 0.0,
+     "pnl": 50.0,
+     "pnl_pct": 0.0,
+     "day_change": 0.0,
+     "unpriced": []
+    }
+   }
+  },
+  {
+   "name": "rounds half to even like Python",
+   "mode": "real",
+   "accounts": [
+    {
+     "id": 1,
+     "name": "Main",
+     "broker": "manual",
+     "currency": "USD",
+     "cash": 0.125
+    }
+   ],
+   "holdings": [
+    {
+     "id": 1,
+     "account_id": 1,
+     "symbol": "AAA",
+     "quantity": 1,
+     "avg_cost": 0.125,
+     "opened_at": "2026-01-01T00:00:00+00:00"
+    }
+   ],
+   "quotes": {
+    "AAA": {
+     "symbol": "X",
+     "price": 0.375,
+     "change": 0.0,
+     "change_pct": 0.0,
+     "prev_close": 0.375,
+     "ts": 0
+    }
+   },
+   "expect": {
+    "mode": "real",
+    "accounts": [
+     {
+      "id": 1,
+      "name": "Main",
+      "broker": "manual",
+      "currency": "USD",
+      "cash": 0.125
+     }
+    ],
+    "holdings": [
+     {
+      "id": 1,
+      "account_id": 1,
+      "symbol": "AAA",
+      "quantity": 1,
+      "avg_cost": 0.125,
+      "price": 0.375,
+      "value": 0.38,
+      "cost": 0.12,
+      "pnl": 0.25,
+      "pnl_pct": 200.0,
+      "day_change_pct": 0.0,
+      "opened_at": "2026-01-01T00:00:00+00:00",
+      "stale": false,
+      "weight_pct": 101.33
+     }
+    ],
+    "totals": {
+     "cash": 0.12,
+     "invested_value": 0.38,
+     "net_worth": 0.5,
+     "cost": 0.12,
+     "pnl": 0.25,
+     "pnl_pct": 200.0,
+     "day_change": 0.0,
+     "unpriced": []
+    }
+   }
+  }
+ ],
+ "evaluate": [
+  {
+   "name": "portfolio profit and amount in range",
+   "snapshot": "two priced holdings",
+   "target": {
+    "id": 1,
+    "name": "t",
+    "symbol": null,
+    "intent": "growth",
+    "intent_note": "",
+    "profit_min": 0,
+    "profit_max": 50,
+    "amount_min": 1000,
+    "amount_max": 3000
+   },
+   "risks": {},
+   "now": "2026-03-02T12:00:00+00:00",
+   "expect": {
+    "target_id": 1,
+    "name": "t",
+    "symbol": null,
+    "checks": {
+     "profit": {
+      "value": 12.5,
+      "target": null,
+      "min": 0,
+      "max": 50,
+      "status": "ok",
+      "progress_pct": null
+     },
+     "amount": {
+      "value": 1850.0,
+      "target": null,
+      "min": 1000,
+      "max": 3000,
+      "status": "ok",
+      "progress_pct": null
+     },
+     "period": {
+      "value": 60,
+      "target": null,
+      "min": null,
+      "max": null,
+      "status": "unset",
+      "progress_pct": null
+     },
+     "intent": {
+      "value": null,
+      "target": null,
+      "min": null,
+      "max": null,
+      "status": "no_data",
+      "progress_pct": null,
+      "intent": "growth",
+      "note": ""
+     }
+    },
+    "breaches": [],
+    "unpriced": []
+   }
+  },
+  {
+   "name": "portfolio amount above max",
+   "snapshot": "two priced holdings",
+   "target": {
+    "id": 1,
+    "name": "t",
+    "symbol": null,
+    "intent": "growth",
+    "intent_note": "",
+    "amount_max": 1500
+   },
+   "risks": {},
+   "now": "2026-03-02T12:00:00+00:00",
+   "expect": {
+    "target_id": 1,
+    "name": "t",
+    "symbol": null,
+    "checks": {
+     "profit": {
+      "value": 12.5,
+      "target": null,
+      "min": null,
+      "max": null,
+      "status": "unset",
+      "progress_pct": null
+     },
+     "amount": {
+      "value": 1850.0,
+      "target": null,
+      "min": null,
+      "max": 1500,
+      "status": "above_max",
+      "progress_pct": null
+     },
+     "period": {
+      "value": 60,
+      "target": null,
+      "min": null,
+      "max": null,
+      "status": "unset",
+      "progress_pct": null
+     },
+     "intent": {
+      "value": null,
+      "target": null,
+      "min": null,
+      "max": null,
+      "status": "no_data",
+      "progress_pct": null,
+      "intent": "growth",
+      "note": ""
+     }
+    },
+    "breaches": [
+     "amount"
+    ],
+    "unpriced": []
+   }
+  },
+  {
+   "name": "single symbol",
+   "snapshot": "two priced holdings",
+   "target": {
+    "id": 1,
+    "name": "t",
+    "symbol": "AAA",
+    "intent": "growth",
+    "intent_note": "",
+    "profit_target": 10,
+    "profit_min": 0
+   },
+   "risks": {
+    "AAA": 20.0
+   },
+   "now": "2026-03-02T12:00:00+00:00",
+   "expect": {
+    "target_id": 1,
+    "name": "t",
+    "symbol": "AAA",
+    "checks": {
+     "profit": {
+      "value": 20.0,
+      "target": 10,
+      "min": 0,
+      "max": null,
+      "status": "reached",
+      "progress_pct": 200.0
+     },
+     "amount": {
+      "value": 1200.0,
+      "target": null,
+      "min": null,
+      "max": null,
+      "status": "unset",
+      "progress_pct": null
+     },
+     "period": {
+      "value": 60,
+      "target": null,
+      "min": null,
+      "max": null,
+      "status": "unset",
+      "progress_pct": null
+     },
+     "intent": {
+      "value": 20.0,
+      "target": null,
+      "min": null,
+      "max": null,
+      "status": "unset",
+      "progress_pct": null,
+      "intent": "growth",
+      "note": ""
+     }
+    },
+    "breaches": [],
+    "unpriced": []
+   }
+  },
+  {
+   "name": "symbol not held",
+   "snapshot": "two priced holdings",
+   "target": {
+    "id": 1,
+    "name": "t",
+    "symbol": "ZZZ",
+    "intent": "growth",
+    "intent_note": "",
+    "profit_min": 0,
+    "amount_min": 1
+   },
+   "risks": {},
+   "now": "2026-03-02T12:00:00+00:00",
+   "expect": {
+    "target_id": 1,
+    "name": "t",
+    "symbol": "ZZZ",
+    "checks": {
+     "profit": {
+      "value": null,
+      "target": null,
+      "min": 0,
+      "max": null,
+      "status": "no_data",
+      "progress_pct": null
+     },
+     "amount": {
+      "value": null,
+      "target": null,
+      "min": 1,
+      "max": null,
+      "status": "no_data",
+      "progress_pct": null
+     },
+     "period": {
+      "value": null,
+      "target": null,
+      "min": null,
+      "max": null,
+      "status": "no_data",
+      "progress_pct": null
+     },
+     "intent": {
+      "value": null,
+      "target": null,
+      "min": null,
+      "max": null,
+      "status": "no_data",
+      "progress_pct": null,
+      "intent": "growth",
+      "note": ""
+     }
+    },
+    "breaches": [],
+    "unpriced": []
+   }
+  },
+  {
+   "name": "unpriced portfolio shows no data",
+   "snapshot": "holding with no quote is valued at cost and listed as unpriced",
+   "target": {
+    "id": 1,
+    "name": "t",
+    "symbol": null,
+    "intent": "growth",
+    "intent_note": "",
+    "profit_min": -20
+   },
+   "risks": {},
+   "now": "2026-03-02T12:00:00+00:00",
+   "expect": {
+    "target_id": 1,
+    "name": "t",
+    "symbol": null,
+    "checks": {
+     "profit": {
+      "value": null,
+      "target": null,
+      "min": -20,
+      "max": null,
+      "status": "no_data",
+      "progress_pct": null
+     },
+     "amount": {
+      "value": null,
+      "target": null,
+      "min": null,
+      "max": null,
+      "status": "no_data",
+      "progress_pct": null
+     },
+     "period": {
+      "value": 60,
+      "target": null,
+      "min": null,
+      "max": null,
+      "status": "unset",
+      "progress_pct": null
+     },
+     "intent": {
+      "value": null,
+      "target": null,
+      "min": null,
+      "max": null,
+      "status": "no_data",
+      "progress_pct": null,
+      "intent": "growth",
+      "note": ""
+     }
+    },
+    "breaches": [],
+    "unpriced": [
+     "BBB"
+    ]
+   }
+  },
+  {
+   "name": "period bounds",
+   "snapshot": "two priced holdings",
+   "target": {
+    "id": 1,
+    "name": "t",
+    "symbol": null,
+    "intent": "growth",
+    "intent_note": "",
+    "period_min_days": 90,
+    "period_max_days": 180
+   },
+   "risks": {},
+   "now": "2026-03-02T12:00:00+00:00",
+   "expect": {
+    "target_id": 1,
+    "name": "t",
+    "symbol": null,
+    "checks": {
+     "profit": {
+      "value": 12.5,
+      "target": null,
+      "min": null,
+      "max": null,
+      "status": "unset",
+      "progress_pct": null
+     },
+     "amount": {
+      "value": 1850.0,
+      "target": null,
+      "min": null,
+      "max": null,
+      "status": "unset",
+      "progress_pct": null
+     },
+     "period": {
+      "value": 60,
+      "target": null,
+      "min": 90,
+      "max": 180,
+      "status": "below_min",
+      "progress_pct": null
+     },
+     "intent": {
+      "value": null,
+      "target": null,
+      "min": null,
+      "max": null,
+      "status": "no_data",
+      "progress_pct": null,
+      "intent": "growth",
+      "note": ""
+     }
+    },
+    "breaches": [
+     "period"
+    ],
+    "unpriced": []
+   }
+  },
+  {
+   "name": "portfolio risk is the value-weighted average",
+   "snapshot": "two priced holdings",
+   "target": {
+    "id": 1,
+    "name": "t",
+    "symbol": null,
+    "intent": "growth",
+    "intent_note": "",
+    "risk_min": 10,
+    "risk_max": 30,
+    "risk_target": 20
+   },
+   "risks": {
+    "AAA": 40.0,
+    "BBB": 20.0
+   },
+   "now": "2026-03-02T12:00:00+00:00",
+   "expect": {
+    "target_id": 1,
+    "name": "t",
+    "symbol": null,
+    "checks": {
+     "profit": {
+      "value": 12.5,
+      "target": null,
+      "min": null,
+      "max": null,
+      "status": "unset",
+      "progress_pct": null
+     },
+     "amount": {
+      "value": 1850.0,
+      "target": null,
+      "min": null,
+      "max": null,
+      "status": "unset",
+      "progress_pct": null
+     },
+     "period": {
+      "value": 60,
+      "target": null,
+      "min": null,
+      "max": null,
+      "status": "unset",
+      "progress_pct": null
+     },
+     "intent": {
+      "value": 37.78,
+      "target": 20,
+      "min": 10,
+      "max": 30,
+      "status": "above_max",
+      "progress_pct": 188.9,
+      "intent": "growth",
+      "note": ""
+     }
+    },
+    "breaches": [
+     "intent"
+    ],
+    "unpriced": []
+   }
+  },
+  {
+   "name": "risk unknown for every holding",
+   "snapshot": "two priced holdings",
+   "target": {
+    "id": 1,
+    "name": "t",
+    "symbol": null,
+    "intent": "growth",
+    "intent_note": "",
+    "risk_max": 30
+   },
+   "risks": {
+    "AAA": null,
+    "BBB": null
+   },
+   "now": "2026-03-02T12:00:00+00:00",
+   "expect": {
+    "target_id": 1,
+    "name": "t",
+    "symbol": null,
+    "checks": {
+     "profit": {
+      "value": 12.5,
+      "target": null,
+      "min": null,
+      "max": null,
+      "status": "unset",
+      "progress_pct": null
+     },
+     "amount": {
+      "value": 1850.0,
+      "target": null,
+      "min": null,
+      "max": null,
+      "status": "unset",
+      "progress_pct": null
+     },
+     "period": {
+      "value": 60,
+      "target": null,
+      "min": null,
+      "max": null,
+      "status": "unset",
+      "progress_pct": null
+     },
+     "intent": {
+      "value": null,
+      "target": null,
+      "min": null,
+      "max": 30,
+      "status": "no_data",
+      "progress_pct": null,
+      "intent": "growth",
+      "note": ""
+     }
+    },
+    "breaches": [],
+    "unpriced": []
+   }
+  }
+ ]
+}
