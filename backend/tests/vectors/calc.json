@@ -1101,5 +1101,1319 @@
    ],
    "expect": 116.09
   }
- ]
+ ],
+ "checkBuy": [
+  {
+   "name": "clean pass",
+   "rules": {
+    "max_position_pct": 8,
+    "max_sector_pct": 25,
+    "min_safety_score": 60,
+    "max_volatility_pct": 35,
+    "max_drawdown_pct": -20,
+    "min_market_cap_m": 2000,
+    "allow_penny_stocks": false,
+    "cooling_off_hours": 24
+   },
+   "candidate": {
+    "symbol": "AAA",
+    "amount": 500.0,
+    "sector": "Technology",
+    "price": 100.0,
+    "fair_value": 110.0,
+    "market_cap_m": 50000.0,
+    "volatility_pct": 20.0,
+    "safety": {
+     "score": 75,
+     "flags": []
+    }
+   },
+   "book": {
+    "total_value": 10000.0,
+    "by_symbol": {
+     "AAA": 300.0,
+     "BBB": 2000.0
+    },
+    "by_sector": {
+     "Technology": 1500.0,
+     "Energy": 1000.0
+    },
+    "cash": 2000.0,
+    "unpriced": []
+   },
+   "expect": {
+    "symbol": "AAA",
+    "amount": 500.0,
+    "verdict": "pass",
+    "risky": false,
+    "requires_note": false,
+    "cooling_off_hours": 0,
+    "checks": [
+     {
+      "rule": "safety_score",
+      "status": "pass",
+      "message": "Safety score 75 (minimum 60)"
+     },
+     {
+      "rule": "position_size",
+      "status": "pass",
+      "message": "AAA would be 8.0% of your portfolio"
+     },
+     {
+      "rule": "sector",
+      "status": "pass",
+      "message": "Technology would be 20.0% of your portfolio (limit 25%)"
+     },
+     {
+      "rule": "volatility",
+      "status": "pass",
+      "message": "Volatility 20% a year (limit 35%)"
+     }
+    ]
+   }
+  },
+  {
+   "name": "score below minimum blocks",
+   "rules": {
+    "max_position_pct": 8,
+    "max_sector_pct": 25,
+    "min_safety_score": 60,
+    "max_volatility_pct": 35,
+    "max_drawdown_pct": -20,
+    "min_market_cap_m": 2000,
+    "allow_penny_stocks": false,
+    "cooling_off_hours": 24
+   },
+   "candidate": {
+    "symbol": "AAA",
+    "amount": 500.0,
+    "sector": "Technology",
+    "price": 100.0,
+    "fair_value": 110.0,
+    "market_cap_m": 50000.0,
+    "volatility_pct": 20.0,
+    "safety": {
+     "score": 55,
+     "flags": []
+    }
+   },
+   "book": {
+    "total_value": 10000.0,
+    "by_symbol": {
+     "AAA": 300.0,
+     "BBB": 2000.0
+    },
+    "by_sector": {
+     "Technology": 1500.0,
+     "Energy": 1000.0
+    },
+    "cash": 2000.0,
+    "unpriced": []
+   },
+   "expect": {
+    "symbol": "AAA",
+    "amount": 500.0,
+    "verdict": "block",
+    "risky": true,
+    "requires_note": false,
+    "cooling_off_hours": 0,
+    "checks": [
+     {
+      "rule": "safety_score",
+      "status": "fail",
+      "message": "Safety score 55 is below your minimum 60"
+     },
+     {
+      "rule": "position_size",
+      "status": "pass",
+      "message": "AAA would be 8.0% of your portfolio"
+     },
+     {
+      "rule": "sector",
+      "status": "pass",
+      "message": "Technology would be 20.0% of your portfolio (limit 25%)"
+     },
+     {
+      "rule": "volatility",
+      "status": "pass",
+      "message": "Volatility 20% a year (limit 35%)"
+     }
+    ]
+   }
+  },
+  {
+   "name": "no score only warns",
+   "rules": {
+    "max_position_pct": 8,
+    "max_sector_pct": 25,
+    "min_safety_score": 60,
+    "max_volatility_pct": 35,
+    "max_drawdown_pct": -20,
+    "min_market_cap_m": 2000,
+    "allow_penny_stocks": false,
+    "cooling_off_hours": 24
+   },
+   "candidate": {
+    "symbol": "AAA",
+    "amount": 500.0,
+    "sector": "Technology",
+    "price": 100.0,
+    "fair_value": 110.0,
+    "market_cap_m": 50000.0,
+    "volatility_pct": 20.0,
+    "safety": {
+     "score": null,
+     "flags": []
+    }
+   },
+   "book": {
+    "total_value": 10000.0,
+    "by_symbol": {
+     "AAA": 300.0,
+     "BBB": 2000.0
+    },
+    "by_sector": {
+     "Technology": 1500.0,
+     "Energy": 1000.0
+    },
+    "cash": 2000.0,
+    "unpriced": []
+   },
+   "expect": {
+    "symbol": "AAA",
+    "amount": 500.0,
+    "verdict": "warn",
+    "risky": true,
+    "requires_note": true,
+    "cooling_off_hours": 24,
+    "checks": [
+     {
+      "rule": "safety_score",
+      "status": "warn",
+      "message": "Not enough data to score this stock"
+     },
+     {
+      "rule": "position_size",
+      "status": "pass",
+      "message": "AAA would be 8.0% of your portfolio"
+     },
+     {
+      "rule": "sector",
+      "status": "pass",
+      "message": "Technology would be 20.0% of your portfolio (limit 25%)"
+     },
+     {
+      "rule": "volatility",
+      "status": "pass",
+      "message": "Volatility 20% a year (limit 35%)"
+     }
+    ]
+   }
+  },
+  {
+   "name": "distress and penny flags block",
+   "rules": {
+    "max_position_pct": 8,
+    "max_sector_pct": 25,
+    "min_safety_score": 60,
+    "max_volatility_pct": 35,
+    "max_drawdown_pct": -20,
+    "min_market_cap_m": 2000,
+    "allow_penny_stocks": false,
+    "cooling_off_hours": 24
+   },
+   "candidate": {
+    "symbol": "AAA",
+    "amount": 500.0,
+    "sector": "Technology",
+    "price": 100.0,
+    "fair_value": 110.0,
+    "market_cap_m": 50000.0,
+    "volatility_pct": 20.0,
+    "safety": {
+     "score": 80,
+     "flags": [
+      {
+       "code": "distress"
+      },
+      {
+       "code": "penny"
+      }
+     ]
+    }
+   },
+   "book": {
+    "total_value": 10000.0,
+    "by_symbol": {
+     "AAA": 300.0,
+     "BBB": 2000.0
+    },
+    "by_sector": {
+     "Technology": 1500.0,
+     "Energy": 1000.0
+    },
+    "cash": 2000.0,
+    "unpriced": []
+   },
+   "expect": {
+    "symbol": "AAA",
+    "amount": 500.0,
+    "verdict": "block",
+    "risky": true,
+    "requires_note": false,
+    "cooling_off_hours": 0,
+    "checks": [
+     {
+      "rule": "safety_score",
+      "status": "pass",
+      "message": "Safety score 80 (minimum 60)"
+     },
+     {
+      "rule": "distress",
+      "status": "fail",
+      "message": "Bankruptcy-risk zone (Altman Z distress)"
+     },
+     {
+      "rule": "penny",
+      "status": "fail",
+      "message": "Penny stocks are off in your risk profile"
+     },
+     {
+      "rule": "position_size",
+      "status": "pass",
+      "message": "AAA would be 8.0% of your portfolio"
+     },
+     {
+      "rule": "sector",
+      "status": "pass",
+      "message": "Technology would be 20.0% of your portfolio (limit 25%)"
+     },
+     {
+      "rule": "volatility",
+      "status": "pass",
+      "message": "Volatility 20% a year (limit 35%)"
+     }
+    ]
+   }
+  },
+  {
+   "name": "penny allowed by the profile",
+   "rules": {
+    "max_position_pct": 8,
+    "max_sector_pct": 25,
+    "min_safety_score": 60,
+    "max_volatility_pct": 35,
+    "max_drawdown_pct": -20,
+    "min_market_cap_m": 2000,
+    "allow_penny_stocks": true,
+    "cooling_off_hours": 24
+   },
+   "candidate": {
+    "symbol": "AAA",
+    "amount": 500.0,
+    "sector": "Technology",
+    "price": 100.0,
+    "fair_value": 110.0,
+    "market_cap_m": 50000.0,
+    "volatility_pct": 20.0,
+    "safety": {
+     "score": 80,
+     "flags": [
+      {
+       "code": "penny"
+      }
+     ]
+    }
+   },
+   "book": {
+    "total_value": 10000.0,
+    "by_symbol": {
+     "AAA": 300.0,
+     "BBB": 2000.0
+    },
+    "by_sector": {
+     "Technology": 1500.0,
+     "Energy": 1000.0
+    },
+    "cash": 2000.0,
+    "unpriced": []
+   },
+   "expect": {
+    "symbol": "AAA",
+    "amount": 500.0,
+    "verdict": "pass",
+    "risky": false,
+    "requires_note": false,
+    "cooling_off_hours": 0,
+    "checks": [
+     {
+      "rule": "safety_score",
+      "status": "pass",
+      "message": "Safety score 80 (minimum 60)"
+     },
+     {
+      "rule": "position_size",
+      "status": "pass",
+      "message": "AAA would be 8.0% of your portfolio"
+     },
+     {
+      "rule": "sector",
+      "status": "pass",
+      "message": "Technology would be 20.0% of your portfolio (limit 25%)"
+     },
+     {
+      "rule": "volatility",
+      "status": "pass",
+      "message": "Volatility 20% a year (limit 35%)"
+     }
+    ]
+   }
+  },
+  {
+   "name": "position too large blocks",
+   "rules": {
+    "max_position_pct": 8,
+    "max_sector_pct": 60,
+    "min_safety_score": 60,
+    "max_volatility_pct": 35,
+    "max_drawdown_pct": -20,
+    "min_market_cap_m": 2000,
+    "allow_penny_stocks": false,
+    "cooling_off_hours": 24
+   },
+   "candidate": {
+    "symbol": "AAA",
+    "amount": 1500.0,
+    "sector": "Technology",
+    "price": 100.0,
+    "fair_value": 110.0,
+    "market_cap_m": 50000.0,
+    "volatility_pct": 20.0,
+    "safety": {
+     "score": 75,
+     "flags": []
+    }
+   },
+   "book": {
+    "total_value": 10000.0,
+    "by_symbol": {
+     "AAA": 300.0,
+     "BBB": 2000.0
+    },
+    "by_sector": {
+     "Technology": 1500.0,
+     "Energy": 1000.0
+    },
+    "cash": 2000.0,
+    "unpriced": []
+   },
+   "expect": {
+    "symbol": "AAA",
+    "amount": 1500.0,
+    "verdict": "block",
+    "risky": true,
+    "requires_note": false,
+    "cooling_off_hours": 0,
+    "checks": [
+     {
+      "rule": "safety_score",
+      "status": "pass",
+      "message": "Safety score 75 (minimum 60)"
+     },
+     {
+      "rule": "position_size",
+      "status": "fail",
+      "message": "AAA would be 18.0% of your portfolio (limit 8%)"
+     },
+     {
+      "rule": "sector",
+      "status": "pass",
+      "message": "Technology would be 30.0% of your portfolio (limit 60%)"
+     },
+     {
+      "rule": "volatility",
+      "status": "pass",
+      "message": "Volatility 20% a year (limit 35%)"
+     }
+    ]
+   }
+  },
+  {
+   "name": "cash covers part of the buy",
+   "rules": {
+    "max_position_pct": 12.5,
+    "max_sector_pct": 25,
+    "min_safety_score": 60,
+    "max_volatility_pct": 35,
+    "max_drawdown_pct": -20,
+    "min_market_cap_m": 2000,
+    "allow_penny_stocks": false,
+    "cooling_off_hours": 24
+   },
+   "candidate": {
+    "symbol": "AAA",
+    "amount": 1000.0,
+    "sector": "Technology",
+    "price": 100.0,
+    "fair_value": 110.0,
+    "market_cap_m": 50000.0,
+    "volatility_pct": 20.0,
+    "safety": {
+     "score": 75,
+     "flags": []
+    }
+   },
+   "book": {
+    "total_value": 10000.0,
+    "by_symbol": {
+     "AAA": 300.0,
+     "BBB": 2000.0
+    },
+    "by_sector": {
+     "Technology": 1500.0,
+     "Energy": 1000.0
+    },
+    "cash": 400.0,
+    "unpriced": []
+   },
+   "expect": {
+    "symbol": "AAA",
+    "amount": 1000.0,
+    "verdict": "pass",
+    "risky": false,
+    "requires_note": false,
+    "cooling_off_hours": 0,
+    "checks": [
+     {
+      "rule": "safety_score",
+      "status": "pass",
+      "message": "Safety score 75 (minimum 60)"
+     },
+     {
+      "rule": "position_size",
+      "status": "pass",
+      "message": "AAA would be 12.3% of your portfolio"
+     },
+     {
+      "rule": "sector",
+      "status": "pass",
+      "message": "Technology would be 23.6% of your portfolio (limit 25%)"
+     },
+     {
+      "rule": "volatility",
+      "status": "pass",
+      "message": "Volatility 20% a year (limit 35%)"
+     }
+    ]
+   }
+  },
+  {
+   "name": "sector over limit warns",
+   "rules": {
+    "max_position_pct": 50,
+    "max_sector_pct": 25,
+    "min_safety_score": 60,
+    "max_volatility_pct": 35,
+    "max_drawdown_pct": -20,
+    "min_market_cap_m": 2000,
+    "allow_penny_stocks": false,
+    "cooling_off_hours": 24
+   },
+   "candidate": {
+    "symbol": "AAA",
+    "amount": 1500.0,
+    "sector": "Technology",
+    "price": 100.0,
+    "fair_value": 110.0,
+    "market_cap_m": 50000.0,
+    "volatility_pct": 20.0,
+    "safety": {
+     "score": 75,
+     "flags": []
+    }
+   },
+   "book": {
+    "total_value": 10000.0,
+    "by_symbol": {
+     "AAA": 300.0,
+     "BBB": 2000.0
+    },
+    "by_sector": {
+     "Technology": 2000.0
+    },
+    "cash": 2000.0,
+    "unpriced": []
+   },
+   "expect": {
+    "symbol": "AAA",
+    "amount": 1500.0,
+    "verdict": "warn",
+    "risky": true,
+    "requires_note": true,
+    "cooling_off_hours": 24,
+    "checks": [
+     {
+      "rule": "safety_score",
+      "status": "pass",
+      "message": "Safety score 75 (minimum 60)"
+     },
+     {
+      "rule": "position_size",
+      "status": "pass",
+      "message": "AAA would be 18.0% of your portfolio"
+     },
+     {
+      "rule": "sector",
+      "status": "warn",
+      "message": "Technology would be 35.0% of your portfolio (limit 25%)"
+     },
+     {
+      "rule": "volatility",
+      "status": "pass",
+      "message": "Volatility 20% a year (limit 35%)"
+     }
+    ]
+   }
+  },
+  {
+   "name": "high volatility warns",
+   "rules": {
+    "max_position_pct": 8,
+    "max_sector_pct": 25,
+    "min_safety_score": 60,
+    "max_volatility_pct": 15,
+    "max_drawdown_pct": -20,
+    "min_market_cap_m": 2000,
+    "allow_penny_stocks": false,
+    "cooling_off_hours": 24
+   },
+   "candidate": {
+    "symbol": "AAA",
+    "amount": 500.0,
+    "sector": "Technology",
+    "price": 100.0,
+    "fair_value": 110.0,
+    "market_cap_m": 50000.0,
+    "volatility_pct": 20.0,
+    "safety": {
+     "score": 75,
+     "flags": []
+    }
+   },
+   "book": {
+    "total_value": 10000.0,
+    "by_symbol": {
+     "AAA": 300.0,
+     "BBB": 2000.0
+    },
+    "by_sector": {
+     "Technology": 1500.0,
+     "Energy": 1000.0
+    },
+    "cash": 2000.0,
+    "unpriced": []
+   },
+   "expect": {
+    "symbol": "AAA",
+    "amount": 500.0,
+    "verdict": "warn",
+    "risky": true,
+    "requires_note": true,
+    "cooling_off_hours": 24,
+    "checks": [
+     {
+      "rule": "safety_score",
+      "status": "pass",
+      "message": "Safety score 75 (minimum 60)"
+     },
+     {
+      "rule": "position_size",
+      "status": "pass",
+      "message": "AAA would be 8.0% of your portfolio"
+     },
+     {
+      "rule": "sector",
+      "status": "pass",
+      "message": "Technology would be 20.0% of your portfolio (limit 25%)"
+     },
+     {
+      "rule": "volatility",
+      "status": "warn",
+      "message": "Volatility 20% a year (limit 15%)"
+     }
+    ]
+   }
+  },
+  {
+   "name": "small company warns with thousands separators",
+   "rules": {
+    "max_position_pct": 8,
+    "max_sector_pct": 25,
+    "min_safety_score": 60,
+    "max_volatility_pct": 35,
+    "max_drawdown_pct": -20,
+    "min_market_cap_m": 10000,
+    "allow_penny_stocks": false,
+    "cooling_off_hours": 24
+   },
+   "candidate": {
+    "symbol": "AAA",
+    "amount": 500.0,
+    "sector": "Technology",
+    "price": 100.0,
+    "fair_value": 110.0,
+    "market_cap_m": 2500.0,
+    "volatility_pct": 20.0,
+    "safety": {
+     "score": 75,
+     "flags": []
+    }
+   },
+   "book": {
+    "total_value": 10000.0,
+    "by_symbol": {
+     "AAA": 300.0,
+     "BBB": 2000.0
+    },
+    "by_sector": {
+     "Technology": 1500.0,
+     "Energy": 1000.0
+    },
+    "cash": 2000.0,
+    "unpriced": []
+   },
+   "expect": {
+    "symbol": "AAA",
+    "amount": 500.0,
+    "verdict": "warn",
+    "risky": true,
+    "requires_note": true,
+    "cooling_off_hours": 24,
+    "checks": [
+     {
+      "rule": "safety_score",
+      "status": "pass",
+      "message": "Safety score 75 (minimum 60)"
+     },
+     {
+      "rule": "position_size",
+      "status": "pass",
+      "message": "AAA would be 8.0% of your portfolio"
+     },
+     {
+      "rule": "sector",
+      "status": "pass",
+      "message": "Technology would be 20.0% of your portfolio (limit 25%)"
+     },
+     {
+      "rule": "volatility",
+      "status": "pass",
+      "message": "Volatility 20% a year (limit 35%)"
+     },
+     {
+      "rule": "size",
+      "status": "warn",
+      "message": "Company is smaller than your minimum ($2,500M < $10,000M)"
+     }
+    ]
+   }
+  },
+  {
+   "name": "price well above fair value warns",
+   "rules": {
+    "max_position_pct": 8,
+    "max_sector_pct": 25,
+    "min_safety_score": 60,
+    "max_volatility_pct": 35,
+    "max_drawdown_pct": -20,
+    "min_market_cap_m": 2000,
+    "allow_penny_stocks": false,
+    "cooling_off_hours": 24
+   },
+   "candidate": {
+    "symbol": "AAA",
+    "amount": 500.0,
+    "sector": "Technology",
+    "price": 150.0,
+    "fair_value": 100.0,
+    "market_cap_m": 50000.0,
+    "volatility_pct": 20.0,
+    "safety": {
+     "score": 75,
+     "flags": []
+    }
+   },
+   "book": {
+    "total_value": 10000.0,
+    "by_symbol": {
+     "AAA": 300.0,
+     "BBB": 2000.0
+    },
+    "by_sector": {
+     "Technology": 1500.0,
+     "Energy": 1000.0
+    },
+    "cash": 2000.0,
+    "unpriced": []
+   },
+   "expect": {
+    "symbol": "AAA",
+    "amount": 500.0,
+    "verdict": "warn",
+    "risky": true,
+    "requires_note": true,
+    "cooling_off_hours": 24,
+    "checks": [
+     {
+      "rule": "safety_score",
+      "status": "pass",
+      "message": "Safety score 75 (minimum 60)"
+     },
+     {
+      "rule": "position_size",
+      "status": "pass",
+      "message": "AAA would be 8.0% of your portfolio"
+     },
+     {
+      "rule": "sector",
+      "status": "pass",
+      "message": "Technology would be 20.0% of your portfolio (limit 25%)"
+     },
+     {
+      "rule": "volatility",
+      "status": "pass",
+      "message": "Volatility 20% a year (limit 35%)"
+     },
+     {
+      "rule": "valuation",
+      "status": "warn",
+      "message": "Price is 50% above the models' fair value"
+     }
+    ]
+   }
+  },
+  {
+   "name": "unpriced holdings warn",
+   "rules": {
+    "max_position_pct": 8,
+    "max_sector_pct": 25,
+    "min_safety_score": 60,
+    "max_volatility_pct": 35,
+    "max_drawdown_pct": -20,
+    "min_market_cap_m": 2000,
+    "allow_penny_stocks": false,
+    "cooling_off_hours": 24
+   },
+   "candidate": {
+    "symbol": "AAA",
+    "amount": 500.0,
+    "sector": "Technology",
+    "price": 100.0,
+    "fair_value": 110.0,
+    "market_cap_m": 50000.0,
+    "volatility_pct": 20.0,
+    "safety": {
+     "score": 75,
+     "flags": []
+    }
+   },
+   "book": {
+    "total_value": 10000.0,
+    "by_symbol": {
+     "AAA": 300.0,
+     "BBB": 2000.0
+    },
+    "by_sector": {
+     "Technology": 1500.0,
+     "Energy": 1000.0
+    },
+    "cash": 2000.0,
+    "unpriced": [
+     "BBB",
+     "CCC"
+    ]
+   },
+   "expect": {
+    "symbol": "AAA",
+    "amount": 500.0,
+    "verdict": "warn",
+    "risky": true,
+    "requires_note": true,
+    "cooling_off_hours": 24,
+    "checks": [
+     {
+      "rule": "safety_score",
+      "status": "pass",
+      "message": "Safety score 75 (minimum 60)"
+     },
+     {
+      "rule": "position_size",
+      "status": "pass",
+      "message": "AAA would be 8.0% of your portfolio"
+     },
+     {
+      "rule": "sector",
+      "status": "pass",
+      "message": "Technology would be 20.0% of your portfolio (limit 25%)"
+     },
+     {
+      "rule": "volatility",
+      "status": "pass",
+      "message": "Volatility 20% a year (limit 35%)"
+     },
+     {
+      "rule": "prices",
+      "status": "warn",
+      "message": "No live price for BBB, CCC; sizes use what you paid"
+     }
+    ]
+   }
+  },
+  {
+   "name": "empty book puts the buy at 100 percent",
+   "rules": {
+    "max_position_pct": 8,
+    "max_sector_pct": 25,
+    "min_safety_score": 60,
+    "max_volatility_pct": 35,
+    "max_drawdown_pct": -20,
+    "min_market_cap_m": 2000,
+    "allow_penny_stocks": false,
+    "cooling_off_hours": 24
+   },
+   "candidate": {
+    "symbol": "AAA",
+    "amount": 500.0,
+    "sector": "Technology",
+    "price": 100.0,
+    "fair_value": 110.0,
+    "market_cap_m": 50000.0,
+    "volatility_pct": 20.0,
+    "safety": {
+     "score": 75,
+     "flags": []
+    }
+   },
+   "book": {
+    "total_value": 0.0,
+    "by_symbol": {},
+    "by_sector": {},
+    "cash": 0.0,
+    "unpriced": []
+   },
+   "expect": {
+    "symbol": "AAA",
+    "amount": 500.0,
+    "verdict": "block",
+    "risky": true,
+    "requires_note": false,
+    "cooling_off_hours": 0,
+    "checks": [
+     {
+      "rule": "safety_score",
+      "status": "pass",
+      "message": "Safety score 75 (minimum 60)"
+     },
+     {
+      "rule": "position_size",
+      "status": "fail",
+      "message": "AAA would be 100.0% of your portfolio (limit 8%)"
+     },
+     {
+      "rule": "sector",
+      "status": "warn",
+      "message": "Technology would be 100.0% of your portfolio (limit 25%)"
+     },
+     {
+      "rule": "volatility",
+      "status": "pass",
+      "message": "Volatility 20% a year (limit 35%)"
+     }
+    ]
+   }
+  },
+  {
+   "name": "unknown sector skips the sector rule",
+   "rules": {
+    "max_position_pct": 8,
+    "max_sector_pct": 25,
+    "min_safety_score": 60,
+    "max_volatility_pct": 35,
+    "max_drawdown_pct": -20,
+    "min_market_cap_m": 2000,
+    "allow_penny_stocks": false,
+    "cooling_off_hours": 24
+   },
+   "candidate": {
+    "symbol": "AAA",
+    "amount": 500.0,
+    "sector": null,
+    "price": 100.0,
+    "fair_value": 110.0,
+    "market_cap_m": 50000.0,
+    "volatility_pct": 20.0,
+    "safety": {
+     "score": 75,
+     "flags": []
+    }
+   },
+   "book": {
+    "total_value": 10000.0,
+    "by_symbol": {
+     "AAA": 300.0,
+     "BBB": 2000.0
+    },
+    "by_sector": {
+     "Technology": 1500.0,
+     "Energy": 1000.0
+    },
+    "cash": 2000.0,
+    "unpriced": []
+   },
+   "expect": {
+    "symbol": "AAA",
+    "amount": 500.0,
+    "verdict": "pass",
+    "risky": false,
+    "requires_note": false,
+    "cooling_off_hours": 0,
+    "checks": [
+     {
+      "rule": "safety_score",
+      "status": "pass",
+      "message": "Safety score 75 (minimum 60)"
+     },
+     {
+      "rule": "position_size",
+      "status": "pass",
+      "message": "AAA would be 8.0% of your portfolio"
+     },
+     {
+      "rule": "volatility",
+      "status": "pass",
+      "message": "Volatility 20% a year (limit 35%)"
+     }
+    ]
+   }
+  }
+ ],
+ "portfolioBreaches": [
+  {
+   "name": "nothing over the limits",
+   "rules": {
+    "max_position_pct": 25,
+    "max_sector_pct": 25,
+    "min_safety_score": 60,
+    "max_volatility_pct": 35,
+    "max_drawdown_pct": -20,
+    "min_market_cap_m": 2000,
+    "allow_penny_stocks": false,
+    "cooling_off_hours": 24
+   },
+   "book": {
+    "total_value": 10000.0,
+    "by_symbol": {
+     "AAA": 300.0,
+     "BBB": 2000.0
+    },
+    "by_sector": {
+     "Technology": 1500.0,
+     "Energy": 1000.0
+    },
+    "cash": 2000.0,
+    "unpriced": []
+   },
+   "expect": []
+  },
+  {
+   "name": "a position and a sector over",
+   "rules": {
+    "max_position_pct": 15,
+    "max_sector_pct": 12,
+    "min_safety_score": 60,
+    "max_volatility_pct": 35,
+    "max_drawdown_pct": -20,
+    "min_market_cap_m": 2000,
+    "allow_penny_stocks": false,
+    "cooling_off_hours": 24
+   },
+   "book": {
+    "total_value": 10000.0,
+    "by_symbol": {
+     "AAA": 3000.0,
+     "BBB": 500.0
+    },
+    "by_sector": {
+     "Technology": 3500.0,
+     "Unknown": 4000.0,
+     "Energy": 500.0
+    },
+    "cash": 2000.0,
+    "unpriced": []
+   },
+   "expect": [
+    {
+     "rule": "position_size",
+     "subject": "AAA",
+     "pct": 30.0,
+     "limit": 15,
+     "message": "AAA is 30.0% of your portfolio — above your 15% limit"
+    },
+    {
+     "rule": "sector",
+     "subject": "Technology",
+     "pct": 35.0,
+     "limit": 12,
+     "message": "Technology is 35.0% of your portfolio — above your 12% limit"
+    }
+   ]
+  },
+  {
+   "name": "empty book has no breaches",
+   "rules": {
+    "max_position_pct": 8,
+    "max_sector_pct": 25,
+    "min_safety_score": 60,
+    "max_volatility_pct": 35,
+    "max_drawdown_pct": -20,
+    "min_market_cap_m": 2000,
+    "allow_penny_stocks": false,
+    "cooling_off_hours": 24
+   },
+   "book": {
+    "total_value": 0.0,
+    "by_symbol": {
+     "AAA": 300.0,
+     "BBB": 2000.0
+    },
+    "by_sector": {
+     "Technology": 1500.0,
+     "Energy": 1000.0
+    },
+    "cash": 2000.0,
+    "unpriced": []
+   },
+   "expect": []
+  }
+ ],
+ "lossLimit": [
+  {
+   "name": "inside the limit",
+   "rules": {
+    "max_position_pct": 8,
+    "max_sector_pct": 25,
+    "min_safety_score": 60,
+    "max_volatility_pct": 35,
+    "max_drawdown_pct": -20,
+    "min_market_cap_m": 2000,
+    "allow_penny_stocks": false,
+    "cooling_off_hours": 24
+   },
+   "values": [
+    100.0,
+    90.0,
+    95.0
+   ],
+   "expect": null
+  },
+  {
+   "name": "past the limit",
+   "rules": {
+    "max_position_pct": 8,
+    "max_sector_pct": 25,
+    "min_safety_score": 60,
+    "max_volatility_pct": 35,
+    "max_drawdown_pct": -20,
+    "min_market_cap_m": 2000,
+    "allow_penny_stocks": false,
+    "cooling_off_hours": 24
+   },
+   "values": [
+    100.0,
+    120.0,
+    90.0
+   ],
+   "expect": {
+    "rule": "loss_limit",
+    "subject": "portfolio",
+    "pct": -25.0,
+    "limit": -20,
+    "message": "Your holdings are 25.0% below their 1-year high — past your 20% loss limit"
+   }
+  },
+  {
+   "name": "no values",
+   "rules": {
+    "max_position_pct": 8,
+    "max_sector_pct": 25,
+    "min_safety_score": 60,
+    "max_volatility_pct": 35,
+    "max_drawdown_pct": -20,
+    "min_market_cap_m": 2000,
+    "allow_penny_stocks": false,
+    "cooling_off_hours": 24
+   },
+   "values": [],
+   "expect": null
+  },
+  {
+   "name": "all zero",
+   "rules": {
+    "max_position_pct": 8,
+    "max_sector_pct": 25,
+    "min_safety_score": 60,
+    "max_volatility_pct": 35,
+    "max_drawdown_pct": -20,
+    "min_market_cap_m": 2000,
+    "allow_penny_stocks": false,
+    "cooling_off_hours": 24
+   },
+   "values": [
+    0.0,
+    0.0
+   ],
+   "expect": null
+  }
+ ],
+ "levelFromAnswers": [
+  {
+   "name": "all middle answers",
+   "answers": {
+    "horizon": 2,
+    "drop": 2,
+    "goal": 2,
+    "experience": 2,
+    "income": 2
+   },
+   "expect": "balanced"
+  },
+  {
+   "name": "all top answers",
+   "answers": {
+    "horizon": 3,
+    "drop": 3,
+    "goal": 3,
+    "experience": 3,
+    "income": 3
+   },
+   "expect": "growth"
+  },
+  {
+   "name": "short horizon caps at conservative",
+   "answers": {
+    "horizon": 0,
+    "drop": 3,
+    "goal": 3,
+    "experience": 3,
+    "income": 3
+   },
+   "expect": "conservative"
+  },
+  {
+   "name": "selling everything caps at conservative",
+   "answers": {
+    "horizon": 3,
+    "drop": 0,
+    "goal": 3,
+    "experience": 3,
+    "income": 3
+   },
+   "expect": "conservative"
+  },
+  {
+   "name": "no savings caps at moderate",
+   "answers": {
+    "horizon": 3,
+    "drop": 3,
+    "goal": 3,
+    "experience": 3,
+    "income": 0
+   },
+   "expect": "moderate"
+  },
+  {
+   "name": "no savings leaves a low level alone",
+   "answers": {
+    "horizon": 1,
+    "drop": 1,
+    "goal": 1,
+    "experience": 1,
+    "income": 0
+   },
+   "expect": "moderate"
+  },
+  {
+   "name": "lowest possible without a cap",
+   "answers": {
+    "horizon": 1,
+    "drop": 1,
+    "goal": 0,
+    "experience": 0,
+    "income": 1
+   },
+   "expect": "conservative"
+  }
+ ],
+ "levelFromAnswersErrors": [
+  {
+   "name": "missing answer",
+   "answers": {
+    "horizon": 1
+   },
+   "expect": "missing answers: drop, goal, experience, income"
+  },
+  {
+   "name": "out of range",
+   "answers": {
+    "horizon": 1,
+    "drop": 1,
+    "goal": 1,
+    "experience": 1,
+    "income": 4
+   },
+   "expect": "answer income must be 0–3"
+  }
+ ],
+ "defaultRules": {
+  "conservative": {
+   "max_position_pct": 5,
+   "max_sector_pct": 20,
+   "min_safety_score": 70,
+   "max_volatility_pct": 25,
+   "max_drawdown_pct": -15,
+   "min_market_cap_m": 10000,
+   "allow_penny_stocks": false,
+   "cooling_off_hours": 48
+  },
+  "moderate": {
+   "max_position_pct": 8,
+   "max_sector_pct": 25,
+   "min_safety_score": 60,
+   "max_volatility_pct": 35,
+   "max_drawdown_pct": -20,
+   "min_market_cap_m": 2000,
+   "allow_penny_stocks": false,
+   "cooling_off_hours": 24
+  },
+  "balanced": {
+   "max_position_pct": 10,
+   "max_sector_pct": 30,
+   "min_safety_score": 50,
+   "max_volatility_pct": 45,
+   "max_drawdown_pct": -25,
+   "min_market_cap_m": 1000,
+   "allow_penny_stocks": false,
+   "cooling_off_hours": 24
+  },
+  "growth": {
+   "max_position_pct": 15,
+   "max_sector_pct": 40,
+   "min_safety_score": 40,
+   "max_volatility_pct": 60,
+   "max_drawdown_pct": -35,
+   "min_market_cap_m": 300,
+   "allow_penny_stocks": false,
+   "cooling_off_hours": 12
+  }
+ }
 }

@@ -69,6 +69,7 @@ export const en = {
   "dashboard.portfolio.helpRecord": "Recording a buy you already made. To decide on a new buy first, use the stock's Safety tab → Check a buy.",
   "dashboard.portfolio.helpPaper": "Paper accounts buy at the current price (avg cost is ignored), refuse buys your rules block, and pay from their cash; removing a paper position sells it at the current price.",
   "dashboard.portfolio.addedNote": "Added — but note your risk rules:",
+  "dashboard.portfolio.checkFailed": "The position was saved, but the safety check could not run: {error}",
   "dashboard.portfolio.positions": "Positions",
   "dashboard.portfolio.noPositions": "No positions.",
 
@@ -174,6 +175,7 @@ export const he: { readonly [K in keyof typeof en]: string } = {
   "dashboard.portfolio.helpRecord": "כאן רושמים קנייה שכבר ביצעתם. כדי לשקול קנייה חדשה, היכנסו קודם ללשונית הבטיחות של המניה ← בדיקת קנייה.",
   "dashboard.portfolio.helpPaper": "חשבונות מדומים קונים במחיר הנוכחי (מחיר הקנייה הממוצע לא נלקח בחשבון), דוחים קניות שהכללים שלכם חוסמים ומשלמים מהמזומן שלהם; הסרת פוזיציה מדומה מוכרת אותה במחיר הנוכחי.",
   "dashboard.portfolio.addedNote": "נוסף — אבל שימו לב לכללי הסיכון שלכם:",
+  "dashboard.portfolio.checkFailed": "הפוזיציה נשמרה, אבל בדיקת הבטיחות לא הצליחה לרוץ: {error}",
   "dashboard.portfolio.positions": "פוזיציות",
   "dashboard.portfolio.noPositions": "אין פוזיציות.",
 
