@@ -55,6 +55,7 @@ describe("addHolding and getPortfolio", () => {
     const accountId = await onlyId("accounts");
     await addHolding({ account_id: accountId, symbol: "aaa", quantity: 10, avg_cost: 100 });
     await addHolding({ account_id: accountId, symbol: "BBB", quantity: 5, avg_cost: 40 });
+    mockedApi.mockReset(); // forget the safety-check calls made while adding
     mockedApi.mockImplementation(quoteFor({ AAA: 120 }));
 
     const p = await getPortfolio("real", true);
@@ -64,10 +65,15 @@ describe("addHolding and getPortfolio", () => {
     expect(p.holdings.map((h) => h.symbol)).toEqual(["AAA", "BBB"]);
   });
 
-  it("returns no check for a position recorded on the device", async () => {
+  it("still records the position, and says why, when the safety check cannot run", async () => {
     setLocalMode(true);
     await addAccount(account);
-    expect(await addHolding({ account_id: await onlyId("accounts"), symbol: "AAA", quantity: 1, avg_cost: 1 })).toEqual({ check: null });
+    mockedApi.mockRejectedValue(new Error("market data down"));
+
+    const out = await addHolding({ account_id: await onlyId("accounts"), symbol: "AAA", quantity: 1, avg_cost: 1 });
+
+    expect(out).toEqual({ check: null, checkError: "market data down" });
+    expect(await store.list("holdings")).toHaveLength(1);
   });
 
   it("rejects a position for an account that is not on the device", async () => {

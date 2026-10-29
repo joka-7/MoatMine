@@ -322,7 +322,10 @@ MoatMine/
 │   │   ├── lib/                                  # API client, formatters and hooks
 │   │   │   ├── calc/
 │   │   │   │   ├── analytics.ts
+│   │   │   │   ├── check.ts
 │   │   │   │   ├── portfolio.ts
+│   │   │   │   ├── profile.ts
+│   │   │   │   ├── pyformat.ts
 │   │   │   │   ├── round.test.ts
 │   │   │   │   ├── round.ts
 │   │   │   │   ├── targets.ts
@@ -333,6 +336,10 @@ MoatMine/
 │   │   │   │   ├── notes.ts
 │   │   │   │   ├── portfolio.test.ts
 │   │   │   │   ├── portfolio.ts
+│   │   │   │   ├── riskProfile.test.ts
+│   │   │   │   ├── riskProfile.ts
+│   │   │   │   ├── safetyCheck.test.ts
+│   │   │   │   ├── safetyCheck.ts
 │   │   │   │   ├── targets.test.ts
 │   │   │   │   ├── targets.ts
 │   │   │   │   ├── watchlist.test.ts

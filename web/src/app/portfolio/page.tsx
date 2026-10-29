@@ -76,6 +76,7 @@ export default function PortfolioPage() {
               ...(h.opened_at ? { opened_at: new Date(h.opened_at).toISOString() } : {}),
             });
             setLastCheck(out.check);
+            if (out.checkError) setErr(t("dashboard.portfolio.checkFailed", { error: out.checkError }));
             setH({ ...h, symbol: "", quantity: "", avg_cost: "" });
           }); }}>
             <div className="row">

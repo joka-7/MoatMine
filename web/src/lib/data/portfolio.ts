@@ -3,6 +3,7 @@ import { buildSnapshot, accountsInBook } from "../calc/portfolio";
 import type { BookMode, CalcAccount, CalcHolding, CalcQuote } from "../calc/types";
 import { isLocalMode } from "../localMode";
 import { newId } from "../store";
+import { checkOnDevice } from "./safetyCheck";
 import { portfolioStore } from "../store/shared";
 import type { AccountRecord, HoldingRecord, PortfolioStore } from "../store";
 
@@ -80,22 +81,31 @@ export async function getPortfolio(mode: BookMode, local: boolean): Promise<Port
 }
 
 /**
- * Record a position. On the server this also runs the safety check; on the device it only records
- * what the user entered, and `check` is null.
+ * Record a position. The safety check runs first, sized against the book as it is before the buy.
+ * On the device a failed check does not stop the position being recorded (the trade already
+ * happened): `check` is null and `checkError` says why.
  *
  * @throws Error when the account is not on this device.
  */
-export async function addHolding(input: HoldingInput): Promise<{ check: CheckResult | null }> {
-  if (!isLocalMode()) return api<{ id: number; check: CheckResult }>("/holdings", { method: "POST", json: input });
+export async function addHolding(input: HoldingInput): Promise<{ check: CheckResult | null; checkError: string | null }> {
+  if (!isLocalMode()) return { checkError: null, ...(await api<{ id: number; check: CheckResult }>("/holdings", { method: "POST", json: input })) };
   const store = await portfolioStore();
   const accountId = String(input.account_id);
   if (!(await store.get("accounts", accountId))) throw new Error("That account no longer exists.");
+  const symbol = input.symbol.trim().toUpperCase();
+  let check: CheckResult | null = null;
+  let checkError: string | null = null;
+  try {
+    check = await checkOnDevice(symbol, input.quantity * input.avg_cost, await getPortfolio(LOCAL_BOOK, true));
+  } catch (e) {
+    checkError = (e as Error).message;
+  }
   const record: Omit<HoldingRecord, "updatedAt"> = {
-    id: newId(), accountId, symbol: input.symbol.trim().toUpperCase(), quantity: input.quantity, avgCost: input.avg_cost,
+    id: newId(), accountId, symbol, quantity: input.quantity, avgCost: input.avg_cost,
     openedAt: input.opened_at ?? new Date().toISOString(),
   };
   await store.put("holdings", record);
-  return { check: null };
+  return { check, checkError };
 }
 
 export async function removeHolding(id: number | string): Promise<void> {
