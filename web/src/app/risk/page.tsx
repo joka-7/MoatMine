@@ -3,10 +3,13 @@
 import Link from "next/link";
 import BookToggle, { PaperNotice } from "@/components/BookToggle";
 import { Bar, BarChart, Cell, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { PortfolioRisk, StressReport } from "@/lib/api";
+import { api, PortfolioRisk, StressReport } from "@/lib/api";
+import { LOCAL_BOOK } from "@/lib/data/portfolio";
+import { portfolioRiskReport, stressReport } from "@/lib/data/risk";
 import { useI18n, type MessageKey } from "@/lib/i18n";
 import { ltr, money, num, pct, share } from "@/lib/format";
-import { useApi } from "@/lib/useApi";
+import { useLocalMode } from "@/lib/localMode";
+import { useLoader } from "@/lib/useLoader";
 import { useBookMode } from "@/lib/useBookMode";
 import { isSampleData } from "@/lib/dataSource";
 
@@ -20,9 +23,11 @@ function corrColor(c: number | null) {
 }
 
 export default function RiskPage() {
-  const [mode, setMode] = useBookMode();
-  const { data: r, error } = useApi<PortfolioRisk>(`/safety/portfolio?mode=${mode}`);
-  const { data: s } = useApi<StressReport>(`/safety/stress?mode=${mode}`);
+  const [chosenMode, setMode] = useBookMode();
+  const { on: local, ready } = useLocalMode();
+  const mode = local ? LOCAL_BOOK : chosenMode;
+  const { data: r, error } = useLoader<PortfolioRisk>(ready ? () => (local ? portfolioRiskReport() : api<PortfolioRisk>(`/safety/portfolio?mode=${mode}`)) : null, `risk:${mode}:${local}`);
+  const { data: s } = useLoader<StressReport>(ready ? () => (local ? stressReport() : api<StressReport>(`/safety/stress?mode=${mode}`)) : null, `stress:${mode}:${local}`);
   const { t } = useI18n();
 
   const tiles: [MessageKey, string, string?][] = r ? [
@@ -47,7 +52,7 @@ export default function RiskPage() {
           <h1>{t("risk.title")}</h1>
           <div className="sub">{measuredBefore}<Link href="/risk-profile" style={{ textDecoration: "underline" }}>{t("risk.yourRiskProfile")}</Link>{measuredAfter}</div>
         </div>
-        <BookToggle mode={mode} onChange={setMode} />
+        {!local && <BookToggle mode={mode} onChange={setMode} />}
       </div>
       {mode === "paper" && <PaperNotice />}
       {error && <div className="err" style={{ marginBottom: 16 }}>{error}</div>}

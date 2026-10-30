@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import vectors from "../../../../backend/tests/vectors/calc.json";
 import type { Portfolio } from "../api";
 import { annualVolatilityPct } from "./analytics";
+import { align, beta, correlation, portfolioRisk, stressScenarios, type Points } from "./risk";
 import { breachMessage, checkBuy, lossLimitBreach, portfolioBreaches, type Book, type Candidate } from "./check";
 import { DEFAULT_RULES, levelFromAnswers, type Rules } from "./profile";
 import { buildSnapshot } from "./portfolio";
@@ -72,5 +73,41 @@ describe("levelFromAnswers", () => {
 
   it("has the same default rules as the Python", () => {
     expect(DEFAULT_RULES).toEqual(vectors.defaultRules);
+  });
+});
+
+describe("align", () => {
+  it.each(vectors.align.map((c) => [c.name, c] as const))("%s", (_name, c) => {
+    expect(align(c.series as unknown as Record<string, Points>)).toEqual(c.expect);
+  });
+});
+
+// beta and correlation are raw floats: the two languages may differ in the last bit
+describe("beta", () => {
+  it.each(vectors.beta.map((c) => [c.name, c] as const))("%s", (_name, c) => {
+    const out = beta(c.asset, c.bench);
+    if (c.expect === null) expect(out).toBeNull();
+    else expect(out).toBeCloseTo(c.expect, 9);
+  });
+});
+
+describe("correlation", () => {
+  it.each(vectors.correlation.map((c) => [c.name, c] as const))("%s", (_name, c) => {
+    const out = correlation(c.x, c.y);
+    if (c.expect === null) expect(out).toBeNull();
+    else expect(out).toBeCloseTo(c.expect, 9);
+  });
+});
+
+describe("portfolioRisk", () => {
+  it.each(vectors.portfolioRisk.map((c) => [c.name, c] as const))("%s", (_name, c) => {
+    expect(portfolioRisk(c.values as Record<string, number>, c.cash, c.closes as Record<string, number[]>, c.bench, c.sectors as Record<string, string | null>)).toEqual(c.expect);
+  });
+});
+
+describe("stressScenarios", () => {
+  it.each(vectors.stress.map((c) => [c.name, c] as const))("%s", (_name, c) => {
+    const crises = c.crises.map(([k, n]) => [k, n] as const);
+    expect(stressScenarios(c.values as Record<string, number>, c.cash, c.betas, c.crisisDrawdowns, c.benchmarkCrisis, crises)).toEqual(c.expect);
   });
 });

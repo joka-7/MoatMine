@@ -21,7 +21,28 @@ export function returns(closes: readonly number[]): number[] {
 export function annualVolatilityPct(closes: readonly number[]): number | null {
   const r = returns(closes);
   if (r.length <= 1) return null;
-  const mean = r.reduce((s, x) => s + x, 0) / r.length;
-  const variance = r.reduce((s, x) => s + (x - mean) ** 2, 0) / r.length;
-  return pyRound(Math.sqrt(variance) * Math.sqrt(TRADING_DAYS) * 100);
+  return pyRound(pstdev(r) * Math.sqrt(TRADING_DAYS) * 100);
+}
+
+/** Population standard deviation. */
+export function pstdev(xs: readonly number[]): number {
+  const mean = xs.reduce((s, x) => s + x, 0) / xs.length;
+  return Math.sqrt(xs.reduce((s, x) => s + (x - mean) ** 2, 0) / xs.length);
+}
+
+export function mean(xs: readonly number[]): number {
+  return xs.reduce((s, x) => s + x, 0) / xs.length;
+}
+
+/** Worst fall from a running peak, in percent (negative or 0), or null for no prices. Twin of `max_drawdown_pct`. */
+export function maxDrawdownPct(closes: readonly number[]): number | null {
+  const first = closes[0];
+  if (first === undefined) return null;
+  let peak = first;
+  let worst = 0;
+  for (const c of closes) {
+    peak = Math.max(peak, c);
+    worst = Math.min(worst, c / peak - 1);
+  }
+  return pyRound(worst * 100);
 }
