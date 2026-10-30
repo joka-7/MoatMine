@@ -12,6 +12,7 @@ from app.models import Account, Holding, Target
 from app.portfolio import build_snapshot
 from app.safety.check import Book, Candidate, Rules, check_buy, loss_limit_breach, portfolio_breaches
 from app.safety.profile import DEFAULT_RULES, level_from_answers
+from app.safety.risk import align, beta, correlation, portfolio_risk, stress_scenarios
 from app.targets import check_bound, evaluate
 
 VECTORS: dict[str, Any] = json.loads((Path(__file__).parent / "vectors" / "calc.json").read_text())
@@ -76,3 +77,31 @@ def test_level_from_answers_rejects_bad_input(case: dict[str, Any]) -> None:
 
 def test_default_rules_match() -> None:
     assert DEFAULT_RULES == VECTORS["defaultRules"]
+
+
+@pytest.mark.parametrize("case", VECTORS["align"], ids=lambda c: c["name"])
+def test_align(case: dict[str, Any]) -> None:
+    days, closes = align({k: [(t, c) for t, c in pts] for k, pts in case["series"].items()})
+    assert {"days": days, "closes": closes} == case["expect"]
+
+
+@pytest.mark.parametrize("case", VECTORS["beta"], ids=lambda c: c["name"])
+def test_beta(case: dict[str, Any]) -> None:
+    assert beta(case["asset"], case["bench"]) == case["expect"]
+
+
+@pytest.mark.parametrize("case", VECTORS["correlation"], ids=lambda c: c["name"])
+def test_correlation(case: dict[str, Any]) -> None:
+    assert correlation(case["x"], case["y"]) == case["expect"]
+
+
+@pytest.mark.parametrize("case", VECTORS["portfolioRisk"], ids=lambda c: c["name"])
+def test_portfolio_risk(case: dict[str, Any]) -> None:
+    out = portfolio_risk(case["values"], case["cash"], case["closes"], case["bench"], case["sectors"])
+    assert out == case["expect"]
+
+
+@pytest.mark.parametrize("case", VECTORS["stress"], ids=lambda c: c["name"])
+def test_stress_scenarios(case: dict[str, Any]) -> None:
+    out = stress_scenarios(case["values"], case["cash"], case["betas"], case["crisisDrawdowns"], case["benchmarkCrisis"], [(k, n) for k, n in case["crises"]])
+    assert out == case["expect"]
