@@ -335,6 +335,8 @@ MoatMine/
 │   │   │   ├── data/
 │   │   │   │   ├── notes.test.ts
 │   │   │   │   ├── notes.ts
+│   │   │   │   ├── plans.test.ts
+│   │   │   │   ├── plans.ts
 │   │   │   │   ├── portfolio.test.ts
 │   │   │   │   ├── portfolio.ts
 │   │   │   │   ├── risk.test.ts

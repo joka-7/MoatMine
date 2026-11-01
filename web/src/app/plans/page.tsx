@@ -3,10 +3,12 @@
 import Link from "next/link";
 import { Fragment, useEffect, useState } from "react";
 import { CheckView } from "@/components/SafetyBits";
-import { api, BuyPlan } from "@/lib/api";
+import { BuyPlan } from "@/lib/api";
+import { cancelPlan, executePlan, listPlans } from "@/lib/data/plans";
 import { date, money } from "@/lib/format";
 import { useI18n, type I18n, type MessageKey } from "@/lib/i18n";
-import { useApi } from "@/lib/useApi";
+import { useLocalMode } from "@/lib/localMode";
+import { useLoader } from "@/lib/useLoader";
 
 const STATUS: Record<BuyPlan["status"], string> = {
   ready: "ok", cooling_off: "", blocked: "below_min", executing: "", executed: "reached", cancelled: "",
@@ -30,14 +32,15 @@ function left(iso: string, now: number, t: I18n["t"]) {
 
 export default function PlansPage() {
   const { t, lang } = useI18n();
-  const { data, reload } = useApi<BuyPlan[]>("/plans");
-  const [open, setOpen] = useState<number | null>(null);
+  const { on: local, ready } = useLocalMode();
+  const { data, reload } = useLoader<BuyPlan[]>(ready ? () => listPlans(local) : null, `plans:${local}`);
+  const [open, setOpen] = useState<number | string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => { const t = setInterval(() => setNow(Date.now()), 30_000); return () => clearInterval(t); }, []);
 
-  const act = async (id: number, action: "execute" | "cancel") => {
-    try { setErr(null); await api(`/plans/${id}/${action}`, { method: "POST" }); reload(); }
+  const act = async (id: number | string, action: "execute" | "cancel") => {
+    try { setErr(null); await (action === "execute" ? executePlan(id) : cancelPlan(id)); reload(); }
     catch (e) { setErr((e as Error).message); }
   };
 
