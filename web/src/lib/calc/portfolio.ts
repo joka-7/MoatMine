@@ -69,3 +69,39 @@ export function buildSnapshot(
     },
   };
 }
+
+export interface DailyBar {
+  /** unix seconds */
+  readonly t: number;
+  readonly c: number;
+}
+
+/**
+ * Daily value of fixed quantities, from each symbol's daily bars. Symbols trade on different days,
+ * so a day missing for one symbol carries its last close forward instead of dropping it from that
+ * day's total. The series starts on the first day every symbol has a price; symbols with no bars
+ * at all are left out.
+ *
+ * Twin of `held_value_by_day` in `backend/app/portfolio.py`; `backend/tests/vectors/calc.json` checks both.
+ */
+export function heldValueByDay(
+  series: Readonly<Record<string, readonly DailyBar[]>>,
+  qty: Readonly<Record<string, number>>,
+): { t: number; value: number }[] {
+  const closes = Object.entries(series)
+    .filter(([, bars]) => bars.length)
+    .map(([s, bars]) => [s, new Map(bars.map((b) => [b.t - (b.t % 86_400), b.c] as const))] as const);
+  if (!closes.length) return [];
+  const first = Math.max(...closes.map(([, m]) => Math.min(...m.keys())));
+  const days = [...new Set(closes.flatMap(([, m]) => [...m.keys()]))].sort((a, b) => a - b);
+  const last = new Map<string, number>();
+  const out: { t: number; value: number }[] = [];
+  for (const day of days) {
+    for (const [s, byDay] of closes) {
+      const close = byDay.get(day);
+      if (close !== undefined) last.set(s, close);
+    }
+    if (day >= first) out.push({ t: day, value: pyRound(closes.reduce((sum, [s]) => sum + (last.get(s) as number) * (qty[s] as number), 0)) });
+  }
+  return out;
+}

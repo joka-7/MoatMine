@@ -1,6 +1,6 @@
 # Local-first MoatMine: design proposal
 
-Status: **in progress.** Slice 0 (the store layer in `web/src/lib/store/`) is built. Slice 1 is started: the watchlist, stock notes, real-money accounts, positions, targets and the risk profile and buy plans can live on the device behind an opt-in switch in Settings (`web/src/lib/data/`); paper accounts and alerts still use the server. Slice 2 is started: valuation and target evaluation are ported (`web/src/lib/calc/`) and checked against the Python on shared vectors; the safety check, profile rules, portfolio risk and stress maths are ported too. Everything after that is a proposal. It answers one question: what would it take for a
+Status: **in progress.** Slice 0 (the store layer in `web/src/lib/store/`) is built. Slice 1 is started: the watchlist, stock notes, real-money accounts, positions, targets and the risk profile and buy plans can live on the device behind an opt-in switch in Settings (`web/src/lib/data/`); paper accounts still use the server; alerts are checked in the app while it is open. Slice 2 is started: valuation and target evaluation are ported (`web/src/lib/calc/`) and checked against the Python on shared vectors; the safety check, profile rules, portfolio risk and stress maths are ported too. Everything after that is a proposal. It answers one question: what would it take for a
 user's portfolio to live on their own devices, with the server holding no holdings?
 
 ## 1. Why

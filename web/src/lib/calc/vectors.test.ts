@@ -5,8 +5,8 @@ import { annualVolatilityPct } from "./analytics";
 import { align, beta, correlation, portfolioRisk, stressScenarios, type Points } from "./risk";
 import { breachMessage, checkBuy, lossLimitBreach, portfolioBreaches, type Book, type Candidate } from "./check";
 import { DEFAULT_RULES, levelFromAnswers, type Rules } from "./profile";
-import { buildSnapshot } from "./portfolio";
-import { checkBound, evaluateTarget } from "./targets";
+import { buildSnapshot, heldValueByDay } from "./portfolio";
+import { breachMessages, checkBound, evaluateTarget } from "./targets";
 import type { CalcAccount, CalcHolding, CalcQuote, CalcTarget } from "./types";
 
 // The same vectors drive backend/tests/test_calc_vectors.py: both implementations must produce `expect`.
@@ -109,5 +109,23 @@ describe("stressScenarios", () => {
   it.each(vectors.stress.map((c) => [c.name, c] as const))("%s", (_name, c) => {
     const crises = c.crises.map(([k, n]) => [k, n] as const);
     expect(stressScenarios(c.values as Record<string, number>, c.cash, c.betas, c.crisisDrawdowns, c.benchmarkCrisis, crises)).toEqual(c.expect);
+  });
+});
+
+describe("heldValueByDay", () => {
+  it.each(vectors.heldValueByDay.map((c) => [c.name, c] as const))("%s", (_name, c) => {
+    expect(heldValueByDay(c.series as Record<string, { t: number; c: number }[]>, c.qty as Record<string, number>)).toEqual(c.expect);
+  });
+});
+
+describe("breachMessages", () => {
+  it.each(vectors.breachMessages.map((c) => [c.name, c] as const))("%s", (_name, c) => {
+    const snapshot = snapshots.get(c.snapshot);
+    if (!snapshot) throw new Error(`no snapshot vector named ${c.snapshot}`);
+    const target = { profit_target: null, profit_min: null, profit_max: null, amount_target: null, amount_min: null, amount_max: null,
+      period_target_days: null, period_min_days: null, period_max_days: null, risk_target: null, risk_min: null, risk_max: null,
+      ...c.target } as CalcTarget;
+    const result = evaluateTarget(target, snapshot, c.risks as Record<string, number | null>, new Date(c.now));
+    expect(breachMessages(result)).toEqual(c.expect);
   });
 });

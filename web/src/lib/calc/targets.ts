@@ -1,4 +1,5 @@
 import type { Check, CheckStatus, Evaluation, Portfolio } from "../api";
+import { floatRepr } from "./pyformat";
 import { pyRound } from "./round";
 import type { CalcTarget } from "./types";
 
@@ -75,4 +76,23 @@ export function evaluateTarget(
     target_id: t.id, name: t.name, symbol: t.symbol, checks, breaches,
     unpriced: [...new Set(rows.filter((h) => h.stale).map((h) => h.symbol))].sort(),
   };
+}
+
+/**
+ * (dedupe key, message) for each breached dimension of an evaluated target. Values print as the
+ * Python prints them: the period in whole days, every other dimension as a float.
+ *
+ * Twin of `breach_messages` in `backend/app/targets.py`; `backend/tests/vectors/calc.json` checks both.
+ */
+export function breachMessages(result: Pick<Evaluation, "target_id" | "name" | "symbol" | "breaches" | "checks">): [string, string][] {
+  const scope = result.symbol || "portfolio";
+  return result.breaches.map((dim): [string, string] => {
+    const c = result.checks[dim as keyof typeof result.checks];
+    const below = c.status === "below_min";
+    const show = (v: number | null) => (v === null ? "None" : dim === "period" ? String(v) : floatRepr(v));
+    return [
+      `target:${result.target_id}:${dim}:${c.status}`,
+      `[${result.name}] ${scope} ${dim} ${show(c.value)} is ${below ? "below min" : "above max"} (${show(below ? c.min : c.max)})`,
+    ];
+  });
 }
