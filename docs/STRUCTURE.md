@@ -304,6 +304,7 @@ MoatMine/
 │   │   │   ├── DeviceDataCard.tsx
 │   │   │   ├── LanguageSwitch.tsx
 │   │   │   ├── LearnModuleView.tsx
+│   │   │   ├── LocalAlertsRunner.tsx
 │   │   │   ├── MoatCard.tsx                      # Moat grade: return on capital, margin stability, growth over the years
 │   │   │   ├── Nav.tsx                           # Side navigation
 │   │   │   ├── NewsFeed.tsx                      # News across holdings and watchlist, filterable
@@ -333,6 +334,8 @@ MoatMine/
 │   │   │   │   ├── types.ts
 │   │   │   │   └── vectors.test.ts
 │   │   │   ├── data/
+│   │   │   │   ├── alerts.test.ts
+│   │   │   │   ├── alerts.ts
 │   │   │   │   ├── notes.test.ts
 │   │   │   │   ├── notes.ts
 │   │   │   │   ├── plans.test.ts

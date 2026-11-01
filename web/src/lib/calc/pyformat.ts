@@ -16,3 +16,8 @@ export function groupedWhole(x: number): string {
 export function general(x: number): string {
   return String(Number(x.toPrecision(6)));
 }
+
+/** Python's `str(float)` for the magnitudes a portfolio uses: a whole number keeps its ".0". */
+export function floatRepr(x: number): string {
+  return Number.isInteger(x) ? `${x}.0` : String(x);
+}

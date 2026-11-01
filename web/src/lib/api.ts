@@ -106,7 +106,8 @@ export type Evaluation = {
   target_id: number | string; name: string; symbol: string | null; breaches: string[];
   checks: { profit: Check; amount: Check; period: Check; intent: Check & { intent: Intent; note: string } };
 };
-export type Alert = Schemas["AlertOut"];
+/** `id` is a number for alerts on the server and a string for alerts kept on this device. */
+export type Alert = Omit<Schemas["AlertOut"], "id"> & { id: number | string };
 export type Ratios = Schemas["RatiosOut"];
 export type ChatMsg = { role: "user" | "assistant"; content: string; meta?: string };
 export type ModelChoice = Schemas["ModelChoiceOut"];
