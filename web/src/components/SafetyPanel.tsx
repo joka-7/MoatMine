@@ -3,8 +3,13 @@
 import Link from "next/link";
 import { useState } from "react";
 import { Account, api, ApiError, BuyPlan, CheckResult, RiskProfile, SafetyAnalysis, SafetyReport } from "@/lib/api";
+import { listAccounts } from "@/lib/data/portfolio";
+import { checkQuantity, createPlan } from "@/lib/data/plans";
+import { getProfile } from "@/lib/data/riskProfile";
 import { useI18n, type MessageKey } from "@/lib/i18n";
+import { useLocalMode } from "@/lib/localMode";
 import { useApi } from "@/lib/useApi";
+import { useLoader } from "@/lib/useLoader";
 import MoatCard from "./MoatCard";
 import { CheckView, GradeBadge, ScoreRing } from "./SafetyBits";
 import { isSampleData } from "@/lib/dataSource";
@@ -22,7 +27,8 @@ function fmtFact(v: unknown) {
 
 export default function SafetyPanel({ symbol }: { symbol: string }) {
   const { data: r, error } = useApi<SafetyReport>(`/stocks/${symbol}/safety`);
-  const { data: profile } = useApi<RiskProfile>("/safety/profile");
+  const { on: local, ready } = useLocalMode();
+  const { data: profile } = useLoader<RiskProfile>(ready ? () => getProfile(local) : null, `profile:${local}`);
   const [ai, setAi] = useState<SafetyAnalysis | null>(null);
   const [aiBusy, setAiBusy] = useState(false);
   const [aiErr, setAiErr] = useState<string | null>(null);
@@ -125,7 +131,8 @@ export default function SafetyPanel({ symbol }: { symbol: string }) {
 }
 
 export function BuyCheck({ symbol }: { symbol: string }) {
-  const { data: accounts } = useApi<Account[]>("/accounts");
+  const { on: local, ready } = useLocalMode();
+  const { data: accounts } = useLoader<Account[]>(ready ? () => listAccounts(local) : null, `accounts:${local}`);
   const [account, setAccount] = useState("");
   const [qty, setQty] = useState("");
   const [check, setCheck] = useState<CheckResult | null>(null);
@@ -137,14 +144,14 @@ export function BuyCheck({ symbol }: { symbol: string }) {
   const run = async () => {
     setMsg(null); setPlan(null);
     // size the buy against the book it would land in: paper accounts never count toward real money
-    const paper = accounts?.find((a) => a.id === +account)?.broker === "paper";
-    try { setCheck(await api<CheckResult>("/safety/check", { method: "POST", json: { symbol, quantity: +qty, mode: paper ? "paper" : "real" } })); }
+    const paper = accounts?.find((a) => String(a.id) === account)?.broker === "paper";
+    try { setCheck(await checkQuantity(symbol, +qty, paper, local)); }
     catch (e) { setMsg((e as Error).message); }
   };
   const makePlan = async () => {
     setMsg(null);
     try {
-      const out = await api<BuyPlan>("/plans", { method: "POST", json: { account_id: +account, symbol, quantity: +qty, note } });
+      const out = await createPlan({ account_id: local ? account : +account, symbol, quantity: +qty, note });
       setPlan(out);
     } catch (e) {
       setMsg(e instanceof ApiError ? e.message : (e as Error).message);

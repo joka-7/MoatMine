@@ -11,8 +11,8 @@ async function sectorOf(symbol: string): Promise<string | null> {
   }
 }
 
-/** The book as the check sees it: value per symbol and per sector, with cash and unpriced symbols. */
-async function bookOf(snapshot: Portfolio): Promise<Book> {
+/** The book as the safety maths sees it (value per symbol and per sector, cash, unpriced symbols), with each symbol's sector. */
+export async function bookOf(snapshot: Portfolio): Promise<{ book: Book; sectors: Record<string, string | null> }> {
   const symbols = [...new Set(snapshot.holdings.map((h) => h.symbol))].sort();
   const sectors = Object.fromEntries(await Promise.all(symbols.map(async (s) => [s, await sectorOf(s)] as const)));
   const bySymbol: Record<string, number> = {};
@@ -22,7 +22,8 @@ async function bookOf(snapshot: Portfolio): Promise<Book> {
     const sector = sectors[h.symbol] ?? "Unknown";
     bySector[sector] = (bySector[sector] ?? 0) + h.value;
   }
-  return { total_value: snapshot.totals.net_worth, by_symbol: bySymbol, by_sector: bySector, cash: snapshot.totals.cash, unpriced: snapshot.totals.unpriced };
+  const book: Book = { total_value: snapshot.totals.net_worth, by_symbol: bySymbol, by_sector: bySector, cash: snapshot.totals.cash, unpriced: snapshot.totals.unpriced };
+  return { book, sectors };
 }
 
 /**
@@ -32,7 +33,7 @@ async function bookOf(snapshot: Portfolio): Promise<Book> {
  * @throws Error when the stock's report cannot be fetched.
  */
 export async function checkOnDevice(symbol: string, amount: number, snapshot: Portfolio): Promise<CheckResult> {
-  const [report, book, rules] = await Promise.all([
+  const [report, { book }, rules] = await Promise.all([
     api<SafetyReport>(`/stocks/${encodeURIComponent(symbol)}/safety`), bookOf(snapshot), localRules(),
   ]);
   const f = report.facts;

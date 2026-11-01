@@ -326,6 +326,7 @@ MoatMine/
 │   │   │   │   ├── portfolio.ts
 │   │   │   │   ├── profile.ts
 │   │   │   │   ├── pyformat.ts
+│   │   │   │   ├── risk.ts
 │   │   │   │   ├── round.test.ts
 │   │   │   │   ├── round.ts
 │   │   │   │   ├── targets.ts
@@ -334,8 +335,12 @@ MoatMine/
 │   │   │   ├── data/
 │   │   │   │   ├── notes.test.ts
 │   │   │   │   ├── notes.ts
+│   │   │   │   ├── plans.test.ts
+│   │   │   │   ├── plans.ts
 │   │   │   │   ├── portfolio.test.ts
 │   │   │   │   ├── portfolio.ts
+│   │   │   │   ├── risk.test.ts
+│   │   │   │   ├── risk.ts
 │   │   │   │   ├── riskProfile.test.ts
 │   │   │   │   ├── riskProfile.ts
 │   │   │   │   ├── safetyCheck.test.ts
