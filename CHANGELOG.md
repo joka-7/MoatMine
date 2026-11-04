@@ -6,6 +6,9 @@ API share one version.
 
 ## [Unreleased]
 
+### Security
+- **Action needed before deploying:** set `ALLOWED_EMAILS` (comma-separated) in Render. In firebase mode the API now only lets in accounts with a verified email on that list (403 otherwise) and refuses to start without it; `ALLOW_ANY_USER=true` is the explicit opt-out. MCP tokens remember their owner's email (migration 0004) and stop working when it leaves the list; tokens made before this must be recreated.
+
 ### Changed
 - Charts and the numbers built on them use real daily, weekly and monthly prices from FMP when Finnhub's plan has no candles and `FMP_API_KEY` is set. Intraday ranges still show sample data.
 

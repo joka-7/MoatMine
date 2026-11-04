@@ -253,6 +253,22 @@ def test_mcp_requires_token_and_serves_tools(client, alice_account):
     assert out["error"] == "invalid arguments"  # MCP gets the same argument bounds as the in-app agent
 
 
+def test_mcp_tokens_remember_their_owners_verified_email(client):
+    from app.auth import Identity, current_identity
+    from app.db import SessionLocal
+    from app.main import app
+    from app.models import MCPToken
+
+    app.dependency_overrides[current_identity] = lambda: Identity("mcp-email-user", "owner@example.com")
+    try:
+        made = client.post("/ai/mcp-tokens?label=laptop", headers=A).json()
+    finally:
+        app.dependency_overrides.clear()
+    with SessionLocal() as db:
+        row = db.get(MCPToken, made["id"])
+        assert row is not None and row.email == "owner@example.com"
+
+
 def test_missing_market_price_is_a_502(client):
     from app.errors import MarketDataError
     from app.main import app
