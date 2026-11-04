@@ -9,6 +9,21 @@ API share one version.
 ### Security
 - **Action needed before deploying:** set `ALLOWED_EMAILS` (comma-separated) in Render. In firebase mode the API now only lets in accounts with a verified email on that list (403 otherwise) and refuses to start without it; `ALLOW_ANY_USER=true` is the explicit opt-out. MCP tokens remember their owner's email (migration 0004) and stop working when it leaves the list; tokens made before this must be recreated.
 
+### Changed
+- Charts and the numbers built on them use real daily, weekly and monthly prices from FMP when Finnhub's plan has no candles and `FMP_API_KEY` is set. Intraday ranges still show sample data.
+
+### Added
+- With the on-device switch on, the app checks for alerts itself (the server worker cannot see data kept on the device): when it opens, then every 15 minutes while it stays open. It covers watchlist price thresholds, target breaches, position and sector limits, and the loss limit (skipped on sample prices). Nothing is checked while the app is closed; local notifications are a later step. The value-history and target-message maths are ported to TypeScript and checked against the Python on shared vectors.
+- With the on-device switch on, buy plans are kept and run on the device: the check, the written reason and cooling-off rules, the re-check at execution and the thesis note are the same as on the server. Only the real-money book is available there.
+- With the on-device switch on, the Risk page (portfolio risk and stress test) is computed in the app from the book on the device and daily prices and crisis history fetched by symbol. The risk maths (alignment, beta, correlation, VaR, drawdown, stress scenarios) is ported to TypeScript and checked against the Python on shared vectors.
+- With the on-device switch on, your risk profile and rules are saved on the device too, and adding a position runs the safety check in the app (the stock's own score still comes from the API by symbol). The check and the profile's level rules are ported to TypeScript and checked against the Python on shared vectors. If the check cannot run, the position is still saved and the page says why.
+- Targets (PAPI/MAMI) can also be kept on the device: with the Settings switch on they are saved there and evaluated in the app against the on-device portfolio, using a year of daily prices fetched by symbol. Volatility is computed in the app (checked against the Python on shared vectors) and is shown as unknown when only sample prices exist.
+- The on-device switch in Settings now also keeps real-money accounts and positions on the device: the dashboard and Portfolio page value them from the device's records plus live quotes by symbol. Paper accounts, the value chart and the add-position safety check stay server-only for now.
+- Portfolio valuation and target (PAPI/MAMI) evaluation ported to TypeScript (`web/src/lib/calc/`), checked against the Python on shared test vectors (`backend/tests/vectors/calc.json`). Not used by any screen yet; groundwork for keeping the whole portfolio on the device.
+- Settings → "Keep my data on this device": an opt-in switch that stores the watchlist and stock notes in this browser or app instead of on the server, with export and import of one JSON file. Off by default; the other screens still use the server.
+- On-device portfolio store (`web/src/lib/store/`): typed collections over IndexedDB, validated JSON export/import and merge rules. Not wired to any screen yet; the first step of keeping the portfolio on the user's device (see `docs/LOCAL-FIRST.md`).
+- Google sign-in in the desktop and Android apps, through the system browser, once a Google OAuth client is configured (see the README). Until then the apps keep offering email and password only.
+
 ## [0.4.0] - 2026-10-21
 
 ### Added

@@ -2,9 +2,15 @@ import { FirebaseError } from "@firebase/app";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { signInWithEmailAndPassword } from "@firebase/auth";
+import { appGoogleConfigured, GoogleSignInError, signInWithGoogleApp } from "@/lib/googleApp";
 import SignInForm from "./SignInForm";
 
 vi.mock("@/lib/firebase", () => ({ firebaseAuth: () => ({}), inAppWindow: vi.fn(() => false) }));
+vi.mock("@/lib/googleApp", async (original) => ({
+  ...(await original<typeof import("@/lib/googleApp")>()),
+  appGoogleConfigured: vi.fn(() => false),
+  signInWithGoogleApp: vi.fn(),
+}));
 vi.mock("@firebase/auth", () => ({
   GoogleAuthProvider: vi.fn(),
   createUserWithEmailAndPassword: vi.fn(),
@@ -45,13 +51,41 @@ describe("SignInForm", () => {
   });
 
   it.each([
-    [false, true],
-    [true, false], // Google blocks its sign-in inside the desktop and Android app windows
-  ])("offers Google sign-in when inAppWindow is %s: %s", async (inApp, offered) => {
+    ["in a browser", false, false, true],
+    ["in a browser, whatever the app settings", false, true, true],
+    ["in an app build with a Google client", true, true, true],
+    ["in an app build without one (Google blocks its popup there)", true, false, false],
+  ])("offers Google sign-in %s: %s", async (_, inApp, configured, offered) => {
     const { inAppWindow } = await import("@/lib/firebase");
     vi.mocked(inAppWindow).mockReturnValue(inApp);
+    vi.mocked(appGoogleConfigured).mockReturnValue(configured);
     render(<SignInForm />);
     expect(screen.queryByRole("button", { name: "Continue with Google" }) !== null).toBe(offered);
+  });
+
+  describe("Google sign-in in the app", () => {
+    const startInApp = async () => {
+      const { inAppWindow } = await import("@/lib/firebase");
+      vi.mocked(inAppWindow).mockReturnValue(true);
+      vi.mocked(appGoogleConfigured).mockReturnValue(true);
+      render(<SignInForm />);
+      fireEvent.click(screen.getByRole("button", { name: "Continue with Google" }));
+    };
+
+    it("goes through the system browser flow, not a popup", async () => {
+      vi.mocked(signInWithGoogleApp).mockResolvedValue({} as never);
+      await startInApp();
+      await waitFor(() => expect(signInWithGoogleApp).toHaveBeenCalledTimes(1));
+    });
+
+    it.each([
+      ["a flow that did not finish", new GoogleSignInError("shell", "x"), "Google sign-in didn't finish. Try again, or use your email and password."],
+      ["closed sign-ups", new FirebaseError("auth/admin-restricted-operation", "x"), "Sign-ups are closed. Ask the owner to add your account."],
+    ])("explains %s", async (_, error, text) => {
+      vi.mocked(signInWithGoogleApp).mockRejectedValue(error);
+      await startInApp();
+      expect(await screen.findByRole("alert")).toHaveProperty("textContent", text);
+    });
   });
 
   it("switches to creating an account and to resetting a password", () => {

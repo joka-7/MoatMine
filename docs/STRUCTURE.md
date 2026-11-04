@@ -146,11 +146,14 @@ MoatMine/
 │   │   ├── env.py                                # Alembic environment: runs migrations against the app's own DATABASE_URL.
 │   │   └── script.py.mako                        # Template for new Alembic revisions
 │   ├── tests/                                    # Pytest suite (SQLite, mock market data, no network)
+│   │   ├── vectors/
+│   │   │   └── calc.json
 │   │   ├── conftest.py                           # Test app on a throwaway SQLite DB (migrated), mock market data,…
 │   │   ├── test_analytics.py                     # Price-derived ratios with hand-checkable numbers.
 │   │   ├── test_api.py                           # End-to-end API: portfolio, stock data, notes, targets, worker alerts, AI…
 │   │   ├── test_auth.py                          # Firebase ID token verification, with a locally generated key standing in for…
 │   │   ├── test_cache.py                         # The TTL cache: expiry, eviction order, lock pruning and per-key single flight…
+│   │   ├── test_calc_vectors.py                  # Portfolio and target maths against the vectors shared with the TypeScript…
 │   │   ├── test_config.py                        # Settings refuse dev auth on Postgres and incomplete Firebase or Fernet config
 │   │   ├── test_crises.py                        # Crisis drawdown/recovery and worst-drawdown maths on hand-built bars
 │   │   ├── test_crypto.py                        # Encryption round trips, tampering, masking, MCP token hashing
@@ -161,6 +164,7 @@ MoatMine/
 │   │   ├── test_internal.py                      # The scheduler route that starts an alert pass on hosting without background…
 │   │   ├── test_llm_json.py                      # Finding the JSON object in a model reply.
 │   │   ├── test_log_config.py                    # Secret redaction, JSON/text formatters, request-id middleware
+│   │   ├── test_market_routing.py                # Where chart bars come from when the primary plan has no candles: FMP, then…
 │   │   ├── test_mcp_allowlist.py                 # An MCP token only works while its owner's email is on the allow-list.
 │   │   ├── test_portfolio.py                     # Paper (practice) and real-money accounts are separate books everywhere money…
 │   │   ├── test_ratelimit.py
@@ -194,7 +198,8 @@ MoatMine/
 │   │   │   └── icon.png
 │   │   ├── src/                                  # Rust entry points
 │   │   │   ├── lib.rs                            # Thin shell: opens the static-exported UI; no business logic
-│   │   │   └── main.rs                           # Binary entry point calling lib::run()
+│   │   │   ├── main.rs                           # Binary entry point calling lib::run()
+│   │   │   └── oauth.rs
 │   │   ├── Cargo.lock                            # Pinned Rust dependencies
 │   │   ├── Cargo.toml                            # Rust crate for the Tauri shell
 │   │   ├── build.rs                              # Tauri-build hook
@@ -249,6 +254,7 @@ MoatMine/
 │   ├── .structure-notes.toml                     # Hand-written notes for this tree, for files that can't describe themselves
 │   ├── HLD.md                                    # MoatMine — High-Level Design
 │   ├── LLD.md                                    # MoatMine — Low-Level Design
+│   ├── LOCAL-FIRST.md                            # Local-first MoatMine: design proposal
 │   ├── RUNBOOK.md                                # MoatMine runbook
 │   └── STRUCTURE.md                              # Repository structure
 ├── web/                                          # Next.js UI, static-exported for GitHub Pages and the desktop app
@@ -297,8 +303,10 @@ MoatMine/
 │   │   │   ├── BadTimesPanel.tsx                 # Crisis drawdowns vs a benchmark and the stock's worst falls
 │   │   │   ├── BookToggle.tsx                    # Real money / Paper switch and the paper-mode notice
 │   │   │   ├── ChatPanel.tsx                     # Agent chat with model picker, tool use and suggestions
+│   │   │   ├── DeviceDataCard.tsx
 │   │   │   ├── LanguageSwitch.tsx
 │   │   │   ├── LearnModuleView.tsx
+│   │   │   ├── LocalAlertsRunner.tsx
 │   │   │   ├── MoatCard.tsx                      # Moat grade: return on capital, margin stability, growth over the years
 │   │   │   ├── Nav.tsx                           # Side navigation
 │   │   │   ├── NewsFeed.tsx                      # News across holdings and watchlist, filterable
@@ -315,6 +323,37 @@ MoatMine/
 │   │   │   ├── ValuationPanel.tsx                # Fair-value models with editable assumptions
 │   │   │   └── ValueChart.tsx                    # Holdings value over time for one book
 │   │   ├── lib/                                  # API client, formatters and hooks
+│   │   │   ├── calc/
+│   │   │   │   ├── analytics.ts
+│   │   │   │   ├── check.ts
+│   │   │   │   ├── portfolio.ts
+│   │   │   │   ├── profile.ts
+│   │   │   │   ├── pyformat.ts
+│   │   │   │   ├── risk.ts
+│   │   │   │   ├── round.test.ts
+│   │   │   │   ├── round.ts
+│   │   │   │   ├── targets.ts
+│   │   │   │   ├── types.ts
+│   │   │   │   └── vectors.test.ts
+│   │   │   ├── data/
+│   │   │   │   ├── alerts.test.ts
+│   │   │   │   ├── alerts.ts
+│   │   │   │   ├── notes.test.ts
+│   │   │   │   ├── notes.ts
+│   │   │   │   ├── plans.test.ts
+│   │   │   │   ├── plans.ts
+│   │   │   │   ├── portfolio.test.ts
+│   │   │   │   ├── portfolio.ts
+│   │   │   │   ├── risk.test.ts
+│   │   │   │   ├── risk.ts
+│   │   │   │   ├── riskProfile.test.ts
+│   │   │   │   ├── riskProfile.ts
+│   │   │   │   ├── safetyCheck.test.ts
+│   │   │   │   ├── safetyCheck.ts
+│   │   │   │   ├── targets.test.ts
+│   │   │   │   ├── targets.ts
+│   │   │   │   ├── watchlist.test.ts
+│   │   │   │   └── watchlist.ts
 │   │   │   ├── i18n/                             # English and Hebrew: LanguageProvider/useI18n, one messages module per area,…
 │   │   │   │   ├── messages/
 │   │   │   │   │   ├── ai.ts
@@ -345,6 +384,19 @@ MoatMine/
 │   │   │   │   ├── progress.test.ts
 │   │   │   │   ├── progress.ts
 │   │   │   │   └── types.ts
+│   │   │   ├── store/
+│   │   │   │   ├── backend.ts
+│   │   │   │   ├── index.ts
+│   │   │   │   ├── indexeddb.test.ts
+│   │   │   │   ├── indexeddb.ts
+│   │   │   │   ├── memory.ts
+│   │   │   │   ├── shared.ts
+│   │   │   │   ├── store.test.ts
+│   │   │   │   ├── store.ts
+│   │   │   │   ├── testing.ts
+│   │   │   │   ├── types.ts
+│   │   │   │   ├── validate.test.ts
+│   │   │   │   └── validate.ts
 │   │   │   ├── api-schema.ts                     # Types generated from openapi.json (npm run gen:api); don't edit
 │   │   │   ├── api.ts                            # API client (Firebase ID token or dev token), error type, and the response…
 │   │   │   ├── dataSource.test.ts                # Which data-source labels count as sample data
@@ -352,6 +404,9 @@ MoatMine/
 │   │   │   ├── firebase.ts                       # Firebase app and Auth from the NEXT_PUBLIC_FIREBASE_* settings; detects the…
 │   │   │   ├── format.test.ts
 │   │   │   ├── format.ts                         # Money, number, percent, date and tone formatters (en-US)
+│   │   │   ├── googleApp.test.ts
+│   │   │   ├── googleApp.ts
+│   │   │   ├── localMode.ts
 │   │   │   ├── theme.test.tsx
 │   │   │   ├── theme.tsx
 │   │   │   ├── useApi.test.ts
@@ -360,7 +415,8 @@ MoatMine/
 │   │   │   ├── useIntroSeen.test.ts
 │   │   │   ├── useIntroSeen.ts
 │   │   │   ├── useLearnProgress.test.ts
-│   │   │   └── useLearnProgress.ts
+│   │   │   ├── useLearnProgress.ts
+│   │   │   └── useLoader.ts
 │   │   └── copy.test.ts                          # Fails if any UI copy calls an investment safe or its returns guaranteed
 │   ├── .env.example                              # API URL and (optional) Firebase web-app settings
 │   ├── .gitignore                                # Next.js build output and local env files

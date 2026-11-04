@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import AuthShell from "@/components/AuthShell";
+import LocalAlertsRunner from "@/components/LocalAlertsRunner";
 import Nav from "@/components/Nav";
 import { LanguageProvider } from "@/lib/i18n";
 import { ThemeProvider } from "@/lib/theme";
@@ -21,6 +22,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <div className="shell">
                 <Nav />
                 <main>{children}</main>
+                <LocalAlertsRunner />
               </div>
             </AuthShell>
           </LanguageProvider>

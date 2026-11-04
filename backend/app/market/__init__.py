@@ -1,17 +1,23 @@
 import logging
+import time
+from datetime import UTC, datetime
 from functools import lru_cache
 from typing import TYPE_CHECKING, Any
 
 import httpx
 
+from app.cache import ttl_cache
 from app.config import get_settings
 from app.jsontypes import JSONDict
 from app.market.base import FUNDAMENTAL_KEYS, Candle, MarketProvider, NewsItem, Quote
+from app.market.fmp import regroup
 
 if TYPE_CHECKING:
     from app.market.fmp import FMPProvider
 
 logger = logging.getLogger(__name__)
+
+EOD_RESOLUTIONS = ("D", "W", "M")
 
 # what an FMP call can fail with: network/plan errors, or a response shaped differently than mapped
 _FMP_FAILURES = (httpx.HTTPError, KeyError, IndexError, TypeError, ValueError)
@@ -21,6 +27,14 @@ def describe_error(e: BaseException) -> dict[str, object]:
     """Loggable fields for a provider error. Never the message: httpx errors embed the URL and its apikey."""
     status = e.response.status_code if isinstance(e, httpx.HTTPStatusError) else None
     return {"error": type(e).__name__, "status_code": status}
+
+
+@ttl_cache(6 * 3600)  # FMP's free plan allows about 250 calls a day, shared by every user
+async def _fmp_daily(provider: "RoutedProvider", symbol: str, first_year: int) -> list[Candle]:
+    """All daily bars from January of `first_year` to today, so one call serves every range from there."""
+    assert provider.fmp is not None
+    start = int(datetime(first_year, 1, 1, tzinfo=UTC).timestamp())
+    return await provider.fmp.eod_candles(symbol, "D", start, int(time.time()))
 
 
 class RoutedProvider:
@@ -39,7 +53,28 @@ class RoutedProvider:
         return await self.primary.quote(symbol)
 
     async def candles(self, symbol: str, resolution: str, start: int, end: int) -> list[Candle]:
-        return await self.primary.candles(symbol, resolution, start, end)
+        """The primary's bars; if its plan has no candles, FMP's end-of-day bars; then sample bars.
+
+        FMP only has daily history, so intraday charts keep falling back to sample bars. Bars from
+        FMP are not sample data: the result is labelled "<primary>+fmp".
+        """
+        live = getattr(self.primary, "live_candles", None)
+        sample = getattr(self.primary, "sample_candles", None)
+        if self.fmp is None or live is None or sample is None or resolution not in EOD_RESOLUTIONS:
+            return await self.primary.candles(symbol, resolution, start, end)
+        bars: list[Candle] | None = await live(symbol, resolution, start, end)
+        if bars is not None:
+            return bars
+        try:
+            daily = await _fmp_daily(self, symbol, datetime.fromtimestamp(start, UTC).year)
+        except _FMP_FAILURES as e:
+            logger.warning("fmp candles failed; using sample data", extra={"symbol": symbol, **describe_error(e)})
+        else:
+            eod = regroup([b for b in daily if start <= b["t"] <= end], resolution)
+            if eod:
+                return eod
+        out: list[Candle] = await sample(symbol, resolution, start, end)
+        return out
 
     async def metrics(self, symbol: str) -> dict[str, float | None]:
         return await self.primary.metrics(symbol)

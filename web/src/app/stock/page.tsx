@@ -10,10 +10,14 @@ import { AnalystsPanel, CompanyCard, DividendsPanel, EarningsPanel, NewsPanel } 
 import BadTimesPanel from "@/components/BadTimesPanel";
 import SafetyPanel from "@/components/SafetyPanel";
 import ValuationPanel from "@/components/ValuationPanel";
-import { api, Note, Quote } from "@/lib/api";
+import { Note, Quote } from "@/lib/api";
+import { addNote, listNotes, removeNote } from "@/lib/data/notes";
+import { addWatch } from "@/lib/data/watchlist";
 import { money, pct, tone } from "@/lib/format";
 import { useI18n, type MessageKey } from "@/lib/i18n";
 import { useApi } from "@/lib/useApi";
+import { useLoader } from "@/lib/useLoader";
+import { useLocalMode } from "@/lib/localMode";
 
 // Query-param route (/stock?s=AAPL) so it works in the static desktop export too.
 export default function StockPage() {
@@ -55,7 +59,7 @@ function Stock() {
   const [msg, setMsg] = useState<string | null>(null);
 
   const watch = async () => {
-    try { await api("/watchlist", { method: "POST", json: { symbol } }); setMsg(t("stock.watchAdded")); }
+    try { await addWatch({ symbol, note: "", alert_above: null, alert_below: null }); setMsg(t("stock.watchAdded")); }
     catch (e) { setMsg((e as Error).message); }
   };
 
@@ -114,14 +118,15 @@ function Notes({ symbol }: { symbol: string }) {
     const key = NOTE_KIND[kind];
     return key ? t(key) : kind;
   };
-  const { data, reload } = useApi<Note[]>(`/stocks/${symbol}/notes`);
+  const { on: local, ready } = useLocalMode();
+  const { data, reload } = useLoader<Note[]>(ready ? () => listNotes(symbol, local) : null, `notes:${symbol}:${local}`);
   const [f, setF] = useState({ kind: "note", title: "", body: "", url: "" });
   return (
     <div className="card">
       <h2>{t("stock.notes.title")}</h2>
       <form className="grid" style={{ gap: 8, marginBottom: 10 }} onSubmit={async (e) => {
         e.preventDefault();
-        await api(`/stocks/${symbol}/notes`, { method: "POST", json: f });
+        await addNote(symbol, f);
         setF({ ...f, title: "", body: "", url: "" });
         reload();
       }}>
@@ -140,7 +145,7 @@ function Notes({ symbol }: { symbol: string }) {
           <div key={n.id} style={{ padding: "8px 0", borderBottom: "1px solid var(--line)" }}>
             <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
               <span><span className="chip">{kindLabel(n.kind)}</span> {n.url ? <a href={n.url} target="_blank" rel="noreferrer" style={{ textDecoration: "underline" }}>{n.title}</a> : n.title}</span>
-              <button className="btn sm ghost" onClick={async () => { await api(`/stocks/${symbol}/notes/${n.id}`, { method: "DELETE" }); reload(); }}>×</button>
+              <button className="btn sm ghost" onClick={async () => { await removeNote(symbol, n.id); reload(); }}>×</button>
             </div>
             {n.body && <div className="sub" style={{ whiteSpace: "pre-wrap", marginTop: 4 }}>{n.body}</div>}
           </div>

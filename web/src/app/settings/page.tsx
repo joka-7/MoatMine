@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import AiSettingsCard from "@/components/AiSettingsCard";
+import DeviceDataCard from "@/components/DeviceDataCard";
 import LanguageSwitch from "@/components/LanguageSwitch";
 import ThemeSwitch from "@/components/ThemeSwitch";
 import { api, apiBase, devToken } from "@/lib/api";
@@ -30,6 +31,7 @@ export default function SettingsPage() {
           <p className="sub">{t("intro.replay.body")}</p>
           <Link href="/welcome" className="btn">{t("intro.replay.button")}</Link>
         </div>
+        <DeviceDataCard />
         <AiSettingsCard />
         <Connection />
         <McpTokens />

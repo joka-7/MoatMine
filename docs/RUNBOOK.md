@@ -44,7 +44,7 @@ Symptom: `/health/worker` returns 503, or alerts stop appearing.
   (`app/market/retry.py`). Past that:
   - quotes that still fail mark holdings `stale` (priced at cost) and the dashboard says so;
   - `/stocks/*` routes that need a price return 502 with the reason;
-  - Finnhub candles fall back to sample data, labelled `mock-fallback` in every result built on them.
+  - Finnhub candles (a plan without `/stock/candle`) fall back to FMP's end-of-day bars when `FMP_API_KEY` is set, labelled `finnhub+fmp`; daily, weekly and monthly ranges only. With no FMP key, an FMP failure (402/429/5xx, logged as `fmp candles failed`), or an intraday range, they fall back to sample data, labelled `mock-fallback` in every result built on them.
   Nothing to do but wait, or check the provider's status page and your plan's limits.
 - **A Finnhub 401/403.** The key is wrong or the endpoint isn't on your plan. Retries don't help
   (`app/market/retry.py` treats them as final). Check `FINNHUB_API_KEY` in the
@@ -139,5 +139,6 @@ order matters:
 | Secret | Where it lives | If it leaks |
 |---|---|---|
 | `FIREBASE_*` | Firebase console | Nothing secret here: the API holds only the project id, and the web the public web-app settings. Protect the Firebase console account itself (two-factor sign-in) |
+| `GOOGLE_DESKTOP_CLIENT_SECRET` (repository secret), `GOOGLE_DESKTOP_CLIENT_ID`, `GOOGLE_ANDROID_CLIENT_ID` | Google Cloud console → Credentials | The desktop secret is inside every installer by design, so a leak changes nothing; to rotate, reset it in the console, update the secret and cut a release. Without these the apps offer email and password only |
 | `FINNHUB_API_KEY`, `FMP_API_KEY`, `*_API_KEY` (AI) | The provider's dashboard | Regenerate there, update the env group, redeploy |
 | MCP tokens | `mcp_tokens` (hashes only) | Users revoke them in Settings → AI |

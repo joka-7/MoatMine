@@ -6,15 +6,59 @@ field degrades to "—" in the UI instead of an error. Verify against your plan 
 """
 
 import asyncio
+from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
 import httpx
 
 from app.jsontypes import JSONDict
+from app.market.base import Candle
 from app.market.retry import Sleep, get_with_retry
 
 BASE = "https://financialmodelingprep.com/stable"
 M = 1_000_000  # FMP returns raw currency units; the app works in millions
+
+
+def _daily_bar(row: object) -> Candle | None:
+    """One FMP end-of-day row as a candle, or None when a field is missing or not a number."""
+    if not isinstance(row, dict):
+        return None
+    try:
+        day = date.fromisoformat(str(row["date"])[:10])
+        o, h, lo, c = (float(row[k]) for k in ("open", "high", "low", "close"))
+    except (KeyError, ValueError, TypeError):
+        return None
+    volume = row.get("volume")
+    return {
+        "t": int(datetime(day.year, day.month, day.day, tzinfo=UTC).timestamp()),
+        "o": o, "h": h, "l": lo, "c": c,
+        "v": float(volume) if isinstance(volume, int | float) else 0.0,
+    }
+
+
+def regroup(bars: list[Candle], resolution: str) -> list[Candle]:
+    """Daily bars rolled up to weeks (starting Monday) or months; "D" is returned as it is."""
+    if resolution == "D":
+        return bars
+
+    def period(bar: Candle) -> tuple[int, int]:
+        day = datetime.fromtimestamp(bar["t"], UTC).date()
+        if resolution == "W":
+            monday = day - timedelta(days=day.weekday())
+            return (monday.year, monday.toordinal())
+        return (day.year, day.month)
+
+    out: list[Candle] = []
+    last: tuple[int, int] | None = None
+    for bar in bars:
+        key = period(bar)
+        if key == last:
+            cur = out[-1]
+            cur["h"], cur["l"], cur["c"], cur["v"] = max(cur["h"], bar["h"]), min(cur["l"], bar["l"]), bar["c"], cur["v"] + bar["v"]
+        else:
+            out.append(dict(bar))  # type: ignore[arg-type]
+            last = key
+    return out
 
 
 def _mil(v: object) -> float | None:
@@ -32,6 +76,21 @@ class FMPProvider:
     async def _get(self, path: str, **params: str | int) -> Any:  # raw JSON, mapped by each caller
         r = await get_with_retry(self._client, path, dict(params), self._sleep)
         return r.json()
+
+    async def eod_candles(self, symbol: str, resolution: str, start: int, end: int) -> list[Candle]:
+        """End-of-day bars between `start` and `end` (unix seconds), as days, weeks ("W") or months ("M").
+
+        Free plans only have daily history, so there is nothing finer than "D". Rows FMP returns
+        in a shape we don't recognise are skipped; a plan that refuses the call raises, and the
+        caller falls back.
+        """
+        if resolution not in ("D", "W", "M"):
+            raise ValueError(f"FMP end-of-day data has no {resolution!r} bars")
+        first = datetime.fromtimestamp(start, UTC).date()
+        last = datetime.fromtimestamp(end, UTC).date()
+        rows = await self._get("/historical-price-eod/full", symbol=symbol, **{"from": first.isoformat(), "to": last.isoformat()})
+        bars = sorted(filter(None, map(_daily_bar, rows if isinstance(rows, list) else [])), key=lambda b: b["t"])
+        return regroup([b for b in bars if start <= b["t"] <= end], resolution)
 
     async def company(self, symbol: str) -> JSONDict:
         rows = await self._get("/profile", symbol=symbol)

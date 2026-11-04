@@ -1,14 +1,22 @@
 "use client";
 
-import { useState } from "react";
-import { Alert, api } from "@/lib/api";
+import { useEffect, useState } from "react";
+import { Alert } from "@/lib/api";
+import { listAlerts, markAllRead } from "@/lib/data/alerts";
 import { date } from "@/lib/format";
 import { useI18n } from "@/lib/i18n";
-import { useApi } from "@/lib/useApi";
+import { useLocalMode } from "@/lib/localMode";
+import { useLoader } from "@/lib/useLoader";
+import { ALERTS_CHANGED } from "./LocalAlertsRunner";
 
 export default function AlertsBell() {
   const { t, lang } = useI18n();
-  const { data, reload } = useApi<Alert[]>("/alerts");
+  const { on: local, ready } = useLocalMode();
+  const { data, reload } = useLoader<Alert[]>(ready ? () => listAlerts(local) : null, `alerts:${local}`);
+  useEffect(() => {
+    window.addEventListener(ALERTS_CHANGED, reload);
+    return () => window.removeEventListener(ALERTS_CHANGED, reload);
+  }, [reload]);
   const [open, setOpen] = useState(false);
   const unread = data?.filter((a) => !a.read).length ?? 0;
   return (
@@ -20,7 +28,7 @@ export default function AlertsBell() {
         <div className="card pop">
           <div className="row" style={{ justifyContent: "space-between", marginBottom: 8 }}>
             <h2 style={{ margin: 0 }}>{t("dashboard.alerts.title")}</h2>
-            <button className="btn sm" style={{ flex: "0 1 auto" }} onClick={async () => { await api("/alerts/read-all", { method: "POST" }); reload(); }}>
+            <button className="btn sm" style={{ flex: "0 1 auto" }} onClick={async () => { await markAllRead(); reload(); }}>
               {t("dashboard.alerts.markAllRead")}
             </button>
           </div>

@@ -2,10 +2,12 @@
 
 import { useState } from "react";
 import SymbolSearch from "@/components/SymbolSearch";
-import { api, Check, Evaluation, Intent, Target } from "@/lib/api";
+import { Check, Evaluation, Intent, Target } from "@/lib/api";
+import { evaluateTargets, listTargets, removeTarget, saveTarget, type TargetInput } from "@/lib/data/targets";
 import { money, share } from "@/lib/format";
 import { useI18n, type I18n, type MessageKey } from "@/lib/i18n";
-import { useApi } from "@/lib/useApi";
+import { useLocalMode } from "@/lib/localMode";
+import { useLoader } from "@/lib/useLoader";
 
 /*
  * PAPI = Profit · Amount · Period · Intent
@@ -31,10 +33,15 @@ const intentLabel = (t: I18n["t"], intent: string) => (intent in INTENT_LABEL ? 
 type Form = Record<string, string>;
 const blank = (): Form => ({ name: "", symbol: "", intent: "growth", intent_note: "", ...Object.fromEntries(DIMS.flatMap((d) => d.fields.map((f) => [f, ""]))) });
 
-function toPayload(f: Form) {
-  const out: Record<string, unknown> = { name: f.name, symbol: f.symbol || null, intent: f.intent, intent_note: f.intent_note };
-  DIMS.forEach((d) => d.fields.forEach((k) => (out[k] = f[k] === "" ? null : +f[k])));
-  return out;
+function toPayload(f: Form): TargetInput {
+  const num = (k: string) => (f[k] === "" || f[k] === undefined ? null : +f[k]);
+  return {
+    name: f.name, symbol: f.symbol || null, intent: f.intent as Intent, intent_note: f.intent_note ?? "",
+    profit_target: num("profit_target"), profit_min: num("profit_min"), profit_max: num("profit_max"),
+    amount_target: num("amount_target"), amount_min: num("amount_min"), amount_max: num("amount_max"),
+    period_target_days: num("period_target_days"), period_min_days: num("period_min_days"), period_max_days: num("period_max_days"),
+    risk_target: num("risk_target"), risk_min: num("risk_min"), risk_max: num("risk_max"),
+  };
 }
 
 function fromTarget(t: Target): Form {
@@ -44,10 +51,11 @@ function fromTarget(t: Target): Form {
 }
 
 export default function TargetsPage() {
-  const { data: targets, reload: reloadT } = useApi<Target[]>("/targets");
-  const { data: evals, reload: reloadE } = useApi<Evaluation[]>("/targets/evaluate");
+  const { on: local, ready } = useLocalMode();
+  const { data: targets, reload: reloadT } = useLoader<Target[]>(ready ? () => listTargets(local) : null, `targets:${local}`);
+  const { data: evals, reload: reloadE } = useLoader<Evaluation[]>(ready ? () => evaluateTargets(local) : null, `evaluations:${local}`);
   const [form, setForm] = useState<Form>(blank());
-  const [editing, setEditing] = useState<number | null>(null);
+  const [editing, setEditing] = useState<number | string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const { t } = useI18n();
 
@@ -55,7 +63,7 @@ export default function TargetsPage() {
   const save = async () => {
     try {
       setErr(null);
-      await api(editing ? `/targets/${editing}` : "/targets", { method: editing ? "PUT" : "POST", json: toPayload(form) });
+      await saveTarget(toPayload(form), editing);
       setForm(blank());
       setEditing(null);
       reload();
@@ -123,7 +131,7 @@ export default function TargetsPage() {
                 </div>
                 <div className="seg" style={{ flex: "0 1 auto" }}>
                   <button className="btn sm" onClick={() => { if (target) { setForm(fromTarget(target)); setEditing(target.id); window.scrollTo({ top: 0, behavior: "smooth" }); } }}>{t("risk.targets.editButton")}</button>
-                  <button className="btn sm" onClick={async () => { await api(`/targets/${e.target_id}`, { method: "DELETE" }); reload(); }}>{t("common.delete")}</button>
+                  <button className="btn sm" onClick={async () => { await removeTarget(e.target_id); reload(); }}>{t("common.delete")}</button>
                 </div>
               </div>
               {DIMS.map((d) => <RangeRow key={d.key} label={t(d.label)} c={e.checks[d.key]} fmt={(v) => d.fmt(v, t)} />)}

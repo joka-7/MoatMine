@@ -7,7 +7,7 @@ never makes the real portfolio look bigger or more diversified than it is.
 
 import asyncio
 import logging
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Mapping, Sequence
 from typing import Literal
 
 from sqlalchemy import select
@@ -76,7 +76,15 @@ async def portfolio_snapshot(db: Session, user_id: str, provider: MarketProvider
     accounts = await asyncio.to_thread(accounts_in_book, db, user_id, mode)
     holdings = await asyncio.to_thread(holdings_in_book, db, user_id, mode)
     quotes = await quotes_for(provider, {h.symbol for h in holdings})
+    return build_snapshot(mode, accounts, holdings, quotes)
 
+
+def build_snapshot(mode: BookMode, accounts: Sequence[Account], holdings: Sequence[Holding], quotes: Mapping[str, Quote]) -> JSONDict:
+    """Price one book's holdings with the given quotes and total them.
+
+    Pure: the app has a TypeScript twin in `web/src/lib/calc/`, and both are checked against
+    `tests/vectors/calc.json`. Change the two together.
+    """
     rows: list[JSONDict] = []
     total_cost = total_value = day_change = 0.0
     for h in holdings:

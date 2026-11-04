@@ -39,6 +39,11 @@ and the logic that isn't obvious, see [`LLD.md`](LLD.md).
 - **English and Hebrew.** A language switch in Settings and on the sign-in screen. Hebrew lays the
   page out right to left, and the AI agent answers in the chosen language (`web/src/lib/i18n/`,
   `ChatIn.language`). Texts the API writes (safety-check reasons, alerts) are still English.
+- **Google sign-in in the apps.** The desktop and Android shells run the browser leg of Google's OAuth
+  code flow with PKCE (`desktop/src-tauri/src/oauth.rs`: a loopback listener on desktop, the deep-link
+  plugin on Android) and return the code to the UI, which exchanges it for an ID token and signs in to
+  Firebase (`web/src/lib/googleApp.ts`). The API sees an ordinary Firebase ID token, so nothing server-side
+  changes. Builds without a Google client keep email and password only.
 - **Light and dark views.** Settings (and the sign-in screen) offer Light, Dark and Match device; dark is
   the default. The choice lives in `localStorage` and is applied as `<html data-theme>`
   (`web/src/lib/theme.tsx`); every colour is a CSS variable in `web/src/app/globals.css`, including the

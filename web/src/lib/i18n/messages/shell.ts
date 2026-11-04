@@ -40,6 +40,7 @@ export const en = {
   "signin.err.popupClosed": "Google sign-in was closed before it finished.",
   "signin.err.network": "Can't reach the sign-in service. Check your connection.",
   "signin.err.signupsClosed": "Sign-ups are closed. Ask the owner to add your account.",
+  "signin.err.googleApp": "Google sign-in didn't finish. Try again, or use your email and password.",
 } as const;
 
 export const he: { readonly [K in keyof typeof en]: string } = {
@@ -83,4 +84,5 @@ export const he: { readonly [K in keyof typeof en]: string } = {
   "signin.err.popupClosed": "חלון ההתחברות של Google נסגר לפני הסיום.",
   "signin.err.network": "אין חיבור לשירות ההתחברות. בדקו את החיבור לאינטרנט.",
   "signin.err.signupsClosed": "ההרשמה סגורה. אפשר לבקש מהבעלים להוסיף את החשבון שלך.",
+  "signin.err.googleApp": "ההתחברות עם Google לא הסתיימה. אפשר לנסות שוב, או להתחבר עם אימייל וסיסמה.",
 };

@@ -74,22 +74,32 @@ class FinnhubProvider:
             "ts": d.get("t") or int(time.time()),
         }
 
-    async def candles(self, symbol: str, resolution: str, start: int, end: int) -> list[Candle]:
+    async def live_candles(self, symbol: str, resolution: str, start: int, end: int) -> list[Candle] | None:
+        """Finnhub's own bars, `[]` when it has none, or None when the endpoint refuses (a plan without candles)."""
         try:
             d = await self._get("/stock/candle", symbol=symbol, resolution=resolution, **{"from": start, "to": end})
-            if d.get("s") != "ok":
-                return []
-            return [
-                {"t": t, "o": o, "h": h, "l": lo, "c": c, "v": v}
-                for t, o, h, lo, c, v in zip(d["t"], d["o"], d["h"], d["l"], d["c"], d["v"], strict=True)
-            ]
         except httpx.HTTPStatusError as e:
             logger.warning(
-                "finnhub candles unavailable; using sample data",
+                "finnhub candles unavailable",
                 extra={"symbol": symbol, "status_code": e.response.status_code},
             )
-            note_source(MOCK_FALLBACK)
-            return await self._fallback.candles(symbol, resolution, start, end)
+            return None
+        if d.get("s") != "ok":
+            return []
+        return [
+            {"t": t, "o": o, "h": h, "l": lo, "c": c, "v": v}
+            for t, o, h, lo, c, v in zip(d["t"], d["o"], d["h"], d["l"], d["c"], d["v"], strict=True)
+        ]
+
+    async def sample_candles(self, symbol: str, resolution: str, start: int, end: int) -> list[Candle]:
+        """Generated bars for when no real ones can be had; recorded so results built on them say so."""
+        logger.warning("using sample candles", extra={"symbol": symbol})
+        note_source(MOCK_FALLBACK)
+        return await self._fallback.candles(symbol, resolution, start, end)
+
+    async def candles(self, symbol: str, resolution: str, start: int, end: int) -> list[Candle]:
+        bars = await self.live_candles(symbol, resolution, start, end)
+        return bars if bars is not None else await self.sample_candles(symbol, resolution, start, end)
 
     async def metrics(self, symbol: str) -> dict[str, float | None]:
         m = (await self._get("/stock/metric", symbol=symbol, metric="all")).get("metric", {})

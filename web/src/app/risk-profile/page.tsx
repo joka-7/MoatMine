@@ -1,9 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { api, Question, RiskLevel, RiskProfile, RiskRules } from "@/lib/api";
+import { Question, RiskLevel, RiskProfile, RiskRules } from "@/lib/api";
+import { getProfile, saveProfile } from "@/lib/data/riskProfile";
 import { useI18n, type MessageKey } from "@/lib/i18n";
+import { useLocalMode } from "@/lib/localMode";
 import { useApi } from "@/lib/useApi";
+import { useLoader } from "@/lib/useLoader";
 
 const RULE_FIELDS: { key: keyof RiskRules; label: MessageKey; hint: MessageKey; step?: string }[] = [
   { key: "max_position_pct", label: "risk.rule.maxPosition", hint: "risk.rule.maxPositionHint" },
@@ -33,7 +36,8 @@ const QUESTION_TEXT: Readonly<Record<string, { text: MessageKey; options: readon
 
 export default function RiskProfilePage() {
   const { data: qs } = useApi<{ questions: Question[]; levels: RiskLevel[] }>("/safety/questions");
-  const { data: current, setData } = useApi<RiskProfile>("/safety/profile");
+  const { on: local, ready } = useLocalMode();
+  const { data: current, setData } = useLoader<RiskProfile>(ready ? () => getProfile(local) : null, `profile:${local}`);
   const [answers, setAnswers] = useState<Record<string, number>>({});
   const [rules, setRules] = useState<Partial<RiskRules>>({});
   const [paper, setPaper] = useState(true);
@@ -52,17 +56,14 @@ export default function RiskProfilePage() {
   const saveFromAnswers = async () => {
     try {
       // a fresh questionnaire result resets the rules to that level's defaults
-      setData(await api<RiskProfile>("/safety/profile", { method: "PUT", json: { answers, paper_mode: paper } }));
+      setData(await saveProfile({ answers, paper_mode: paper }));
       setMsg(t("risk.profile.savedFromAnswers"));
     } catch (e) { setMsg((e as Error).message); }
   };
   const saveRules = async () => {
     if (!current) return;
     try {
-      setData(await api<RiskProfile>("/safety/profile", {
-        method: "PUT",
-        json: { level: current.level, answers: undefined, paper_mode: paper, ...rules, allow_penny_stocks: rules.allow_penny_stocks ?? false },
-      }));
+      setData(await saveProfile({ level: current.level, paper_mode: paper, ...rules, allow_penny_stocks: rules.allow_penny_stocks ?? false }));
       setMsg(t("risk.profile.rulesSaved"));
     } catch (e) { setMsg((e as Error).message); }
   };

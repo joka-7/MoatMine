@@ -123,6 +123,8 @@ jobs:
       # debug builds serve devUrl, so this doesn't need web/out
       - run: cargo check --locked
         working-directory: desktop/src-tauri
+      - run: cargo test --locked
+        working-directory: desktop/src-tauri
 
   docs:
     name: Docs (repo map is current)

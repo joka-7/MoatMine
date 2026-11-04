@@ -48,6 +48,15 @@ export const en = {
   "ai.revoke": "Revoke",
   "ai.tokenLabel": "Label, e.g. Claude Desktop",
   "ai.createToken": "Create token",
+  "device.title": "Keep my data on this device",
+  "device.body": "Watchlist, notes, accounts, positions, targets and your risk rules are stored in this browser or app instead of on the MoatMine server. Nothing is backed up for you: clearing site data or losing the device loses them, so export a file now and then.",
+  "device.toggle": "Store my data on this device",
+  "device.limits": "While this is on: real-money accounts only (no paper trading) and no value-over-time chart. The AI agent still uses the server and does not see data kept here yet. Alerts are checked in the app while it is open, so none arrive when it is closed.",
+  "device.export": "Export my data",
+  "device.import": "Import from a file",
+  "device.imported": "Imported: {added} added, {updated} updated, {kept} kept.",
+  "device.importFailed": "That file was not imported: {error}",
+  "device.unavailable": "This browser cannot store data on the device: {error}",
 } as const;
 
 export const he: { readonly [K in keyof typeof en]: string } = {
@@ -99,4 +108,13 @@ export const he: { readonly [K in keyof typeof en]: string } = {
   "ai.revoke": "ביטול גישה",
   "ai.tokenLabel": "תווית, למשל Claude Desktop",
   "ai.createToken": "יצירת טוקן",
+  "device.title": "לשמור את הנתונים שלי במכשיר הזה",
+  "device.body": "רשימת המעקב, ההערות, החשבונות, הפוזיציות, היעדים וכללי הסיכון נשמרים בדפדפן או באפליקציה הזו ולא בשרת של MoatMine. אין גיבוי אוטומטי: ניקוי נתוני האתר או אובדן המכשיר ימחקו אותם, ולכן כדאי לייצא קובץ מדי פעם.",
+  "device.toggle": "לשמור את הנתונים שלי במכשיר הזה",
+  "device.limits": "כשזה פעיל: חשבונות כסף אמיתי בלבד (בלי מסחר דמה) ובלי גרף שווי לאורך זמן. סוכן ה-AI עדיין משתמש בשרת ועדיין לא רואה נתונים ששמורים כאן. ההתראות נבדקות באפליקציה בזמן שהיא פתוחה, ולכן לא יגיעו כשהיא סגורה.",
+  "device.export": "ייצוא הנתונים שלי",
+  "device.import": "ייבוא מקובץ",
+  "device.imported": "יובאו: {added} נוספו, {updated} עודכנו, {kept} נשארו.",
+  "device.importFailed": "הקובץ לא יובא: {error}",
+  "device.unavailable": "הדפדפן הזה לא מאפשר לשמור נתונים במכשיר: {error}",
 };
