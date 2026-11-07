@@ -154,6 +154,9 @@ class MCPToken(Base):
     user_id: Mapped[str] = mapped_column(String(128), index=True)
     token_hash: Mapped[str] = mapped_column(String(64), unique=True)
     label: Mapped[str] = mapped_column(String(120), default="")
+    # the owner's verified email when the token was made, so the allow-list can be checked on every
+    # /mcp call (the token itself carries no email); None for tokens made before the allow-list
+    email: Mapped[str | None] = mapped_column(String(320), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 

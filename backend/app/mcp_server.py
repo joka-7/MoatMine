@@ -15,6 +15,8 @@ from starlette.responses import JSONResponse
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 from app.ai.tools import TOOL_SPECS, run_tool
+from app.auth import email_allowed
+from app.config import get_settings
 from app.crypto import hash_token
 from app.db import SessionLocal
 from app.errors import ConfigError
@@ -37,7 +39,11 @@ def _user_for_token(token: str | None) -> str | None:
         return None
     with SessionLocal() as db:
         row = db.scalar(select(MCPToken).where(MCPToken.token_hash == hash_token(token)))
-        return row.user_id if row else None
+        # a token is only as good as its owner's place on the allow-list today; one made before
+        # the list existed has no email on record and stops working until the owner makes a new one
+        if row is None or not email_allowed(row.email, get_settings()):
+            return None
+        return row.user_id
 
 
 async def _call(ctx: Context, name: str, **args: object) -> str:

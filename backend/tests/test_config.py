@@ -8,7 +8,7 @@ from app.errors import ConfigError
 SQLITE = "sqlite:///./x.db"
 PG = "postgresql://u:secret-password@db/moatmine"
 KEY = Fernet.generate_key().decode()
-FIREBASE = {"firebase_project_id": "moatmine-1a2b3", "fernet_key": KEY}
+FIREBASE = {"firebase_project_id": "moatmine-1a2b3", "fernet_key": KEY, "allowed_emails": "j@example.com"}
 
 
 @pytest.mark.parametrize(
@@ -22,6 +22,9 @@ FIREBASE = {"firebase_project_id": "moatmine-1a2b3", "fernet_key": KEY}
         ({"auth_mode": "firebase", "database_url": PG, **{**FIREBASE, "firebase_project_id": "Bad Project!"}}, False),
         ({"auth_mode": "firebase", "database_url": SQLITE}, False),
         ({"auth_mode": "firebase", "database_url": PG, **{**FIREBASE, "fernet_key": ""}}, False),  # can't store AI keys
+        ({"auth_mode": "firebase", "database_url": PG, **{**FIREBASE, "allowed_emails": ""}}, False),  # forgot the list: refuse
+        ({"auth_mode": "firebase", "database_url": PG, **{**FIREBASE, "allowed_emails": " , "}}, False),  # only blanks
+        ({"auth_mode": "firebase", "database_url": PG, **{**FIREBASE, "allowed_emails": "", "allow_any_user": True}}, True),  # chosen
         ({"auth_mode": "dev", "database_url": SQLITE, "fernet_key": "not-a-key"}, False),
         ({"auth_mode": "dev", "database_url": SQLITE, "fernet_key": f"{KEY}, {Fernet.generate_key().decode()}"}, True),  # rotating
         ({"auth_mode": "dev", "database_url": SQLITE, "fernet_key": f"{KEY},not-a-key"}, False),  # every key must be valid
@@ -36,6 +39,18 @@ def test_settings_refuses_unsafe_auth(kwargs, ok):
     else:
         with pytest.raises(ValueError):
             Settings(**kwargs)
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        ("", set()),
+        ("a@x.com", {"a@x.com"}),
+        (" A@X.com , b@y.org ,, ", {"a@x.com", "b@y.org"}),  # spaces, case and empty entries don't matter
+    ],
+)
+def test_allowed_emails_are_matched_case_insensitively(raw, expected):
+    assert Settings(auth_mode="dev", database_url=SQLITE, allowed_emails=raw).allowed_email_set == expected
 
 
 def test_get_settings_raises_config_error_without_values(monkeypatch):
