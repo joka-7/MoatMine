@@ -70,7 +70,7 @@ export default function Dashboard() {
       </div>
 
       <div className="grid g3" style={{ marginBottom: 16 }}>
-        <div className="span2">{!local && <ValueChart mode={mode} />}</div>
+        <div className="span2"><ValueChart mode={mode} local={local} /></div>
         <div className="card">
           <h2>{t("dashboard.allocation")}</h2>
           {p && <AllocationPie holdings={p.holdings} cash={p.totals.cash} />}

@@ -338,6 +338,8 @@ MoatMine/
 │   │   │   ├── data/
 │   │   │   │   ├── alerts.test.ts
 │   │   │   │   ├── alerts.ts
+│   │   │   │   ├── history.test.ts
+│   │   │   │   ├── history.ts
 │   │   │   │   ├── notes.test.ts
 │   │   │   │   ├── notes.ts
 │   │   │   │   ├── plans.test.ts
