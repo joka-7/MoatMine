@@ -323,6 +323,11 @@ MoatMine/
 │   │   │   ├── ValuationPanel.tsx                # Fair-value models with editable assumptions
 │   │   │   └── ValueChart.tsx                    # Holdings value over time for one book
 │   │   ├── lib/                                  # API client, formatters and hooks
+│   │   │   ├── ai/
+│   │   │   │   ├── deviceChat.test.ts
+│   │   │   │   ├── deviceChat.ts
+│   │   │   │   ├── deviceTools.test.ts
+│   │   │   │   └── deviceTools.ts
 │   │   │   ├── calc/
 │   │   │   │   ├── analytics.ts
 │   │   │   │   ├── check.ts
@@ -336,6 +341,8 @@ MoatMine/
 │   │   │   │   ├── types.ts
 │   │   │   │   └── vectors.test.ts
 │   │   │   ├── data/
+│   │   │   │   ├── aiSettings.test.ts
+│   │   │   │   ├── aiSettings.ts
 │   │   │   │   ├── alerts.test.ts
 │   │   │   │   ├── alerts.ts
 │   │   │   │   ├── notes.test.ts
