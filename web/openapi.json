@@ -2339,6 +2339,62 @@
         "summary": "Run Alerts"
       }
     },
+    "/me/data": {
+      "delete": {
+        "description": "Delete the signed-in user's portfolio data for good and return how many rows of each kind went.\n\nAccounts, positions, buy plans, watchlist, notes, targets, alerts and the risk profile. AI\nsettings and MCP tokens are kept.",
+        "operationId": "delete_data_me_data_delete",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "integer"
+                  },
+                  "title": "Response Delete Data Me Data Delete",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Delete Data",
+        "tags": [
+          "me"
+        ]
+      },
+      "get": {
+        "description": "Everything stored for the signed-in user, in the API's own field names.",
+        "operationId": "export_data_me_data_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JSONDict"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Export Data",
+        "tags": [
+          "me"
+        ]
+      }
+    },
     "/news/feed": {
       "get": {
         "description": "News across everything you hold or watch.",

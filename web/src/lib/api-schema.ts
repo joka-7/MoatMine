@@ -290,6 +290,33 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/me/data": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Export Data
+         * @description Everything stored for the signed-in user, in the API's own field names.
+         */
+        get: operations["export_data_me_data_get"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete Data
+         * @description Delete the signed-in user's portfolio data for good and return how many rows of each kind went.
+         *
+         *     Accounts, positions, buy plans, watchlist, notes, targets, alerts and the risk profile. AI
+         *     settings and MCP tokens are kept.
+         */
+        delete: operations["delete_data_me_data_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/news/feed": {
         parameters: {
             query?: never;
@@ -1958,6 +1985,48 @@ export interface operations {
                 content: {
                     "application/json": {
                         [key: string]: string;
+                    };
+                };
+            };
+        };
+    };
+    export_data_me_data_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JSONDict"];
+                };
+            };
+        };
+    };
+    delete_data_me_data_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: number;
                     };
                 };
             };
