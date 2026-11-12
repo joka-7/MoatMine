@@ -44,7 +44,7 @@ const NOTE_KIND: Record<string, MessageKey> = {
 type Tab = (typeof TABS)[number][0];
 
 function Stock() {
-  const { t } = useI18n();
+  const { t, ts } = useI18n();
   const params = useSearchParams();
   const symbol = (params.get("s") || "AAPL").toUpperCase();
   const [tab, setTabState] = useState<Tab>((TABS.find(([k]) => k === params.get("tab"))?.[0] ?? "overview") as Tab);
@@ -69,7 +69,7 @@ function Stock() {
         <div>
           <h1><span className="sym">{symbol}</span> <span className="sub" style={{ fontWeight: 400 }}>{prof?.name}</span></h1>
           <div className="sub" style={{ fontSize: 12 }}>
-            {[prof?.exchange, prof?.industry, prof?.market_cap ? t("stock.mktCap", { cap: money(prof.market_cap * 1e6, "USD", 0) }) : null].filter(Boolean).join(" · ")}
+            {[prof?.exchange, prof?.industry && ts(prof.industry), prof?.market_cap ? t("stock.mktCap", { cap: money(prof.market_cap * 1e6, "USD", 0) }) : null].filter(Boolean).join(" · ")}
           </div>
         </div>
         <div className="row" style={{ flex: "0 1 auto", alignItems: "center" }}>
@@ -113,7 +113,7 @@ function Stock() {
 }
 
 function Notes({ symbol }: { symbol: string }) {
-  const { t } = useI18n();
+  const { t, ts } = useI18n();
   const kindLabel = (kind: string) => {
     const key = NOTE_KIND[kind];
     return key ? t(key) : kind;
@@ -144,7 +144,7 @@ function Notes({ symbol }: { symbol: string }) {
         {data?.map((n) => (
           <div key={n.id} style={{ padding: "8px 0", borderBottom: "1px solid var(--line)" }}>
             <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
-              <span><span className="chip">{kindLabel(n.kind)}</span> {n.url ? <a href={n.url} target="_blank" rel="noreferrer" style={{ textDecoration: "underline" }}>{n.title}</a> : n.title}</span>
+              <span><span className="chip">{kindLabel(n.kind)}</span> {n.url ? <a href={n.url} target="_blank" rel="noreferrer" style={{ textDecoration: "underline" }}>{ts(n.title)}</a> : ts(n.title)}</span>
               <button className="btn sm ghost" onClick={async () => { await removeNote(symbol, n.id); reload(); }}>×</button>
             </div>
             {n.body && <div className="sub" style={{ whiteSpace: "pre-wrap", marginTop: 4 }}>{n.body}</div>}

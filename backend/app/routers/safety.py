@@ -1,7 +1,7 @@
 import asyncio
 import json
 from datetime import UTC, datetime, timedelta
-from typing import Self
+from typing import Literal, Self
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field, field_validator, model_validator
@@ -95,9 +95,9 @@ async def safety(symbol: str, provider: MarketProvider = Depends(get_provider)) 
 
 
 @router.post("/stocks/{symbol}/safety/analyze", dependencies=[Depends(rate_limited("ai"))])
-async def safety_analyze(symbol: str, user: str = Depends(current_user), db: Session = Depends(get_db), provider: MarketProvider = Depends(get_provider)) -> JSONDict:
+async def safety_analyze(symbol: str, language: Literal["en", "he"] = "en", user: str = Depends(current_user), db: Session = Depends(get_db), provider: MarketProvider = Depends(get_provider)) -> JSONDict:
     """AI analyzer: explains each area grade and how the stock fits the user's risk rules."""
-    return await ai_analysis(db, user, provider, _sym(symbol))
+    return await ai_analysis(db, user, provider, _sym(symbol), language)
 
 
 class CheckIn(BaseModel):

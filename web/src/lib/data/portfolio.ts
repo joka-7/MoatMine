@@ -1,3 +1,4 @@
+import { localizedError } from "../i18n/current";
 import { Account, api, CheckResult, Portfolio, Quote } from "../api";
 import { buildSnapshot, accountsInBook } from "../calc/portfolio";
 import type { BookMode, CalcAccount, CalcHolding, CalcQuote } from "../calc/types";
@@ -51,7 +52,7 @@ export async function addAccount(input: AccountInput): Promise<void> {
     await api("/accounts", { method: "POST", json: input });
     return;
   }
-  if (input.broker === "paper") throw new Error("Paper accounts are not available while your data is kept on this device.");
+  if (input.broker === "paper") throw localizedError("Paper accounts are not available while your data is kept on this device.");
   const record: Omit<AccountRecord, "updatedAt"> = { id: newId(), ...input, createdAt: new Date().toISOString() };
   await (await portfolioStore()).put("accounts", record);
 }
@@ -91,7 +92,7 @@ export async function addHolding(input: HoldingInput): Promise<{ check: CheckRes
   if (!isLocalMode()) return { checkError: null, ...(await api<{ id: number; check: CheckResult }>("/holdings", { method: "POST", json: input })) };
   const store = await portfolioStore();
   const accountId = String(input.account_id);
-  if (!(await store.get("accounts", accountId))) throw new Error("That account no longer exists.");
+  if (!(await store.get("accounts", accountId))) throw localizedError("That account no longer exists.");
   const symbol = input.symbol.trim().toUpperCase();
   let check: CheckResult | null = null;
   let checkError: string | null = null;

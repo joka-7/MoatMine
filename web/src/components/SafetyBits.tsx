@@ -44,7 +44,7 @@ const VERDICT: Record<CheckResult["verdict"], { label: MessageKey; cls: string }
 };
 
 export function CheckView({ check }: { check: CheckResult }) {
-  const { t } = useI18n();
+  const { t, ts } = useI18n();
   const v = VERDICT[check.verdict];
   return (
     <div>
@@ -58,7 +58,7 @@ export function CheckView({ check }: { check: CheckResult }) {
           <span className={c.status === "pass" ? "up" : c.status === "fail" ? "down" : ""} style={{ color: c.status === "warn" ? "var(--warn)" : undefined }}>
             {c.status === "pass" ? "✓" : c.status === "fail" ? "✗" : "!"}
           </span>
-          <span>{c.message}</span>
+          <span>{ts(c.message)}</span>
         </div>
       ))}
       {check.verdict === "warn" && (

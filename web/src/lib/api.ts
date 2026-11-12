@@ -3,6 +3,7 @@
 import type { AgentConfig, ExternalChatProviderId } from "modeldispatcher-browser-agent";
 import type { components } from "./api-schema";
 import { FIREBASE_CONFIGURED, firebaseAuth } from "./firebase";
+import { serverText } from "./i18n/current";
 
 // One client for the web app (GitHub Pages) and the desktop and Android apps (Tauri): all call the Render API.
 const DEFAULT_API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
@@ -28,7 +29,7 @@ export function devToken(): string {
 export async function authToken(): Promise<string> {
   if (!FIREBASE_CONFIGURED) return devToken();
   const user = firebaseAuth().currentUser;
-  if (!user) throw new ApiError(401, "Sign in to continue.");
+  if (!user) throw new ApiError(401, serverText("Sign in to continue."));
   return user.getIdToken(); // refreshed by Firebase shortly before it expires
 }
 
@@ -66,7 +67,7 @@ export async function apiWithHeaders<T = unknown>(
       msg = typeof d === "string" ? d : typeof d?.message === "string" ? d.message
         : typeof d?.detail === "string" ? d.detail : JSON.stringify(d ?? body);
     } catch {}
-    throw new ApiError(res.status, msg, detail);
+    throw new ApiError(res.status, serverText(msg), detail);
   }
   return { data: res.status === 204 ? (undefined as T) : await res.json(), headers: res.headers };
 }

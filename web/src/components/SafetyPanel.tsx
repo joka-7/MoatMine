@@ -19,10 +19,10 @@ const PLAN_STATUS: Readonly<Record<string, MessageKey>> = {
   executed: "risk.planStatus.executed", cancelled: "risk.planStatus.cancelled",
 };
 
-function fmtFact(v: unknown) {
+function fmtFact(v: unknown, ts: (text: string) => string) {
   if (v == null) return "—";
   if (typeof v === "number") return Number.isInteger(v) ? v.toLocaleString() : v.toFixed(2);
-  return String(v);
+  return ts(String(v));
 }
 
 export default function SafetyPanel({ symbol }: { symbol: string }) {
@@ -32,11 +32,11 @@ export default function SafetyPanel({ symbol }: { symbol: string }) {
   const [ai, setAi] = useState<SafetyAnalysis | null>(null);
   const [aiBusy, setAiBusy] = useState(false);
   const [aiErr, setAiErr] = useState<string | null>(null);
-  const { t } = useI18n();
+  const { t, ts, lang } = useI18n();
 
   const analyze = async () => {
     setAiBusy(true); setAiErr(null);
-    try { setAi(await api<SafetyAnalysis>(`/stocks/${symbol}/safety/analyze`, { method: "POST" })); }
+    try { setAi(await api<SafetyAnalysis>(`/stocks/${symbol}/safety/analyze?language=${lang}`, { method: "POST" })); }
     catch (e) { setAiErr((e as Error).message); }
     finally { setAiBusy(false); }
   };
@@ -51,7 +51,7 @@ export default function SafetyPanel({ symbol }: { symbol: string }) {
           <ScoreRing score={r?.score ?? null} grade={r?.grade ?? null} />
           <div>
             <h2 style={{ marginBottom: 6 }}>{t("risk.finalScore")}</h2>
-            <div style={{ fontWeight: 600 }}>{r?.analysis.verdict}</div>
+            <div style={{ fontWeight: 600 }}>{r?.analysis.verdict && ts(r.analysis.verdict)}</div>
             {profile && meetsMin != null && (
               <div className={meetsMin ? "up" : "down"} style={{ fontSize: 13, marginTop: 6 }}>
                 {t(meetsMin ? "risk.meetsMin" : "risk.belowMin", { min: profile.min_safety_score })}
@@ -68,16 +68,16 @@ export default function SafetyPanel({ symbol }: { symbol: string }) {
               <div key={a.key} style={{ display: "flex", gap: 10, alignItems: "center", padding: 8, border: "1px solid var(--line)", borderRadius: 8 }}>
                 <GradeBadge grade={a.grade} size={34} />
                 <div>
-                  <div>{a.name}</div>
+                  <div>{ts(a.name)}</div>
                   <div className="sub" style={{ fontSize: 12 }}>{a.score == null ? t("risk.areaNoData", { weight: `${a.weight}%` }) : t("risk.areaScore", { score: a.score, weight: `${a.weight}%` })}</div>
                 </div>
               </div>
             ))}
           </div>
-          {r?.analysis.summary && <p style={{ marginBottom: 0 }}>{r.analysis.summary}</p>}
+          {r?.analysis.summary && <p style={{ marginBottom: 0 }}>{ts(r.analysis.summary)}</p>}
           {!!r?.flags.length && (
             <div style={{ marginTop: 10, display: "flex", gap: 6, flexWrap: "wrap" }}>
-              {r.flags.map((f) => <span key={f.code} className={`chip ${f.severity === "high" ? "below_min" : ""}`}>⚠ {f.message}</span>)}
+              {r.flags.map((f) => <span key={f.code} className={`chip ${f.severity === "high" ? "below_min" : ""}`}>⚠ {ts(f.message)}</span>)}
             </div>
           )}
         </div>
@@ -93,7 +93,7 @@ export default function SafetyPanel({ symbol }: { symbol: string }) {
             <>
               <p style={{ marginTop: 0 }}>{ai.overview}</p>
               {ai.areas.map((a) => (
-                <div key={a.name} style={{ padding: "4px 0" }}><b>{a.name}:</b> <span className="sub">{a.comment}</span></div>
+                <div key={a.name} style={{ padding: "4px 0" }}><b>{ts(a.name)}:</b> <span className="sub">{a.comment}</span></div>
               ))}
               {ai.fit && <p><b>{t("risk.aiFit")}</b> {ai.fit}</p>}
               {ai.improve && <p className="sub" style={{ marginBottom: 0 }}><b>{t("risk.aiImprove")}</b> {ai.improve}</p>}
@@ -116,10 +116,10 @@ export default function SafetyPanel({ symbol }: { symbol: string }) {
             <tbody>
               {r?.components.map((c) => (
                 <tr key={c.name} style={{ opacity: c.points == null ? 0.5 : 1 }}>
-                  <td>{c.name}</td>
-                  <td className="n"><bdi>{fmtFact(c.value)}</bdi></td>
+                  <td>{ts(c.name)}</td>
+                  <td className="n"><bdi>{fmtFact(c.value, ts)}</bdi></td>
                   <td className="n">{c.points == null ? t("risk.noData") : `${c.points}/${c.max}`}</td>
-                  <td className="sub" style={{ fontSize: 12 }}>{c.note}</td>
+                  <td className="sub" style={{ fontSize: 12 }}>{ts(c.note)}</td>
                 </tr>
               ))}
             </tbody>

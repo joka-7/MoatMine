@@ -398,6 +398,20 @@ def test_ai_analyzer(client, fake_ai):
     assert '"user_rules"' in req.messages[-1].content and "not advice" in req.messages[0].content
 
 
+@pytest.mark.parametrize(("query", "asks_for_hebrew"), [("", False), ("?language=en", False), ("?language=he", True)])
+def test_ai_analyzer_answers_in_the_chosen_language(client, fake_ai, query, asks_for_hebrew):
+    from tests.conftest import reply
+
+    fake_ai.plans["anthropic"] = {"scripted": [reply('{"overview": "x", "areas": [], "fit": "x", "improve": "x"}')]}
+    assert client.post(f"/stocks/AAPL/safety/analyze{query}", headers=D).status_code == 200
+    system = fake_ai.built["anthropic"].requests[0].messages[0].content
+    assert ("Answer in Hebrew" in system) is asks_for_hebrew
+
+
+def test_ai_analyzer_rejects_an_unknown_language(client):
+    assert client.post("/stocks/AAPL/safety/analyze?language=fr", headers=D).status_code == 422
+
+
 def _plan_user(client, name: str, cash: float = 100_000) -> tuple[dict[str, str], int]:
     who = auth(name)
     client.put("/safety/profile", json={**LOOSE}, headers=who)

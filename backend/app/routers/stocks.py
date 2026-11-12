@@ -1,6 +1,7 @@
 import asyncio
 import time
 from collections.abc import Sequence
+from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from sqlalchemy import select
@@ -164,11 +165,11 @@ async def crises(symbol: str, benchmark: str = Query("SPY", min_length=1, max_le
 
 @router.get("/{symbol}/news/summary")
 async def summarize_news(
-    symbol: str, days: int = Query(7, ge=1, le=90), user: str = Depends(current_user), db: Session = Depends(get_db),
-    provider: MarketProvider = Depends(get_provider),
+    symbol: str, days: int = Query(7, ge=1, le=90), language: Literal["en", "he"] = "en", user: str = Depends(current_user),
+    db: Session = Depends(get_db), provider: MarketProvider = Depends(get_provider),
 ) -> JSONDict:
     """AI digest of recent headlines with a sentiment label (fast model, cached 1h)."""
-    return await news_summary(db, user, provider, _sym(symbol), days)
+    return await news_summary(db, user, provider, _sym(symbol), days, language)
 
 
 @feed_router.get("/news/feed")

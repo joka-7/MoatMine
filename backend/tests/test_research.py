@@ -58,6 +58,16 @@ def test_news_summary_parses_and_caches(client, fake_ai):
     assert len(fake_ai.built["anthropic"].requests) == 1
 
 
+def test_news_summary_answers_in_the_chosen_language_and_caches_per_language(client, fake_ai):
+    fake_ai.plans["anthropic"] = {"scripted": [reply('{"summary": "a", "sentiment": "neutral", "points": [], "watch": ""}')]}
+    cache.clear()
+    assert not client.get("/stocks/TSLA/news/summary?days=7", headers=C).json().get("cached")
+    he = client.get("/stocks/TSLA/news/summary?days=7&language=he", headers=C).json()
+    assert not he.get("cached")  # the English answer is not served for Hebrew
+    assert "Answer in Hebrew" in fake_ai.built["anthropic"].requests[0].messages[0].content
+    assert client.get("/stocks/TSLA/news/summary?days=7&language=he", headers=C).json()["cached"] is True
+
+
 def test_parse_json_fallback():
     assert research._parse_json("plain text")["summary"] == "plain text"
     assert research._parse_json('{"sentiment": "euphoric"}')["sentiment"] == "unknown"

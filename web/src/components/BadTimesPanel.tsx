@@ -19,13 +19,13 @@ function span(t: I18n["t"], days: number | null) {
 }
 
 export default function BadTimesPanel({ symbol }: { symbol: string }) {
-  const { t, lang } = useI18n();
+  const { t, lang, ts } = useI18n();
   const [bench, setBench] = useState("SPY");
   const [input, setInput] = useState("SPY");
   const { data: d, error } = useApi<BadTimes>(`/stocks/${symbol}/crises?benchmark=${bench}`);
   const r = d?.resilience;
   const chart = d?.crises.flatMap((c) => c.stock ? [{
-    name: c.name.replace(/ (crash|crisis|sell-off|bear market).*/i, ""),
+    name: lang === "he" ? ts(c.name) : c.name.replace(/ (crash|crisis|sell-off|bear market).*/i, ""),
     [symbol]: c.stock.drawdown_pct,
     [bench]: c.benchmark?.drawdown_pct ?? null,
   }] : []) ?? [];
@@ -38,7 +38,7 @@ export default function BadTimesPanel({ symbol }: { symbol: string }) {
         <div className="card stat">
           <div className="label">{t("stock.bad.capture", { bench })}</div>
           <div className={`value ${captureTone}`}>{share(r?.downside_capture_pct)}</div>
-          <div className="delta sub">{r?.label}</div>
+          <div className="delta sub">{r?.label && ts(r.label)}</div>
         </div>
         <div className="card stat">
           <div className="label">{t("stock.bad.avgDrawdown")}</div>
@@ -88,7 +88,7 @@ export default function BadTimesPanel({ symbol }: { symbol: string }) {
             <tbody>
               {d?.crises.map((c) => (
                 <tr key={c.key}>
-                  <td><div>{c.name}</div><div className="sub" style={{ fontSize: 12 }}>{c.description}</div></td>
+                  <td><div>{ts(c.name)}</div><div className="sub" style={{ fontSize: 12 }}>{ts(c.description)}</div></td>
                   <td className="sub" style={{ whiteSpace: "nowrap" }}>{c.start.slice(0, 7)} → {c.end.slice(0, 7)}</td>
                   {c.stock ? (
                     <>
@@ -132,7 +132,7 @@ export default function BadTimesPanel({ symbol }: { symbol: string }) {
       </div>
       {d && (
         <div className="sub" style={{ fontSize: 12 }}>
-          {d.note} {t(isSampleData(d.data_source) ? "stock.bad.sourceSample" : "stock.bad.source", { source: d.data_source })}
+          {ts(d.note)} {t(isSampleData(d.data_source) ? "stock.bad.sourceSample" : "stock.bad.source", { source: d.data_source })}
         </div>
       )}
     </div>

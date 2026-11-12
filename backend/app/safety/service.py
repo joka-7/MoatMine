@@ -9,7 +9,7 @@ from datetime import UTC, datetime
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.ai.dispatcher import complete
+from app.ai.dispatcher import ANSWER_IN, complete
 from app.ai.llm_json import json_object_in
 from app.analytics import annual_volatility_pct, max_drawdown_pct, returns
 from app.cache import ttl_cache
@@ -266,7 +266,7 @@ _ANALYZER_SYSTEM = (
 )
 
 
-async def ai_analysis(db: Session, user: str, provider: MarketProvider, symbol: str) -> JSONDict:
+async def ai_analysis(db: Session, user: str, provider: MarketProvider, symbol: str, language: str = "en") -> JSONDict:
     report = await stock_safety(provider, symbol)
     payload = {
         "symbol": symbol,
@@ -274,7 +274,7 @@ async def ai_analysis(db: Session, user: str, provider: MarketProvider, symbol: 
         "areas": report["areas"], "flags": report["flags"], "facts": report["facts"], "sector": report["sector"],
         "user_rules": profile_dict(await asyncio.to_thread(get_profile, db, user)),
     }
-    r = await complete(db, user, json.dumps(payload, default=str), system=_ANALYZER_SYSTEM)
+    r = await complete(db, user, json.dumps(payload, default=str), system=_ANALYZER_SYSTEM + ANSWER_IN[language])
     text = r["content"]
     parsed = json_object_in(text) or {}
     return {

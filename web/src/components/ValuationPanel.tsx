@@ -74,7 +74,7 @@ const labelOf = (t: I18n["t"], labels: Record<string, MessageKey>, raw: string) 
 };
 
 export default function ValuationPanel({ symbol }: { symbol: string }) {
-  const { t } = useI18n();
+  const { t, ts } = useI18n();
   const blank = Object.fromEntries(FIELDS.map((f) => [f.key, String(f.def)]));
   const [form, setForm] = useState<Record<string, string>>(blank);
   const [query, setQuery] = useState("");
@@ -135,7 +135,7 @@ export default function ValuationPanel({ symbol }: { symbol: string }) {
                     <td>{modelName(t, m)}</td>
                     <td className="n">{money(m.value)}</td>
                     <td className={`n ${tone(m.upside_pct)}`}>{pct(m.upside_pct)}</td>
-                    <td className="sub" style={{ fontSize: 12 }}>{m.skipped ?? m.formula}</td>
+                    <td className="sub" style={{ fontSize: 12 }}>{ts(m.skipped ?? m.formula)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -153,7 +153,7 @@ export default function ValuationPanel({ symbol }: { symbol: string }) {
                   onChange={(e) => setForm({ ...form, [f.key]: e.target.value })} onKeyDown={(e) => e.key === "Enter" && apply()} />
               </label>
             ))}
-            {v && <div className="sub" style={{ fontSize: 12 }}>{t("stock.val.growthUsed", { growth: share(v.assumptions.growth_rate as number), source: v.assumptions.growth_source })}</div>}
+            {v && <div className="sub" style={{ fontSize: 12 }}>{t("stock.val.growthUsed", { growth: share(v.assumptions.growth_rate as number), source: ts(v.assumptions.growth_source) })}</div>}
             <div className="row">
               <button className="btn" onClick={() => { setForm(blank); setQuery(""); }}>{t("stock.val.reset")}</button>
               <button className="btn primary" onClick={apply}>{t("stock.val.recalculate")}</button>
@@ -177,11 +177,11 @@ export default function ValuationPanel({ symbol }: { symbol: string }) {
                 <span className="num" style={{ fontSize: 20 }}>{v.quality.piotroski.score ?? "—"}<span className="sub">/9</span></span>
               </div>
               {v.quality.piotroski.band && <span className={`chip ${v.quality.piotroski.band === "strong" ? "ok" : v.quality.piotroski.band === "weak" ? "below_min" : ""}`}>{labelOf(t, BAND, v.quality.piotroski.band)}</span>}
-              {v.quality.piotroski.skipped && <div className="sub" style={{ fontSize: 12 }}>{v.quality.piotroski.skipped}</div>}
+              {v.quality.piotroski.skipped && <div className="sub" style={{ fontSize: 12 }}>{ts(v.quality.piotroski.skipped)}</div>}
               <div style={{ margin: "8px 0 14px" }}>
                 {v.quality.piotroski.checks.map((c) => (
                   <div key={c.name} style={{ fontSize: 12, padding: "2px 0" }}>
-                    <span className={c.pass ? "up" : "down"}>{c.pass ? "✓" : "✗"}</span> {c.name}
+                    <span className={c.pass ? "up" : "down"}>{c.pass ? "✓" : "✗"}</span> {ts(c.name)}
                   </div>
                 ))}
               </div>
@@ -192,7 +192,7 @@ export default function ValuationPanel({ symbol }: { symbol: string }) {
               {v.quality.altman_z.zone && (
                 <span className={`chip ${v.quality.altman_z.zone === "safe" ? "ok" : v.quality.altman_z.zone === "distress" ? "below_min" : ""}`}>{zoneLabel(t, v.quality.altman_z.zone)}</span>
               )}
-              <div className="sub" style={{ fontSize: 11, marginTop: 4 }}>{v.quality.altman_z.skipped ?? t("stock.val.zoneLegend")}</div>
+              <div className="sub" style={{ fontSize: 11, marginTop: 4 }}>{v.quality.altman_z.skipped ? ts(v.quality.altman_z.skipped) : t("stock.val.zoneLegend")}</div>
             </>
           )}
         </div>
@@ -206,7 +206,7 @@ export default function ValuationPanel({ symbol }: { symbol: string }) {
           {v && <div className="sub" style={{ fontSize: 11, marginTop: 6 }}>{t(isSampleData(v.data_source) ? "stock.val.sourceSample" : "stock.val.source", { source: v.data_source })}</div>}
         </div>
       </div>
-      {v && <div className="sub" style={{ fontSize: 12 }}>{v.disclaimer}</div>}
+      {v && <div className="sub" style={{ fontSize: 12 }}>{ts(v.disclaimer)}</div>}
     </div>
   );
 }

@@ -28,7 +28,7 @@ export default function RiskPage() {
   const mode = local ? LOCAL_BOOK : chosenMode;
   const { data: r, error } = useLoader<PortfolioRisk>(ready ? () => (local ? portfolioRiskReport() : api<PortfolioRisk>(`/safety/portfolio?mode=${mode}`)) : null, `risk:${mode}:${local}`);
   const { data: s } = useLoader<StressReport>(ready ? () => (local ? stressReport() : api<StressReport>(`/safety/stress?mode=${mode}`)) : null, `stress:${mode}:${local}`);
-  const { t } = useI18n();
+  const { t, lang, ts } = useI18n();
 
   const tiles: [MessageKey, string, string?][] = r ? [
     ["risk.volatility", r.volatility_pct == null ? "—" : t("risk.perYear", { pct: share(r.volatility_pct) }), t("risk.volatilityHint")],
@@ -42,8 +42,8 @@ export default function RiskPage() {
   ] : [];
   const [measuredBefore, measuredAfter] = t("risk.measuredAgainst", { link: "\u0000" }).split("\u0000");
 
-  const sectors = r ? Object.entries(r.sectors).map(([name, value]) => ({ name, value })) : [];
-  const stress = s?.scenarios.map((x) => ({ name: x.name.replace(/ (crash|crisis|sell-off|bear market).*/i, ""), value: x.change_pct, breach: x.breaches_limit })) ?? [];
+  const sectors = r ? Object.entries(r.sectors).map(([name, value]) => ({ name: ts(name), value })) : [];
+  const stress = s?.scenarios.map((x) => ({ name: lang === "he" ? ts(x.name) : x.name.replace(/ (crash|crisis|sell-off|bear market).*/i, ""), value: x.change_pct, breach: x.breaches_limit })) ?? [];
 
   return (
     <>
@@ -70,7 +70,7 @@ export default function RiskPage() {
       {!!r?.breaches.length && (
         <div className="card" style={{ marginBottom: 16, borderColor: "color-mix(in srgb, var(--down) 40%, var(--line))" }}>
           <h2 style={{ color: "var(--down)" }}>{t("risk.breaches")}</h2>
-          {r.breaches.map((b) => <div key={b.rule + b.subject}>⚠ {b.message}</div>)}
+          {r.breaches.map((b) => <div key={b.rule + b.subject}>⚠ {ts(b.message)}</div>)}
         </div>
       )}
 
@@ -149,7 +149,7 @@ export default function RiskPage() {
                 <tbody>
                   {s.scenarios.map((x) => (
                     <tr key={x.key}>
-                      <td>{x.name} <span className="sub" style={{ fontSize: 11 }}>{x.kind in KIND ? t(KIND[x.kind as keyof typeof KIND]) : x.kind}</span></td>
+                      <td>{ts(x.name)} <span className="sub" style={{ fontSize: 11 }}>{x.kind in KIND ? t(KIND[x.kind as keyof typeof KIND]) : x.kind}</span></td>
                       <td className={`n ${x.breaches_limit ? "down" : ""}`}>{money(x.change)} ({pct(x.change_pct)}){x.breaches_limit && " ⚠"}</td>
                       <td className="sub" style={{ fontSize: 12 }}>{x.worst.map((w) => ltr(`${w.symbol} ${pct(w.change_pct)}${w.basis !== "actual fall" ? "*" : ""}`)).join(" · ")}</td>
                     </tr>
@@ -157,7 +157,7 @@ export default function RiskPage() {
                 </tbody>
               </table>
             </div>
-            <div className="sub" style={{ fontSize: 12, marginTop: 6 }}>{t("risk.stressFootnote")} {s.note}{isSampleData(s.data_source) ? ` ${t("risk.sampleData")}` : ""}</div>
+            <div className="sub" style={{ fontSize: 12, marginTop: 6 }}>{t("risk.stressFootnote")} {ts(s.note)}{isSampleData(s.data_source) ? ` ${t("risk.sampleData")}` : ""}</div>
           </>
         )}
       </div>

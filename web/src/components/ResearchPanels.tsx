@@ -11,13 +11,13 @@ const TT = { background: "var(--chart-tooltip-bg)", border: "1px solid var(--cha
 const AX = { stroke: "var(--chart-axis)", fontSize: 11, tickLine: false, axisLine: false } as const;
 
 export function CompanyCard({ symbol }: { symbol: string }) {
-  const { t } = useI18n();
+  const { t, ts } = useI18n();
   const { data: c } = useApi<Company>(`/stocks/${symbol}/company`);
   const [more, setMore] = useState(false);
   if (!c) return <div className="card"><h2>{t("stock.company.about")}</h2><div className="empty">{t("common.loading")}</div></div>;
   const desc = c.description || "";
   const facts: [MessageKey, React.ReactNode][] = [
-    ["stock.company.sector", c.sector], ["stock.company.industry", c.industry], ["stock.company.exchange", c.exchange], ["stock.company.country", c.country],
+    ["stock.company.sector", c.sector && ts(c.sector)], ["stock.company.industry", c.industry && ts(c.industry)], ["stock.company.exchange", c.exchange], ["stock.company.country", c.country],
     ["stock.company.employees", c.employees ? c.employees.toLocaleString() : null], ["stock.company.ceo", c.ceo], ["stock.company.ipo", c.ipo],
     ["stock.company.marketCap", c.market_cap ? money(c.market_cap * 1e6, "USD", 0) : null],
     ["stock.company.website", c.website ? <a href={c.website} target="_blank" rel="noreferrer" style={{ textDecoration: "underline" }}>{c.website.replace(/^https?:\/\//, "")}</a> : null],
@@ -202,7 +202,7 @@ const SENTIMENT: Record<string, MessageKey> = {
 };
 
 export function NewsPanel({ symbol }: { symbol: string }) {
-  const { t, lang } = useI18n();
+  const { t, lang, ts } = useI18n();
   const [days, setDays] = useState(7);
   const { data } = useApi<NewsItem[]>(`/stocks/${symbol}/news?days=${days}`);
   const [sum, setSum] = useState<NewsSummary | null>(null);
@@ -216,7 +216,7 @@ export function NewsPanel({ symbol }: { symbol: string }) {
 
   const summarize = async () => {
     setBusy(true); setErr(null);
-    try { setSum(await api<NewsSummary>(`/stocks/${symbol}/news/summary?days=${days}`)); }
+    try { setSum(await api<NewsSummary>(`/stocks/${symbol}/news/summary?days=${days}&language=${lang}`)); }
     catch (e) { setErr((e as Error).message); }
     finally { setBusy(false); }
   };
@@ -252,7 +252,7 @@ export function NewsPanel({ symbol }: { symbol: string }) {
         {sum && (
           <>
             <span className={`chip ${SENT_TONE[sum.sentiment]}`}>{sentimentLabel(sum.sentiment)}</span>
-            <p>{sum.summary}</p>
+            <p>{ts(sum.summary)}</p>
             {sum.points.length > 0 && <ul style={{ paddingInlineStart: 18, margin: "0 0 10px" }}>{sum.points.map((p, i) => <li key={i} style={{ listStyle: "disc", padding: "2px 0", border: 0 }}>{p}</li>)}</ul>}
             {sum.watch && <div><span className="sub">{t("stock.news.watch")}</span> {sum.watch}</div>}
             <div className="sub" style={{ fontSize: 11, marginTop: 8 }}>{t(sum.cached ? "stock.news.metaCached" : "stock.news.meta", { count: sum.count, model: sum.model ?? "" })}</div>
