@@ -2,7 +2,7 @@
 
 import { AreaSeries, ColorType, UTCTimestamp, createChart, IChartApi } from "lightweight-charts";
 import { useEffect, useRef, useState } from "react";
-import { apiWithHeaders } from "@/lib/api";
+import { portfolioHistory } from "@/lib/data/history";
 import type { BookMode } from "@/lib/useBookMode";
 import { isSampleData } from "@/lib/dataSource";
 import { useI18n, type MessageKey } from "@/lib/i18n";
@@ -13,7 +13,7 @@ const LABEL: Record<(typeof SPANS)[number], MessageKey> = {
   30: "dashboard.chart.1m", 90: "dashboard.chart.3m", 180: "dashboard.chart.6m", 365: "dashboard.chart.1y", 1095: "dashboard.chart.3y",
 };
 
-export default function ValueChart({ mode }: { mode: BookMode }) {
+export default function ValueChart({ mode, local = false }: { mode: BookMode; local?: boolean }) {
   const { t } = useI18n();
   const { theme } = useTheme();
   const C = CANVAS_COLORS[theme];
@@ -22,15 +22,17 @@ export default function ValueChart({ mode }: { mode: BookMode }) {
   const [days, setDays] = useState<number>(180);
   const [points, setPoints] = useState<{ t: number; value: number }[] | null>(null);
   const [source, setSource] = useState("");
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let current = true; // drop the response if days/mode changed before it arrived
     setPoints(null); // and don't keep drawing the previous book's line meanwhile
-    apiWithHeaders<{ t: number; value: number }[]>(`/portfolio/history?days=${days}&mode=${mode}`)
-      .then(({ data, headers }) => { if (current) { setPoints(data); setSource(headers.get("X-Data-Source") ?? ""); } })
-      .catch(() => { if (current) setPoints([]); });
+    setError(null);
+    portfolioHistory(days, mode, local)
+      .then(({ points: data, source: label }) => { if (current) { setPoints(data); setSource(label); } })
+      .catch((e: unknown) => { if (current) { setPoints([]); setError(local ? (e as Error).message : null); } }); // a failed server call shows the empty state, as before
     return () => { current = false; };
-  }, [days, mode]);
+  }, [days, mode, local]);
 
   useEffect(() => {
     if (!el.current || !points?.length) return;
@@ -64,6 +66,7 @@ export default function ValueChart({ mode }: { mode: BookMode }) {
           ))}
         </div>
       </div>
+      {error && <div className="err" style={{ marginBottom: 8 }}>{t("common.apiUnreachable", { error })}</div>}
       {points && !points.length ? <div className="empty">{t("dashboard.chart.empty")}</div> : <div ref={el} style={{ height: 260 }} />}
       <div className="sub" style={{ fontSize: 12 }}>{t(isSampleData(source) ? "dashboard.chart.noteSample" : "dashboard.chart.note")}</div>
     </div>

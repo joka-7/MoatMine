@@ -122,6 +122,7 @@ Important ones:
 | `GET /safety/portfolio?mode=` | — | `{mode, total_value, volatility_pct, beta, var95_1d, var95_1m, max_drawdown_pct, sectors{}, correlation{symbols, matrix}, breaches[], rules{}, data_source}` |
 | `GET /safety/stress?mode=` | — | `{mode, total_value, loss_limit_pct, betas{}, scenarios[{key, name, kind, change, change_pct, worst[], holdings[], breaches_limit}], data_source, note, as_of}` |
 | `POST /plans` / `POST /plans/{id}/execute` | `{account_id, symbol, quantity, note}` | `{id, status, verdict, available_at, check, executed_holding_id, …}`; 409 = blocked or short of cash, 422 = reason needed |
+| `GET /me/data` / `DELETE /me/data` | — | export: `{accounts[], holdings[], watchlist[], notes[], targets[], alerts[], plans[], risk_profile}` in the API's field names; delete: row counts per table. Leaves AI settings and MCP tokens alone (`app/routers/me.py`) |
 | `GET /stocks/{s}/candles` | `resolution, start, end` | `Candle[]` + header `X-Data-Source` |
 | `GET /portfolio/history` | `days, mode` | `{t, value}[]` (last close carried forward over gaps, from the first day every holding has a price) + header `X-Data-Source` |
 | `GET /stocks/{s}/ratios` | `lookback_days` | `{fundamental, price, data_source}` |

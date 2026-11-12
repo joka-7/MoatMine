@@ -99,6 +99,7 @@ MoatMine/
 │   │   │   ├── __init__.py                       # Package marker
 │   │   │   ├── ai.py                             # /ai: chat with tools, model picker, encrypted AI settings, MCP tokens;…
 │   │   │   ├── internal.py                       # Routes for schedulers, not users: start an alert pass (the worker's job) from…
+│   │   │   ├── me.py                             # The user's own stored data: export it all, or delete it all.
 │   │   │   ├── portfolio.py                      # /accounts, /holdings (safety-checked; paper buys pay from cash), /portfolio…
 │   │   │   ├── safety.py                         # /safety: risk profile, stock safety + AI analyzer, buy check, portfolio risk,…
 │   │   │   ├── stocks.py                         # /stocks: search, quote, candles (X-Data-Source), ratios, research data,…
@@ -166,6 +167,7 @@ MoatMine/
 │   │   ├── test_log_config.py                    # Secret redaction, JSON/text formatters, request-id middleware
 │   │   ├── test_market_routing.py                # Where chart bars come from when the primary plan has no candles: FMP, then…
 │   │   ├── test_mcp_allowlist.py                 # An MCP token only works while its owner's email is on the allow-list.
+│   │   ├── test_me.py                            # Export and delete of the signed-in user's own data.
 │   │   ├── test_portfolio.py                     # Paper (practice) and real-money accounts are separate books everywhere money…
 │   │   ├── test_ratelimit.py
 │   │   ├── test_research.py                      # Company/earnings/analyst data, news feed and AI news summary
@@ -308,6 +310,7 @@ MoatMine/
 │   │   │   ├── LearnModuleView.tsx
 │   │   │   ├── LocalAlertsRunner.tsx
 │   │   │   ├── MoatCard.tsx                      # Moat grade: return on capital, margin stability, growth over the years
+│   │   │   ├── MoveDataCard.tsx
 │   │   │   ├── Nav.tsx                           # Side navigation
 │   │   │   ├── NewsFeed.tsx                      # News across holdings and watchlist, filterable
 │   │   │   ├── PriceChart.tsx                    # Candles/line chart with ranges, SMAs and volume; labels sample data
@@ -345,6 +348,10 @@ MoatMine/
 │   │   │   │   ├── aiSettings.ts
 │   │   │   │   ├── alerts.test.ts
 │   │   │   │   ├── alerts.ts
+│   │   │   │   ├── history.test.ts
+│   │   │   │   ├── history.ts
+│   │   │   │   ├── migrate.test.ts
+│   │   │   │   ├── migrate.ts
 │   │   │   │   ├── notes.test.ts
 │   │   │   │   ├── notes.ts
 │   │   │   │   ├── plans.test.ts
