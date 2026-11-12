@@ -4,22 +4,42 @@ import { ModelPicker } from "modeldispatcher-react-ui";
 import { useEffect, useState } from "react";
 import type { AgentConfig, ExternalChatProviderId } from "modeldispatcher-browser-agent";
 import { AiSettings, api, ExternalAgent } from "@/lib/api";
+import { loadDeviceAiSettings, saveDeviceAiSettings } from "@/lib/data/aiSettings";
 import { useI18n } from "@/lib/i18n";
+import { useLocalMode } from "@/lib/localMode";
 import { useApi } from "@/lib/useApi";
 
 /**
  * AI settings on ModelDispatcher's shared <ModelPicker>: vendors in fallback order, a model each,
- * pooled keys, and a favorite free AI app. Saved to the backend (encrypted), not localStorage,
- * so the same settings follow the user to web, desktop and Android.
+ * pooled keys, and a favorite free AI app. Saved to the backend (encrypted), so the same settings
+ * follow the user to web, desktop and Android, or, in local mode, on this device only: the keys
+ * never reach the server and the chat calls the AI provider from the browser.
  */
 export default function AiSettingsCard() {
   const { t, lang } = useI18n();
-  const { data, setData } = useApi<AiSettings>("/ai/settings");
+  const { on: local, ready } = useLocalMode();
+  const { data, setData } = useApi<AiSettings>(ready && !local ? "/ai/settings" : null);
   const [config, setConfig] = useState<AgentConfig>({ providers: [], ollamaUrl: "" });
   const [favorite, setFavorite] = useState<ExternalChatProviderId | null>(null);
   const [ext, setExt] = useState<ExternalAgent>({ base_url: "", model: "", api_key: "" });
   const [dirty, setDirty] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!ready || !local) return;
+    let live = true;
+    loadDeviceAiSettings()
+      .then((s) => {
+        if (!live) return;
+        setConfig(s.config);
+        setFavorite(s.favorite);
+        setDirty(false);
+      })
+      .catch((e: unknown) => live && setMsg((e as Error).message));
+    return () => {
+      live = false;
+    };
+  }, [ready, local]);
 
   useEffect(() => {
     if (!data) return;
@@ -30,6 +50,16 @@ export default function AiSettingsCard() {
   }, [data]);
 
   const save = async () => {
+    if (local) {
+      try {
+        await saveDeviceAiSettings({ config, favorite });
+        setDirty(false);
+        setMsg(t("ai.saved"));
+      } catch (e) {
+        setMsg((e as Error).message);
+      }
+      return;
+    }
     try {
       const out = await api<AiSettings>("/ai/settings", {
         method: "PUT",
@@ -48,8 +78,8 @@ export default function AiSettingsCard() {
     <div className="card span2">
       <h2>{t("ai.settingsTitle")}</h2>
       <p className="sub" style={{ marginTop: 0 }}>
-        {t("ai.settingsIntro")}
-        {data?.server_vendors.length ? t("ai.serverVendors", { vendors: data.server_vendors.join(", ") }) : ""}
+        {local ? t("ai.settingsIntroDevice") : t("ai.settingsIntro")}
+        {!local && data?.server_vendors.length ? t("ai.serverVendors", { vendors: data.server_vendors.join(", ") }) : ""}
       </p>
       <div className="grid g2" style={{ alignItems: "start" }}>
         <ModelPicker
@@ -59,7 +89,7 @@ export default function AiSettingsCard() {
           onExternalChatFavoriteChange={(next) => { setFavorite(next); setDirty(true); }}
           locale={lang}
         />
-        <div className="grid" style={{ gap: 8 }}>
+        {!local && <div className="grid" style={{ gap: 8 }}>
           <h2 style={{ margin: 0 }}>{t("ai.externalTitle")}</h2>
           <div className="sub" style={{ fontSize: 12 }}>
             {t("ai.externalIntro")}
@@ -76,7 +106,7 @@ export default function AiSettingsCard() {
             </button>
           )}
           {ollama && <div className="sub" style={{ fontSize: 12 }}>{t("ai.ollamaSkipped")}</div>}
-        </div>
+        </div>}
       </div>
       <div className="row" style={{ marginTop: 12, alignItems: "center" }}>
         <span className="sub">{msg}</span>
