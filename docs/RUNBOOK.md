@@ -142,3 +142,7 @@ order matters:
 | `GOOGLE_DESKTOP_CLIENT_SECRET` (repository secret), `GOOGLE_DESKTOP_CLIENT_ID`, `GOOGLE_ANDROID_CLIENT_ID` | Google Cloud console → Credentials | The desktop secret is inside every installer by design, so a leak changes nothing; to rotate, reset it in the console, update the secret and cut a release. Without these the apps offer email and password only |
 | `FINNHUB_API_KEY`, `FMP_API_KEY`, `*_API_KEY` (AI) | The provider's dashboard | Regenerate there, update the env group, redeploy |
 | MCP tokens | `mcp_tokens` (hashes only) | Users revoke them in Settings → AI |
+
+## Moving a user's data to their device
+
+Settings → "Move my data from the server to this device" calls `GET /me/data`, copies the data onto the device, reads every record back, and only then enables the delete button (which also needs the backup file downloaded and a confirmation). `DELETE /me/data` removes accounts, positions, buy plans, watchlist, notes, targets, alerts and the risk profile for the signed-in user, and nothing else: AI settings and MCP tokens stay. There is no undo: the only copy is the one on the device and the backup file. Practice (paper) accounts are not copied to the device, so deleting removes them for good.
