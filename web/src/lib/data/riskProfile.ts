@@ -1,3 +1,4 @@
+import { localizedError } from "../i18n/current";
 import { api, RiskProfile, RiskRules } from "../api";
 import { DEFAULT_RULES, levelFromAnswers, LEVELS, RULE_KEYS, type Level, type Rules } from "../calc/profile";
 import { isLocalMode } from "../localMode";
@@ -55,7 +56,7 @@ function checkOverrides(overrides: Partial<Rules>): void {
     const v = overrides[key as keyof typeof LIMITS];
     if (v === undefined) continue;
     const ok = (loOpen ? v > lo : v >= lo) && (hiOpen ? v < hi : v <= hi);
-    if (!ok) throw new Error(`${key} is out of range`);
+    if (!ok) throw localizedError(`${key} is out of range`);
   }
 }
 
@@ -86,8 +87,8 @@ export async function saveProfile(input: ProfileInput): Promise<RiskProfile> {
   }
   const { answers, level: chosen, paper_mode, ...overrides } = input;
   const level = answers ? levelFromAnswers(answers) : chosen;
-  if (!level) throw new Error("send questionnaire answers or a level");
-  if (!(LEVELS as readonly string[]).includes(level)) throw new Error(`level must be one of ${LEVELS.join(", ")}`);
+  if (!level) throw localizedError("send questionnaire answers or a level");
+  if (!(LEVELS as readonly string[]).includes(level)) throw localizedError(`level must be one of ${LEVELS.join(", ")}`);
   const defined = Object.fromEntries(Object.entries(overrides).filter(([, v]) => v !== undefined && v !== null)) as Partial<Rules>;
   checkOverrides(defined);
   const rules: Rules = { ...DEFAULT_RULES[level as Level], ...defined };

@@ -2669,6 +2669,7 @@ export interface operations {
         parameters: {
             query?: {
                 days?: number;
+                language?: "en" | "he";
             };
             header?: never;
             path: {
@@ -2922,7 +2923,9 @@ export interface operations {
     };
     safety_analyze_stocks__symbol__safety_analyze_post: {
         parameters: {
-            query?: never;
+            query?: {
+                language?: "en" | "he";
+            };
             header?: never;
             path: {
                 symbol: string;

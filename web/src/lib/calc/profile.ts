@@ -1,3 +1,5 @@
+import { localizedError } from "../i18n/current";
+
 export const LEVELS = ["conservative", "moderate", "balanced", "growth"] as const;
 export type Level = (typeof LEVELS)[number];
 
@@ -37,9 +39,9 @@ const QUESTION_IDS = ["horizon", "drop", "goal", "experience", "income"] as cons
  */
 export function levelFromAnswers(answers: Readonly<Record<string, number>>): Level {
   const missing = QUESTION_IDS.filter((id) => answers[id] === undefined);
-  if (missing.length) throw new Error(`missing answers: ${missing.join(", ")}`);
+  if (missing.length) throw localizedError(`missing answers: ${missing.join(", ")}`);
   for (const [k, v] of Object.entries(answers)) {
-    if (!(v >= 0 && v <= 3)) throw new Error(`answer ${k} must be 0–3`);
+    if (!(v >= 0 && v <= 3)) throw localizedError(`answer ${k} must be 0–3`);
   }
   const total = QUESTION_IDS.reduce((sum, id) => sum + (answers[id] as number), 0); // 0 to 15
   let index = Math.min(3, Math.floor((total * 4) / 16));

@@ -10,7 +10,7 @@ import { useLoader } from "@/lib/useLoader";
 import { ALERTS_CHANGED } from "./LocalAlertsRunner";
 
 export default function AlertsBell() {
-  const { t, lang } = useI18n();
+  const { t, lang, ts } = useI18n();
   const { on: local, ready } = useLocalMode();
   const { data, reload } = useLoader<Alert[]>(ready ? () => listAlerts(local) : null, `alerts:${local}`);
   useEffect(() => {
@@ -35,7 +35,7 @@ export default function AlertsBell() {
           {!data?.length && <div className="empty">{t("dashboard.alerts.empty")}</div>}
           {data?.map((a) => (
             <div key={a.id} style={{ padding: "8px 0", borderBottom: "1px solid var(--line)", opacity: a.read ? 0.55 : 1 }}>
-              <div>{a.message}</div>
+              <div>{ts(a.message)}</div>
               <div className="sub" style={{ fontSize: 11 }}>{a.source} · {date(a.created_at, lang)}</div>
             </div>
           ))}

@@ -1,3 +1,4 @@
+import { localizedError } from "../i18n/current";
 import { api, apiWithHeaders, Candle, Evaluation, Target } from "../api";
 import { annualVolatilityPct } from "../calc/analytics";
 import { evaluateTarget } from "../calc/targets";
@@ -45,7 +46,7 @@ function checkOrder(input: TargetInput): void {
   for (const [dim, lo, hi] of MIN_ORDER_FIELDS) {
     const min = input[lo];
     const max = input[hi];
-    if (min !== null && max !== null && min > max) throw new Error(`${dim}: min must be <= max`);
+    if (min !== null && max !== null && min > max) throw localizedError(`${dim}: min must be <= max`);
   }
 }
 
@@ -62,7 +63,7 @@ export async function saveTarget(input: TargetInput, id: number | string | null)
     return;
   }
   checkOrder(input);
-  if (!input.name.trim()) throw new Error("A target needs a name.");
+  if (!input.name.trim()) throw localizedError("A target needs a name.");
   const store = await portfolioStore();
   const existing = id === null ? undefined : await store.get("targets", String(id));
   await store.put("targets", toRecord(existing?.id ?? newId(), input, existing?.createdAt ?? new Date().toISOString()));

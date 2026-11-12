@@ -9,7 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app import cache
-from app.ai.dispatcher import complete
+from app.ai.dispatcher import ANSWER_IN, complete
 from app.ai.llm_json import json_object_in
 from app.analytics import price_stats
 from app.jsontypes import JSONDict
@@ -84,16 +84,16 @@ def _parse_json(text: str) -> JSONDict:
     }
 
 
-async def news_summary(db: Session, user: str, provider: MarketProvider, symbol: str, days: int = 7) -> JSONDict:
+async def news_summary(db: Session, user: str, provider: MarketProvider, symbol: str, days: int = 7, language: str = "en") -> JSONDict:
     items = (await provider.news(symbol, days))[:20]
     if not items:
         return {"symbol": symbol, "summary": "No news in this window.", "sentiment": "neutral", "points": [], "watch": "", "count": 0}
     lines = "\n".join(f"- [{time.strftime('%Y-%m-%d', time.gmtime(n['datetime']))}] {n['headline']} — {n['summary'][:240]}" for n in items)
-    digest = hashlib.sha256(f"{user}|{symbol}|{days}|{lines}".encode()).hexdigest()
+    digest = hashlib.sha256(f"{user}|{symbol}|{days}|{language}|{lines}".encode()).hexdigest()
     key = ("news_summary", digest)
     if isinstance(hit := cache.get(key), dict):
         return {**hit, "cached": True}
-    r = await complete(db, user, f"Stock: {symbol}\nNews from the last {days} days:\n{lines}", system=_SUMMARY_SYSTEM)
+    r = await complete(db, user, f"Stock: {symbol}\nNews from the last {days} days:\n{lines}", system=_SUMMARY_SYSTEM + ANSWER_IN[language])
     out = {"symbol": symbol, **_parse_json(r["content"]), "model": r["model"], "count": len(items)}
     cache.put(key, out, _TTL)
     return out

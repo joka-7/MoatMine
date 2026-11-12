@@ -28,7 +28,7 @@ export default function Dashboard() {
   const { data: evals } = useLoader<Evaluation[]>(ready ? () => evaluateTargets(local) : null, `evaluations:${local}`);
   const { data: profile } = useLoader<RiskProfile>(ready ? () => getProfile(local) : null, `profile:${local}`);
   const totals = p?.totals;
-  const { t } = useI18n();
+  const { t, ts } = useI18n();
   const router = useRouter();
   const { seen } = useIntroSeen();
   // a first visit opens the welcome tour; leaving it marks it seen, so this runs once
@@ -111,7 +111,7 @@ export default function Dashboard() {
           {evals?.map((e) => (
             <Link key={e.target_id} href="/targets" style={{ display: "block", padding: "8px 0", borderBottom: "1px solid var(--line)" }}>
               <div style={{ display: "flex", justifyContent: "space-between" }}>
-                <span>{e.name} <span className="sub">{e.symbol ?? t("common.portfolio")}</span></span>
+                <span>{ts(e.name)} <span className="sub">{e.symbol ?? t("common.portfolio")}</span></span>
                 <span className={`chip ${e.breaches.length ? "above_max" : "ok"}`}>{e.breaches.length ? t("dashboard.breaches", { n: e.breaches.length }) : t("dashboard.inRange")}</span>
               </div>
               {e.checks.profit.progress_pct != null && (

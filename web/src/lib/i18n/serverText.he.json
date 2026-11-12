@@ -1,0 +1,312 @@
+{
+ "exact": {
+  "Financial health": "בריאות פיננסית",
+  "Quality & earnings": "איכות ורווחיות",
+  "Price risk": "סיכון מחיר",
+  "Crisis resilience": "עמידות במשברים",
+  "Size": "גודל",
+  "Valuation": "תמחור",
+  "Moat": "חפיר",
+  "Financial strength (Altman Z)": "חוסן פיננסי (Altman Z)",
+  "Quality (Piotroski F)": "איכות (Piotroski F)",
+  "Debt (net debt / EBITDA)": "חוב (חוב נטו / EBITDA)",
+  "Price volatility": "תנודתיות מחיר",
+  "Worst fall": "הירידה החדה ביותר",
+  "Company size": "גודל החברה",
+  "Earnings stability": "יציבות רווחים",
+  "Return on capital": "תשואה על ההון",
+  "Margin stability": "יציבות מרווחים",
+  "Steady growth": "צמיחה יציבה",
+  "safe 20 · grey 10 · distress 0": "בטוח 20 · אפור 10 · מצוקה 0",
+  "F-score out of 9, scaled": "ציון F מתוך 9, מותאם",
+  "net cash or ≤1× 10 · ≤2× 7 · ≤3× 4": "מזומן נטו או ≤1× 10 · ≤2× 7 · ≤3× 4",
+  "annualised: ≤20% 15 · ≤30% 11 · ≤45% 6 · ≤60% 3": "שנתי: ≤20% 15 · ≤30% 11 · ≤45% 6 · ≤60% 3",
+  "worst drop: under 25% 10 · 40% 7 · 55% 4": "הירידה החדה ביותר: מתחת ל-25% 10 · 40% 7 · 55% 4",
+  "fall vs market in past crises: ≤80% 10 · ≤100% 7 · ≤120% 4": "ירידה מול השוק במשברים קודמים: ≤80% 10 · ≤100% 7 · ≤120% 4",
+  "market cap $M: mega 10 · large 8 · mid 5 · small 2": "שווי שוק ב-$M: ענק 10 · גדול 8 · בינוני 5 · קטן 2",
+  "share of recent quarters with a profit": "חלק הרבעונים האחרונים שבהם היה רווח",
+  "price ÷ fair value: ≤1 5 · ≤1.15 3": "מחיר ÷ שווי הוגן: ≤1 5 · ≤1.15 3",
+  "avg ROIC: ≥15% 7 · ≥10% 5 · ≥6% 2.5, scaled by share of years ≥10%": "ROIC ממוצע: ≥15% 7 · ≥10% 5 · ≥6% 2.5, מותאם לחלק השנים עם ≥10%",
+  "gross-margin spread across years: ≤2pp 4 · ≤5pp 3 · ≤10pp 1.5": "פיזור המרווח הגולמי בין שנים: ≤2pp 4 · ≤5pp 3 · ≤10pp 1.5",
+  "revenue CAGR ≥5% 2 (≥0% 1) + 2 × share of years revenue grew": "צמיחת הכנסות שנתית (CAGR) ≥5% 2 (≥0% 1) + 2 × חלק השנים שבהן ההכנסות צמחו",
+  "Altman Z in the distress zone (bankruptcy risk)": "Altman Z באזור המצוקה (סיכון לפשיטת רגל)",
+  "Not profitable over the last 12 months": "לא רווחית ב-12 החודשים האחרונים",
+  "Micro-cap company (under $300M)": "חברת מיקרו-קאפ (מתחת ל-$300M)",
+  "Not enough data to judge this stock's safety.": "אין מספיק נתונים כדי לשפוט את בטיחות המניה.",
+  "Strong safety profile across the board.": "פרופיל בטיחות חזק בכל התחומים.",
+  "Solid overall, with a few areas to watch.": "יציב בסך הכול, עם כמה תחומים שכדאי לעקוב אחריהם.",
+  "Mixed: real weaknesses sit alongside the strengths.": "מעורב: לצד החוזקות יש חולשות ממשיות.",
+  "Weak safety profile: higher risk than most investors should hold in size.": "פרופיל בטיחות חלש: סיכון גבוה מכפי שרוב המשקיעים צריכים להחזיק בהיקף משמעותי.",
+  "Not enough data to score this stock": "אין מספיק נתונים כדי לדרג את המניה",
+  "Bankruptcy-risk zone (Altman Z distress)": "אזור סיכון לפשיטת רגל (מצוקה לפי Altman Z)",
+  "Penny stocks are off in your risk profile": "מניות פֶּני אסורות בפרופיל הסיכון שלכם",
+  "Unknown": "לא ידוע",
+  "actual fall": "ירידה בפועל",
+  "estimated from beta": "הערכה לפי בטא",
+  "beta × market": "בטא × השוק",
+  "Replays past crises on today's holdings. Past falls don't predict future ones.": "משחזר משברים מהעבר על ההחזקות של היום. ירידות בעבר אינן מנבאות ירידות בעתיד.",
+  "Dot-com crash": "קריסת הדוט-קום",
+  "Tech bubble burst; S&P 500 fell ~49%.": "בועת הטכנולוגיה התפוצצה; ה-S&P 500 ירד בכ-49%.",
+  "Global financial crisis": "המשבר הפיננסי העולמי",
+  "Housing and banking collapse; S&P 500 fell ~57%.": "קריסת שוק הנדל״ן והבנקים; ה-S&P 500 ירד בכ-57%.",
+  "2011 debt-ceiling & euro crisis": "משבר תקרת החוב ומשבר האירו ב-2011",
+  "US downgrade and euro debt fears; ~19% fall.": "הורדת דירוג ארה״ב ופחדי חוב באירופה; ירידה של כ-19%.",
+  "Q4 2018 sell-off": "הצניחה ברבעון הרביעי של 2018",
+  "Rate hikes and trade war; ~20% fall.": "העלאות ריבית ומלחמת סחר; ירידה של כ-20%.",
+  "COVID crash": "קריסת הקורונה",
+  "Fastest bear market on record; ~34% fall in a month.": "שוק הדובים המהיר ביותר שנרשם; ירידה של כ-34% בחודש.",
+  "2022 rate-hike bear market": "שוק דובי של העלאות הריבית ב-2022",
+  "Inflation and rapid rate hikes; ~25% fall.": "אינפלציה והעלאות ריבית מהירות; ירידה של כ-25%.",
+  "Weekly closes. Past behaviour in crises does not predict future behaviour.": "סגירות שבועיות. התנהגות בעבר במשברים אינה מנבאת התנהגות בעתיד.",
+  "not enough history": "אין מספיק היסטוריה",
+  "fell less than the market": "ירדה פחות מהשוק",
+  "fell about as much as the market": "ירדה בערך כמו השוק",
+  "fell more than the market": "ירדה יותר מהשוק",
+  "Model estimates from your assumptions, not investment advice.": "אומדן של מודל לפי ההנחות שלכם, לא ייעוץ השקעות.",
+  "model gives a non-positive value": "המודל נותן ערך שאינו חיובי",
+  "insufficient data": "אין מספיק נתונים",
+  "discount rate must exceed terminal growth": "שיעור ההיוון חייב לעלות על הצמיחה הסופית",
+  "discount rate must exceed dividend growth": "שיעור ההיוון חייב לעלות על צמיחת הדיבידנד",
+  "discount rate must be positive": "שיעור ההיוון חייב להיות חיובי",
+  "needs two years of financial statements": "דורש שנתיים של דוחות כספיים",
+  "needs financial statements and market cap": "דורש דוחות כספיים ושווי שוק",
+  "statements are missing fields": "בדוחות חסרים שדות",
+  "needs positive FCF or EPS": "דורש FCF או EPS חיובי",
+  "needs positive EPS and book value": "דורש EPS והון עצמי חיוביים",
+  "needs positive EPS": "דורש EPS חיובי",
+  "no dividend": "אין דיבידנד",
+  "needs positive EPS and discount rate": "דורש EPS ושיעור היוון חיוביים",
+  "needs EBITDA, net debt and shares": "דורש EBITDA, חוב נטו ומספר מניות",
+  "below buy price": "מתחת למחיר הקנייה",
+  "below fair value": "מתחת לשווי ההוגן",
+  "near fair value": "קרוב לשווי ההוגן",
+  "above fair value": "מעל השווי ההוגן",
+  "DCF (2-stage)": "DCF (דו-שלבי)",
+  "Graham number": "מספר גרהם",
+  "Graham formula": "נוסחת גרהם",
+  "Peter Lynch fair value": "שווי הוגן לפי פיטר לינץ׳",
+  "Dividend discount": "היוון דיבידנדים (DDM)",
+  "Earnings power (no growth)": "כוח רווח (ללא צמיחה)",
+  "FCF/share": "FCF למניה",
+  "EPS (no positive FCF)": "EPS (אין FCF חיובי)",
+  "Positive ROA": "ROA חיובי",
+  "Positive operating cash flow": "תזרים מזומנים תפעולי חיובי",
+  "ROA improving": "ROA משתפר",
+  "Cash flow exceeds net income": "תזרים המזומנים עולה על הרווח הנקי",
+  "Leverage falling": "המינוף יורד",
+  "Current ratio improving": "היחס השוטף משתפר",
+  "No share dilution": "אין דילול מניות",
+  "Gross margin improving": "המרווח הגולמי משתפר",
+  "Asset turnover improving": "תחלופת הנכסים משתפרת",
+  "strong": "חזק",
+  "average": "בינוני",
+  "weak": "חלש",
+  "profit": "רווח",
+  "amount": "סכום",
+  "period": "תקופה",
+  "intent": "סיכון",
+  "portfolio": "תיק",
+  "below min": "מתחת למינימום",
+  "above max": "מעל למקסימום",
+  "Risk profile (auto)": "פרופיל סיכון (אוטומטי)",
+  "conservative": "שמרני",
+  "moderate": "מתון",
+  "balanced": "מאוזן",
+  "growth": "צמיחה",
+  "No news in this window.": "אין חדשות בחלון הזה.",
+  "send questionnaire answers or a level": "שלחו תשובות לשאלון או רמה",
+  "send exactly one of amount or quantity": "שלחו בדיוק אחד מהשניים: סכום או כמות",
+  "plan not found": "התוכנית לא נמצאה",
+  "account not found": "החשבון לא נמצא",
+  "plan is already being executed or has changed": "התוכנית כבר מתבצעת או שהשתנתה",
+  "already executed": "כבר בוצעה",
+  "This buy breaks some of your rules. Write why you still want it (20+ characters).": "הקנייה הזו חורגת מחלק מהכללים שלכם. כתבו למה אתם עדיין רוצים אותה (20 תווים לפחות).",
+  "The buy no longer passes your rules.": "הקנייה כבר לא עומדת בכללים שלכם.",
+  "This buy now breaks some of your rules. Make a new plan and write why you still want it.": "הקנייה הזו חורגת עכשיו מחלק מהכללים שלכם. צרו תוכנית חדשה וכתבו למה אתם עדיין רוצים אותה.",
+  "ready": "מוכנה",
+  "cooling_off": "בהמתנה",
+  "blocked": "חסומה",
+  "executing": "מתבצעת",
+  "executed": "בוצעה",
+  "cancelled": "בוטלה",
+  "That account no longer exists.": "החשבון הזה כבר לא קיים.",
+  "Paper accounts are not available while your data is kept on this device.": "חשבונות תרגול אינם זמינים כל עוד הנתונים שלכם נשמרים במכשיר הזה.",
+  "A target needs a name.": "ליעד חייב להיות שם.",
+  "Sign in to continue.": "התחברו כדי להמשיך.",
+  "safe": "בטוח",
+  "grey": "אפור",
+  "distress": "מצוקה",
+  "user": "שלכם",
+  "default": "ברירת מחדל",
+  "5y EPS growth (clamped 0–20%)": "צמיחת EPS ל-5 שנים (מוגבלת ל-0–20%)",
+  "manual": "ידני",
+  "paper": "תרגול",
+  "Technology": "טכנולוגיה",
+  "Health Care": "בריאות",
+  "Healthcare": "בריאות",
+  "Financials": "פיננסים",
+  "Financial Services": "שירותים פיננסיים",
+  "Consumer Discretionary": "צריכה מחזורית",
+  "Consumer Cyclical": "צריכה מחזורית",
+  "Consumer Staples": "צריכה בסיסית",
+  "Consumer Defensive": "צריכה בסיסית",
+  "Energy": "אנרגיה",
+  "Utilities": "תשתיות",
+  "Industrials": "תעשייה",
+  "Materials": "חומרי גלם",
+  "Basic Materials": "חומרי גלם",
+  "Real Estate": "נדל״ן",
+  "Communication Services": "שירותי תקשורת",
+  "Automotive": "רכב"
+ },
+ "patterns": [
+  {
+   "en": "Penny stock (price under ${n})",
+   "he": "מניית פֶּני (מחיר מתחת ל-${1})"
+  },
+  {
+   "en": "Very volatile ({n}% a year)",
+   "he": "תנודתית מאוד ({1}% בשנה)"
+  },
+  {
+   "en": "High debt ({n}× EBITDA)",
+   "he": "חוב גבוה ({1}× EBITDA)"
+  },
+  {
+   "en": "Red flag: {}.",
+   "he": "דגל אדום: {1}."
+  },
+  {
+   "en": "Strong on {}.",
+   "he": "חוזקות: {1}."
+  },
+  {
+   "en": "Weak on {}.",
+   "he": "חולשות: {1}."
+  },
+  {
+   "en": "No data for {}, so the score covers less.",
+   "he": "אין נתונים עבור {1}, ולכן הציון מכסה פחות."
+  },
+  {
+   "en": "Safety score {n} is below your minimum {n}",
+   "he": "ציון הבטיחות {1} נמוך מהמינימום שלכם, {2}"
+  },
+  {
+   "en": "Safety score {n} (minimum {n})",
+   "he": "ציון בטיחות {1} (מינימום {2})"
+  },
+  {
+   "en": "{} would be {n}% of your portfolio (limit {n}%)",
+   "he": "{1} לאחר הקנייה: {2}% מהתיק שלכם (מגבלה {3}%)"
+  },
+  {
+   "en": "{} would be {n}% of your portfolio",
+   "he": "{1} לאחר הקנייה: {2}% מהתיק שלכם"
+  },
+  {
+   "en": "Volatility {n}% a year (limit {n}%)",
+   "he": "תנודתיות {1}% בשנה (מגבלה {2}%)"
+  },
+  {
+   "en": "Company is smaller than your minimum (${n}M < ${n}M)",
+   "he": "החברה קטנה מהמינימום שלכם (${1}M < ${2}M)"
+  },
+  {
+   "en": "Price is {n}% above the models' fair value",
+   "he": "המחיר גבוה ב-{1}% משווי ההוגן לפי המודלים"
+  },
+  {
+   "en": "No live price for {}; sizes use what you paid",
+   "he": "אין מחיר חי עבור {1}; הגדלים מחושבים לפי מה ששילמתם"
+  },
+  {
+   "en": "{} is {n}% of your portfolio — above your {n}% limit",
+   "he": "{1}: {2}% מהתיק שלכם — מעל המגבלה שלכם, {3}%"
+  },
+  {
+   "en": "Your holdings are {n}% below their 1-year high — past your {n}% loss limit",
+   "he": "ההחזקות שלכם נמוכות ב-{1}% משיא השנה האחרונה — מעבר למגבלת ההפסד שלכם, {2}%"
+  },
+  {
+   "en": "Market falls {n}%",
+   "he": "השוק יורד ב-{1}%"
+  },
+  {
+   "en": "P/E multiple ({n}×)",
+   "he": "מכפיל P/E ({1}×)"
+  },
+  {
+   "en": "EV/EBITDA multiple ({n}×)",
+   "he": "מכפיל EV/EBITDA ({1}×)"
+  },
+  {
+   "en": "{} {n}, {n}y at {n}%, then {n}% at {n}% discount",
+   "he": "{1} {2}, {3} שנים ב-{4}%, ואז {5}% בהיוון של {6}%"
+  },
+  {
+   "en": "EPS × (growth {n} + div. yield {n})",
+   "he": "EPS × (צמיחה {1} + תשואת דיבידנד {2})"
+  },
+  {
+   "en": "(EBITDA × {n} − net debt) / shares",
+   "he": "(EBITDA × {1} − חוב נטו) / מניות"
+  },
+  {
+   "en": "[{}] {} {profit|amount|period|intent} {n} is {below min|above max} ({n})",
+   "he": "[{1}] {2} · {3}: {4} — {5} ({6})"
+  },
+  {
+   "en": "{} at {n} ≥ {n}",
+   "he": "{1} במחיר {2} ≥ {3}"
+  },
+  {
+   "en": "{} at {n} ≤ {n}",
+   "he": "{1} במחיר {2} ≤ {3}"
+  },
+  {
+   "en": "From your {} risk profile. Edit the profile, not this target.",
+   "he": "מפרופיל הסיכון {1} שלכם. ערכו את הפרופיל, לא את היעד הזה."
+  },
+  {
+   "en": "plan is {} until {}",
+   "he": "התוכנית {1} עד {2}"
+  },
+  {
+   "en": "plan is {}",
+   "he": "התוכנית {1}"
+  },
+  {
+   "en": "This buy now breaks some of your rules, so it waits {n}h before it can run.",
+   "he": "הקנייה הזו חורגת עכשיו מחלק מהכללים שלכם, ולכן היא ממתינה {1} שעות לפני שאפשר להריץ אותה."
+  },
+  {
+   "en": "level must be one of {}",
+   "he": "הרמה חייבת להיות אחת מ: {1}"
+  },
+  {
+   "en": "Why I bought ({n} @ {n})",
+   "he": "למה קניתי ({1} @ {2})"
+  },
+  {
+   "en": "{} already on watchlist",
+   "he": "{1} כבר ברשימת המעקב"
+  },
+  {
+   "en": "{} is out of range",
+   "he": "{1} מחוץ לטווח המותר"
+  },
+  {
+   "en": "{}: min must be <= max",
+   "he": "{1}: המינימום חייב להיות קטן או שווה למקסימום"
+  },
+  {
+   "en": "missing answers: {}",
+   "he": "חסרות תשובות: {1}"
+  },
+  {
+   "en": "answer {} must be 0–3",
+   "he": "תשובה {1} חייבת להיות בין 0 ל-3"
+  }
+ ]
+}

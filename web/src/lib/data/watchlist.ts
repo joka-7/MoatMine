@@ -1,3 +1,4 @@
+import { localizedError } from "../i18n/current";
 import { api, Quote, WatchRow } from "../api";
 import { isLocalMode } from "../localMode";
 import { newId } from "../store";
@@ -44,7 +45,7 @@ export async function addWatch(input: WatchInput): Promise<void> {
   }
   const store = await portfolioStore();
   const symbol = input.symbol.trim().toUpperCase();
-  if ((await store.list("watchlist")).some((w) => w.symbol === symbol)) throw new Error(`${symbol} already on watchlist`);
+  if ((await store.list("watchlist")).some((w) => w.symbol === symbol)) throw localizedError(`${symbol} already on watchlist`);
   const record: Omit<WatchRecord, "updatedAt"> = {
     id: newId(), symbol, note: input.note, alertAbove: input.alert_above, alertBelow: input.alert_below,
     createdAt: new Date().toISOString(),

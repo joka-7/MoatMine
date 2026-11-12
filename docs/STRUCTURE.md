@@ -148,8 +148,10 @@ MoatMine/
 │   │   └── script.py.mako                        # Template for new Alembic revisions
 │   ├── tests/                                    # Pytest suite (SQLite, mock market data, no network)
 │   │   ├── vectors/
-│   │   │   └── calc.json
+│   │   │   ├── calc.json
+│   │   │   └── server_text.json
 │   │   ├── conftest.py                           # Test app on a throwaway SQLite DB (migrated), mock market data,…
+│   │   ├── server_text.py                        # The matching rules of web/src/lib/i18n/serverText.ts, so a test can ask…
 │   │   ├── test_analytics.py                     # Price-derived ratios with hand-checkable numbers.
 │   │   ├── test_api.py                           # End-to-end API: portfolio, stock data, notes, targets, worker alerts, AI…
 │   │   ├── test_auth.py                          # Firebase ID token verification, with a locally generated key standing in for…
@@ -175,6 +177,7 @@ MoatMine/
 │   │   ├── test_risk.py                          # Portfolio risk maths at the boundaries, with numbers you can check by hand.
 │   │   ├── test_rotate_keys.py                   # FERNET_KEY rotation re-encrypts stored AI settings so the old key can be…
 │   │   ├── test_safety.py                        # Safety score, risk profile, buy check, risk maths, stress tests, plans flow
+│   │   ├── test_server_text.py                   # Every sentence the API sends that a person reads must have a Hebrew…
 │   │   ├── test_sources.py                       # Results built from fallback (sample) candles say so, however deep the candles…
 │   │   ├── test_targets.py                       # PAPI evaluation never turns a missing price into a plausible-looking number.
 │   │   ├── test_tools.py                         # The agent's tools hold model-supplied arguments to the same bounds as the…
@@ -377,10 +380,15 @@ MoatMine/
 │   │   │   │   │   ├── risk.ts
 │   │   │   │   │   ├── shell.ts
 │   │   │   │   │   └── stock.ts
+│   │   │   │   ├── current.test.ts
+│   │   │   │   ├── current.ts
 │   │   │   │   ├── index.test.tsx
 │   │   │   │   ├── index.tsx
 │   │   │   │   ├── messages.test.ts
 │   │   │   │   ├── messages.ts
+│   │   │   │   ├── serverText.he.json
+│   │   │   │   ├── serverText.test.ts
+│   │   │   │   ├── serverText.ts
 │   │   │   │   ├── translate.test.ts
 │   │   │   │   └── translate.ts
 │   │   │   ├── learn/
