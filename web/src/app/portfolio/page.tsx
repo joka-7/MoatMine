@@ -16,7 +16,7 @@ import { useBookMode } from "@/lib/useBookMode";
 const accountLabel = (a: Account, t: I18n["t"]) => (a.broker === "paper" ? t("dashboard.portfolio.paperAccount", { name: a.name }) : a.name);
 
 export default function PortfolioPage() {
-  const { t, lang } = useI18n();
+  const { t, lang, ts } = useI18n();
   const [chosenMode, setMode] = useBookMode();
   const { on: local, ready } = useLocalMode();
   const mode = local ? LOCAL_BOOK : chosenMode;
@@ -45,7 +45,7 @@ export default function PortfolioPage() {
               <tbody>
                 {accounts?.map((a) => (
                   <tr key={a.id}>
-                    <td>{a.name}</td><td className="sub">{a.broker}</td><td className="n">{money(a.cash, a.currency)}</td>
+                    <td>{a.name}</td><td className="sub">{ts(a.broker)}</td><td className="n">{money(a.cash, a.currency)}</td>
                     <td style={{ textAlign: "end" }}>
                       <button className="btn sm" onClick={() => confirm(t("dashboard.portfolio.confirmDelete", { name: a.name })) && run(() => removeAccount(a.id))}>{t("common.delete")}</button>
                     </td>

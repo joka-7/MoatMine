@@ -12,6 +12,9 @@ API share one version.
 ### Changed
 - Charts and the numbers built on them use real daily, weekly and monthly prices from FMP when Finnhub's plan has no candles and `FMP_API_KEY` is set. Intraday ranges still show sample data.
 
+### Fixed
+- Hebrew no longer shows English for the sentences the API sends. Safety flags, grades and notes, check results, crisis names and descriptions, stress scenarios, valuation notes, alerts, plan and error messages are translated in the app (`web/src/lib/i18n/serverText.he.json`; a sentence nobody translated still shows in English). The AI safety analysis and news summary now answer in the chosen language (`language=he` on `/stocks/{symbol}/safety/analyze` and `/stocks/{symbol}/news/summary`). A backend test fails if the API starts sending a sentence with no Hebrew entry. Real news headlines, company descriptions and the AI provider names stay as the providers write them.
+
 ### Added
 - "Move my data from the server to this device" in Settings: shows what the server holds, offers a backup file, copies real-money accounts, positions, plans, watchlist, notes, targets, alerts and the risk profile onto the device, reads every record back, and only then offers to delete the server copy. Practice (paper) accounts are not copied and are deleted with the rest. New API routes `GET /me/data` and `DELETE /me/data`; AI settings and MCP tokens are not touched.
 - With the on-device switch on, the dashboard's value-over-time chart works again: it values the holdings kept on the device from daily prices fetched by symbol. It was hidden before. A failure to fetch prices now shows an error instead of an empty chart.

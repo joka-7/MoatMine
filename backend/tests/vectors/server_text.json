@@ -1,0 +1,113 @@
+{
+ "_about": "Pins the matching rules of web/src/lib/i18n/serverText.ts and backend/tests/test_server_text.py: each `en` must translate to exactly `he`.",
+ "cases": [
+  {
+   "en": "Price risk",
+   "he": "סיכון מחיר"
+  },
+  {
+   "en": "financial health",
+   "he": "בריאות פיננסית"
+  },
+  {
+   "en": "Strong on financial health, price risk.",
+   "he": "חוזקות: בריאות פיננסית, סיכון מחיר."
+  },
+  {
+   "en": "Strong on moat. Weak on valuation, size. No data for crisis resilience, so the score covers less.",
+   "he": "חוזקות: חפיר. חולשות: תמחור, גודל. אין נתונים עבור עמידות במשברים, ולכן הציון מכסה פחות."
+  },
+  {
+   "en": "Red flag: Penny stock (price under $5); Altman Z in the distress zone (bankruptcy risk).",
+   "he": "דגל אדום: מניית פֶּני (מחיר מתחת ל-$5); Altman Z באזור המצוקה (סיכון לפשיטת רגל)."
+  },
+  {
+   "en": "Very volatile (62% a year)",
+   "he": "תנודתית מאוד (62% בשנה)"
+  },
+  {
+   "en": "AAPL would be 12.3% of your portfolio (limit 8%)",
+   "he": "AAPL לאחר הקנייה: 12.3% מהתיק שלכם (מגבלה 8%)"
+  },
+  {
+   "en": "AAPL would be 8.0% of your portfolio",
+   "he": "AAPL לאחר הקנייה: 8.0% מהתיק שלכם"
+  },
+  {
+   "en": "Safety score 55 is below your minimum 60",
+   "he": "ציון הבטיחות 55 נמוך מהמינימום שלכם, 60"
+  },
+  {
+   "en": "Technology is 35.0% of your portfolio — above your 25% limit",
+   "he": "טכנולוגיה: 35.0% מהתיק שלכם — מעל המגבלה שלכם, 25%"
+  },
+  {
+   "en": "Unknown is 30.0% of your portfolio — above your 25% limit",
+   "he": "לא ידוע: 30.0% מהתיק שלכם — מעל המגבלה שלכם, 25%"
+  },
+  {
+   "en": "No live price for BBB, CCC; sizes use what you paid",
+   "he": "אין מחיר חי עבור BBB, CCC; הגדלים מחושבים לפי מה ששילמתם"
+  },
+  {
+   "en": "Market falls 35%",
+   "he": "השוק יורד ב-35%"
+  },
+  {
+   "en": "COVID crash",
+   "he": "קריסת הקורונה"
+  },
+  {
+   "en": "P/E multiple (15×)",
+   "he": "מכפיל P/E (15×)"
+  },
+  {
+   "en": "EPS (no positive FCF) 3.10, 5y at 8.0%, then 2.5% at 9.0% discount",
+   "he": "EPS (אין FCF חיובי) 3.10, 5 שנים ב-8.0%, ואז 2.5% בהיוון של 9.0%"
+  },
+  {
+   "en": "[Guard] portfolio amount 1850.0 is above max (1500.0)",
+   "he": "[Guard] תיק · סכום: 1850.0 — מעל למקסימום (1500.0)"
+  },
+  {
+   "en": "[AAA watch] AAPL period 60 is below min (90)",
+   "he": "[AAA watch] AAPL · תקופה: 60 — מתחת למינימום (90)"
+  },
+  {
+   "en": "NVDA at 900.0 ≥ 900.0",
+   "he": "NVDA במחיר 900.0 ≥ 900.0"
+  },
+  {
+   "en": "From your conservative risk profile. Edit the profile, not this target.",
+   "he": "מפרופיל הסיכון שמרני שלכם. ערכו את הפרופיל, לא את היעד הזה."
+  },
+  {
+   "en": "plan is cooling_off until 2026-03-03T12:00:00.000Z",
+   "he": "התוכנית בהמתנה עד 2026-03-03T12:00:00.000Z"
+  },
+  {
+   "en": "This buy now breaks some of your rules, so it waits 24h before it can run.",
+   "he": "הקנייה הזו חורגת עכשיו מחלק מהכללים שלכם, ולכן היא ממתינה 24 שעות לפני שאפשר להריץ אותה."
+  },
+  {
+   "en": "Why I bought (10 @ 102.50)",
+   "he": "למה קניתי (10 @ 102.50)"
+  },
+  {
+   "en": "missing answers: drop, goal",
+   "he": "חסרות תשובות: drop, goal"
+  },
+  {
+   "en": "answer income must be 0–3",
+   "he": "תשובה income חייבת להיות בין 0 ל-3"
+  },
+  {
+   "en": "Text nobody translated yet.",
+   "he": "Text nobody translated yet."
+  },
+  {
+   "en": "",
+   "he": ""
+  }
+ ]
+}

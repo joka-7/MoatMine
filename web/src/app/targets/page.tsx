@@ -57,7 +57,7 @@ export default function TargetsPage() {
   const [form, setForm] = useState<Form>(blank());
   const [editing, setEditing] = useState<number | string | null>(null);
   const [err, setErr] = useState<string | null>(null);
-  const { t } = useI18n();
+  const { t, ts } = useI18n();
 
   const reload = () => Promise.all([reloadT(), reloadE()]);
   const save = async () => {
@@ -126,8 +126,8 @@ export default function TargetsPage() {
             <div key={e.target_id} className="card">
               <div className="row" style={{ justifyContent: "space-between", alignItems: "center" }}>
                 <div>
-                  <b>{e.name}</b> <span className="sub">{e.symbol ?? t("common.portfolio")} · {intentLabel(t, e.checks.intent.intent)}</span>
-                  {e.checks.intent.note && <div className="sub" style={{ fontSize: 12 }}>{e.checks.intent.note}</div>}
+                  <b>{ts(e.name)}</b> <span className="sub">{e.symbol ?? t("common.portfolio")} · {intentLabel(t, e.checks.intent.intent)}</span>
+                  {e.checks.intent.note && <div className="sub" style={{ fontSize: 12 }}>{ts(e.checks.intent.note)}</div>}
                 </div>
                 <div className="seg" style={{ flex: "0 1 auto" }}>
                   <button className="btn sm" onClick={() => { if (target) { setForm(fromTarget(target)); setEditing(target.id); window.scrollTo({ top: 0, behavior: "smooth" }); } }}>{t("risk.targets.editButton")}</button>

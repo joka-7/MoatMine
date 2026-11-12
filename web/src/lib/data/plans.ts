@@ -1,3 +1,4 @@
+import { localizedError } from "../i18n/current";
 import { api, BuyPlan, CheckResult, Quote } from "../api";
 import { fixed, general } from "../calc/pyformat";
 import { pyRound } from "../calc/round";
@@ -42,7 +43,7 @@ function toPlan(p: PlanRecord, now: Date): BuyPlan {
 
 async function ownPlan(id: number | string): Promise<PlanRecord> {
   const plan = await (await portfolioStore()).get("plans", String(id));
-  if (!plan) throw new Error("plan not found");
+  if (!plan) throw localizedError("plan not found");
   return plan;
 }
 
@@ -64,12 +65,12 @@ export async function listPlans(local: boolean): Promise<BuyPlan[]> {
 export async function createPlan(input: PlanInput): Promise<BuyPlan> {
   if (!isLocalMode()) return api<BuyPlan>("/plans", { method: "POST", json: input });
   const store = await portfolioStore();
-  if (!(await store.get("accounts", String(input.account_id)))) throw new Error("account not found");
+  if (!(await store.get("accounts", String(input.account_id)))) throw localizedError("account not found");
   const symbol = input.symbol.trim().toUpperCase();
   const { price } = await quoteOf(symbol);
   const check = await checkOnDevice(symbol, input.quantity * price, await getPortfolio(LOCAL_BOOK, true));
   if (check.requires_note && input.note.trim().length < MIN_NOTE_CHARS) {
-    throw new Error(`This buy breaks some of your rules. Write why you still want it (${MIN_NOTE_CHARS}+ characters).`);
+    throw localizedError(`This buy breaks some of your rules. Write why you still want it (${MIN_NOTE_CHARS}+ characters).`);
   }
   const now = new Date();
   let status: PlanRecord["status"] = "ready";
@@ -97,12 +98,12 @@ async function sendBackThroughWarnFlow(p: PlanRecord, recheck: CheckResult, now:
   const warned = { ...p, verdict: "warn", check: recheck as unknown as JsonObject };
   if (p.note.trim().length < MIN_NOTE_CHARS) {
     await savePlan({ ...warned, status: "cancelled" });
-    throw new Error("This buy now breaks some of your rules. Make a new plan and write why you still want it.");
+    throw localizedError("This buy now breaks some of your rules. Make a new plan and write why you still want it.");
   }
   const hours = recheck.cooling_off_hours;
   if (hours) {
     await savePlan({ ...warned, status: "cooling_off", availableAt: new Date(now.getTime() + hours * 3_600_000).toISOString() });
-    throw new Error(`This buy now breaks some of your rules, so it waits ${hours}h before it can run.`);
+    throw localizedError(`This buy now breaks some of your rules, so it waits ${hours}h before it can run.`);
   }
   return warned;
 }
@@ -115,7 +116,7 @@ async function executeClaimed(claimed: PlanRecord, now: Date): Promise<BuyPlan> 
   const recheck = await checkOnDevice(p.symbol, p.quantity * price, await getPortfolio(LOCAL_BOOK, true));
   if (recheck.verdict === "block") {
     await savePlan({ ...p, status: "blocked", verdict: "block", check: recheck as unknown as JsonObject });
-    throw new Error("The buy no longer passes your rules.");
+    throw localizedError("The buy no longer passes your rules.");
   }
   if (recheck.verdict === "warn" && p.verdict !== "warn") p = await sendBackThroughWarnFlow(p, recheck, now);
   const holdingId = newId();
@@ -140,7 +141,7 @@ export async function executePlan(id: number | string): Promise<BuyPlan> {
   const plan = await ownPlan(id);
   const shown = toPlan(plan, now);
   if (shown.status !== "ready") {
-    throw new Error(`plan is ${shown.status}` + (shown.status === "cooling_off" ? ` until ${shown.available_at}` : ""));
+    throw localizedError(`plan is ${shown.status}` + (shown.status === "cooling_off" ? ` until ${shown.available_at}` : ""));
   }
   const observed = plan.status;
   const claimed = await savePlan({ ...plan, status: "executing" });
@@ -157,6 +158,6 @@ export async function executePlan(id: number | string): Promise<BuyPlan> {
 export async function cancelPlan(id: number | string): Promise<BuyPlan> {
   if (!isLocalMode()) return api<BuyPlan>(`/plans/${id}/cancel`, { method: "POST" });
   const plan = await ownPlan(id);
-  if (plan.status === "executed") throw new Error("already executed");
+  if (plan.status === "executed") throw localizedError("already executed");
   return toPlan(await savePlan({ ...plan, status: "cancelled" }), new Date());
 }
