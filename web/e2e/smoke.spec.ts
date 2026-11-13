@@ -83,3 +83,23 @@ test("a stock page labels mock market data as sample data", async ({ page }) => 
   await page.goto("/stock/?s=AAPL");
   await expect(page.getByText(/sample data/i).first()).toBeVisible();
 });
+
+test("the watchlist screener loads a country's numbers, filters them and adds a stock", async ({ page }) => {
+  await page.addInitScript(() => window.localStorage.setItem("moatmine.intro", "seen"));
+  await page.goto("/watchlist/");
+  await page.getByText("Country", { exact: true }).click();
+  await page.getByLabel("Israel").check();
+  await button(page, "Load the numbers for 8 companies").click();
+
+  await expect(page.getByText("These numbers are sample data, not real prices.")).toBeVisible();
+  const table = page.getByRole("table").first(); // the screener's results come before the watchlist itself
+  await expect(table.getByRole("link", { name: "TEVA" })).toBeVisible();
+
+  await page.getByLabel("Value: max P/E").fill("0.5"); // nothing has a P/E that low
+  await expect(page.getByText("Nothing matches. Loosen a filter.")).toBeVisible();
+  await page.getByLabel("Value: max P/E").fill("");
+
+  await table.getByRole("row", { name: /TEVA/ }).getByRole("button", { name: "Add" }).click();
+  await expect(page.getByText("Added 1 to your watchlist.")).toBeVisible();
+  await expect(page.getByRole("table").last().getByRole("link", { name: "TEVA" })).toBeVisible();
+});

@@ -2980,6 +2980,56 @@
         ]
       }
     },
+    "/screener/metrics": {
+      "get": {
+        "description": "Performance, momentum, yearly high and low, risk and valuation ratios for up to 30 symbols in one call.\n\nOnly ticker symbols are sent: nothing about the user's holdings or watchlist. Each row carries an\n`error` instead of numbers when that symbol's data could not be fetched.",
+        "operationId": "metrics_screener_metrics_get",
+        "parameters": [
+          {
+            "description": "comma-separated ticker symbols",
+            "in": "query",
+            "name": "symbols",
+            "required": true,
+            "schema": {
+              "description": "comma-separated ticker symbols",
+              "title": "Symbols",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JSONDict"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Metrics",
+        "tags": [
+          "screener"
+        ]
+      }
+    },
     "/stocks/search": {
       "get": {
         "operationId": "search_stocks_search_get",
