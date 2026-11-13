@@ -102,6 +102,7 @@ MoatMine/
 │   │   │   ├── me.py                             # The user's own stored data: export it all, or delete it all.
 │   │   │   ├── portfolio.py                      # /accounts, /holdings (safety-checked; paper buys pay from cash), /portfolio…
 │   │   │   ├── safety.py                         # /safety: risk profile, stock safety + AI analyzer, buy check, portfolio risk,…
+│   │   │   ├── screener.py
 │   │   │   ├── stocks.py                         # /stocks: search, quote, candles (X-Data-Source), ratios, research data,…
 │   │   │   ├── targets.py                        # /targets CRUD and live PAPI evaluation (real money only); /alerts
 │   │   │   └── watchlist.py                      # /watchlist CRUD with live quotes and price-alert levels
@@ -134,6 +135,7 @@ MoatMine/
 │   │   ├── research.py                           # Research helpers shared by the API, AI tools and MCP: valuation, news feed,…
 │   │   ├── rotate_keys.py                        # Re-encrypt every stored AI setting with the newest FERNET_KEY (step 2 of a…
 │   │   ├── schemas.py                            # Pydantic request/response models for accounts, holdings, watchlist, notes,…
+│   │   ├── screener.py                           # Metrics for the stock screener: how a stock has performed, how close it is to…
 │   │   ├── seed.py                               # Demo data for local dev: python -m app.seed [user_id] (default user: dev)
 │   │   ├── targets.py                            # PAPI (Profit, Amount, Period, Intent) evaluation against MAMI (min/max)…
 │   │   ├── valuation.py                          # Value estimator: classic fair-value models, valuation indicators and quality…
@@ -177,6 +179,7 @@ MoatMine/
 │   │   ├── test_risk.py                          # Portfolio risk maths at the boundaries, with numbers you can check by hand.
 │   │   ├── test_rotate_keys.py                   # FERNET_KEY rotation re-encrypts stored AI settings so the old key can be…
 │   │   ├── test_safety.py                        # Safety score, risk profile, buy check, risk maths, stress tests, plans flow
+│   │   ├── test_screener.py                      # Screener metrics: hand-checkable numbers, then the endpoint.
 │   │   ├── test_server_text.py                   # Every sentence the API sends that a person reads must have a Hebrew…
 │   │   ├── test_sources.py                       # Results built from fallback (sample) candles say so, however deep the candles…
 │   │   ├── test_targets.py                       # PAPI evaluation never turns a missing price into a plausible-looking number.
@@ -326,6 +329,8 @@ MoatMine/
 │   │   │   ├── SafetyPanel.tsx                   # Stock safety report, AI analyzer and the buy check / buy plan form
 │   │   │   ├── SignInForm.test.tsx
 │   │   │   ├── SignInForm.tsx                    # Sign-in screen: email/password (create, reset) everywhere, Google in browsers…
+│   │   │   ├── StockScreener.test.tsx
+│   │   │   ├── StockScreener.tsx
 │   │   │   ├── SymbolSearch.tsx                  # Debounced ticker search with a results dropdown
 │   │   │   ├── ThemeSwitch.tsx
 │   │   │   ├── ValuationPanel.tsx                # Fair-value models with editable assumptions
@@ -408,6 +413,12 @@ MoatMine/
 │   │   │   │   ├── progress.test.ts
 │   │   │   │   ├── progress.ts
 │   │   │   │   └── types.ts
+│   │   │   ├── screener/
+│   │   │   │   ├── filter.test.ts
+│   │   │   │   ├── filter.ts
+│   │   │   │   ├── load.test.ts
+│   │   │   │   ├── load.ts
+│   │   │   │   └── universe.ts
 │   │   │   ├── store/
 │   │   │   │   ├── backend.ts
 │   │   │   │   ├── index.ts

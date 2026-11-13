@@ -512,6 +512,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/screener/metrics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Metrics
+         * @description Performance, momentum, yearly high and low, risk and valuation ratios for up to 30 symbols in one call.
+         *
+         *     Only ticker symbols are sent: nothing about the user's holdings or watchlist. Each row carries an
+         *     `error` instead of numbers when that symbol's data could not be fetched.
+         */
+        get: operations["metrics_screener_metrics_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/stocks/search": {
         parameters: {
             query?: never;
@@ -2382,6 +2405,38 @@ export interface operations {
         parameters: {
             query?: {
                 mode?: "real" | "paper";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JSONDict"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    metrics_screener_metrics_get: {
+        parameters: {
+            query: {
+                /** @description comma-separated ticker symbols */
+                symbols: string;
             };
             header?: never;
             path?: never;

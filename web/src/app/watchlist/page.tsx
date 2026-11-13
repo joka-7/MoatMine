@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import StockScreener from "@/components/StockScreener";
 import SymbolSearch from "@/components/SymbolSearch";
 import { WatchRow } from "@/lib/api";
 import { addWatch, listWatch, removeWatch } from "@/lib/data/watchlist";
@@ -42,6 +43,8 @@ export default function WatchlistPage() {
           <button className="btn primary" disabled={!form.symbol}>{t("common.add")}</button>
         </form>
       </div>
+
+      <StockScreener watched={new Set(data?.map((w) => w.symbol) ?? [])} onAdded={() => void reload()} />
 
       <div className="card">
         <div className="scroll-x">
