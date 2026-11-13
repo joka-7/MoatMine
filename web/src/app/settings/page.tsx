@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import AiSettingsCard from "@/components/AiSettingsCard";
 import DeviceDataCard from "@/components/DeviceDataCard";
+import DriveSyncCard from "@/components/DriveSyncCard";
 import MoveDataCard from "@/components/MoveDataCard";
 import LanguageSwitch from "@/components/LanguageSwitch";
 import ThemeSwitch from "@/components/ThemeSwitch";
@@ -34,6 +35,7 @@ export default function SettingsPage() {
         </div>
         <DeviceDataCard />
         <MoveDataCard />
+        <DriveSyncCard />
         <AiSettingsCard />
         <Connection />
         <McpTokens />

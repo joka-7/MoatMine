@@ -146,3 +146,15 @@ order matters:
 ## Moving a user's data to their device
 
 Settings → "Move my data from the server to this device" calls `GET /me/data`, copies the data onto the device, reads every record back, and only then enables the delete button (which also needs the backup file downloaded and a confirmation). `DELETE /me/data` removes accounts, positions, buy plans, watchlist, notes, targets, alerts and the risk profile for the signed-in user, and nothing else: AI settings and MCP tokens stay. There is no undo: the only copy is the one on the device and the backup file. Practice (paper) accounts are not copied to the device, so deleting removes them for good.
+
+## Google Drive sync (optional, website only)
+
+Settings → "Sync with Google Drive" keeps one file, `moatmine-data.json`, in the user's hidden Drive app folder (`appDataFolder`, scope `https://www.googleapis.com/auth/drive.appdata`) and merges it into every device that syncs (`web/src/lib/sync/`). AI settings and their keys are never written to it.
+
+What the operator has to do once, in the Google Cloud project behind the Firebase project:
+
+1. Enable the **Google Drive API** (APIs & Services → Library). Without it, every Drive call fails with a 403.
+2. On the OAuth consent screen, add the scope `.../auth/drive.appdata`. It is a non-sensitive scope, so it should not need Google's verification; check that on the consent screen's scope list.
+3. Nothing is stored on the MoatMine server for this: the access token is asked for in a popup when the user presses the button, lasts about an hour, and is not kept.
+
+Not verified against a real Google account when this was written: the popup flow (`reauthenticateWithPopup` with the added scope returning an access token), the Drive REST calls (they are tested against a fake `fetch`, not Drive), and the consent screen behaviour in step 2. Not available in the desktop and Android apps: they sign in through the system browser without the Drive scope, and their content security policy does not allow `www.googleapis.com` calls to Drive.
