@@ -6,9 +6,8 @@ import { syncWithDrive } from "@/lib/sync/sync";
 import { setLocalMode } from "@/lib/localMode";
 import DriveSyncCard from "./DriveSyncCard";
 
-vi.mock("@/lib/firebase", () => ({ firebaseAuth: () => ({ currentUser: {} }) }));
 vi.mock("@/lib/store/shared", () => ({ portfolioStore: () => Promise.resolve({}) }));
-vi.mock("@/lib/sync/driveAuth", () => ({ driveUnavailable: vi.fn(), requestDriveAccessToken: vi.fn() }));
+vi.mock("@/lib/sync/driveAuth", () => ({ currentDriveUser: () => null, driveUnavailable: vi.fn(), requestDriveAccessToken: vi.fn() }));
 vi.mock("@/lib/sync/sync", () => ({ syncWithDrive: vi.fn() }));
 
 const click = () => fireEvent.click(screen.getByRole("button", { name: "Sync with Google Drive now" }));

@@ -2,20 +2,38 @@ import type { User } from "@firebase/auth";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const flags = vi.hoisted(() => ({ configured: true, inApp: false }));
+const firebaseAuth = vi.hoisted(() => vi.fn());
 vi.mock("../firebase", () => ({
   get FIREBASE_CONFIGURED() { return flags.configured; },
   inAppWindow: () => flags.inApp,
-  firebaseAuth: () => ({ currentUser: null }),
+  firebaseAuth,
 }));
 vi.mock("@firebase/auth", () => ({ GoogleAuthProvider: vi.fn(), reauthenticateWithPopup: vi.fn() }));
 
-import { driveUnavailable, requestDriveAccessToken } from "./driveAuth";
+import { currentDriveUser, driveUnavailable, requestDriveAccessToken } from "./driveAuth";
 
 const userWith = (...providerIds: string[]) => ({ providerData: providerIds.map((providerId) => ({ providerId })) }) as unknown as User;
 
 beforeEach(() => {
   flags.configured = true;
   flags.inApp = false;
+  firebaseAuth.mockReset();
+  firebaseAuth.mockReturnValue({ currentUser: null });
+});
+
+describe("currentDriveUser", () => {
+  it("never creates the Firebase auth object when Firebase is not configured (it throws auth/invalid-api-key and crashes Settings)", () => {
+    flags.configured = false;
+    firebaseAuth.mockImplementation(() => { throw new Error("auth/invalid-api-key"); });
+    expect(currentDriveUser()).toBeNull();
+    expect(firebaseAuth).not.toHaveBeenCalled();
+  });
+
+  it("is the signed-in user when Firebase is configured", () => {
+    const user = userWith("google.com");
+    firebaseAuth.mockReturnValue({ currentUser: user });
+    expect(currentDriveUser()).toBe(user);
+  });
 });
 
 describe("driveUnavailable", () => {
@@ -38,5 +56,11 @@ describe("driveUnavailable", () => {
 describe("requestDriveAccessToken", () => {
   it("refuses, naming the reason, when nobody is signed in", async () => {
     await expect(requestDriveAccessToken()).rejects.toThrow("Drive sync is not available: signedOut");
+  });
+
+  it("refuses without touching Firebase when it is not configured", async () => {
+    flags.configured = false;
+    await expect(requestDriveAccessToken()).rejects.toThrow("Drive sync is not available: devMode");
+    expect(firebaseAuth).not.toHaveBeenCalled();
   });
 });

@@ -1,12 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { firebaseAuth } from "@/lib/firebase";
 import { useI18n } from "@/lib/i18n";
 import { useLocalMode } from "@/lib/localMode";
 import { portfolioStore } from "@/lib/store/shared";
 import { DriveAuthError, googleDriveFiles } from "@/lib/sync/drive";
-import { driveUnavailable, requestDriveAccessToken, type DriveUnavailable } from "@/lib/sync/driveAuth";
+import { currentDriveUser, driveUnavailable, requestDriveAccessToken, type DriveUnavailable } from "@/lib/sync/driveAuth";
 import { syncWithDrive } from "@/lib/sync/sync";
 import { ImportError } from "@/lib/store";
 
@@ -30,7 +29,7 @@ export default function DriveSyncCard() {
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    setUnavailable(driveUnavailable(firebaseAuth().currentUser));
+    setUnavailable(driveUnavailable(currentDriveUser()));
     setSynced(lastSync());
   }, []);
 
