@@ -309,6 +309,8 @@ MoatMine/
 │   │   │   ├── BookToggle.tsx                    # Real money / Paper switch and the paper-mode notice
 │   │   │   ├── ChatPanel.tsx                     # Agent chat with model picker, tool use and suggestions
 │   │   │   ├── DeviceDataCard.tsx
+│   │   │   ├── DriveSyncCard.test.tsx
+│   │   │   ├── DriveSyncCard.tsx
 │   │   │   ├── LanguageSwitch.tsx
 │   │   │   ├── LearnModuleView.tsx
 │   │   │   ├── LocalAlertsRunner.tsx
@@ -419,6 +421,13 @@ MoatMine/
 │   │   │   │   ├── types.ts
 │   │   │   │   ├── validate.test.ts
 │   │   │   │   └── validate.ts
+│   │   │   ├── sync/
+│   │   │   │   ├── drive.test.ts
+│   │   │   │   ├── drive.ts
+│   │   │   │   ├── driveAuth.test.ts
+│   │   │   │   ├── driveAuth.ts
+│   │   │   │   ├── sync.test.ts
+│   │   │   │   └── sync.ts
 │   │   │   ├── api-schema.ts                     # Types generated from openapi.json (npm run gen:api); don't edit
 │   │   │   ├── api.ts                            # API client (Firebase ID token or dev token), error type, and the response…
 │   │   │   ├── dataSource.test.ts                # Which data-source labels count as sample data
