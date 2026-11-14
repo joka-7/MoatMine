@@ -304,6 +304,7 @@ MoatMine/
 │   │   │   ├── manifest.ts                       # Web app manifest (name, icons, standalone window) so browsers offer Install…
 │   │   │   └── page.tsx                          # Dashboard: totals, value chart, allocation, holdings, targets, news;…
 │   │   ├── components/                           # Shared UI components
+│   │   │   ├── AiSettingsCard.test.tsx
 │   │   │   ├── AiSettingsCard.tsx                # Provider keys, model picker and external agent settings
 │   │   │   ├── AlertsBell.tsx                    # Unread alerts popover with mark-all-read
 │   │   │   ├── AllocationPie.tsx                 # Donut of holdings and cash weights
