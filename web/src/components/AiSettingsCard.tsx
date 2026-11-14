@@ -81,6 +81,7 @@ export default function AiSettingsCard() {
         {local ? t("ai.settingsIntroDevice") : t("ai.settingsIntro")}
         {!local && data?.server_vendors.length ? t("ai.serverVendors", { vendors: data.server_vendors.join(", ") }) : ""}
       </p>
+      {local && <p className="sub" role="note">{t("ai.deviceKeysCaveat")}</p>}
       <div className="grid g2" style={{ alignItems: "start" }}>
         <ModelPicker
           config={config}

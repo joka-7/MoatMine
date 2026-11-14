@@ -84,6 +84,7 @@ export const en = {
   "drive.unavailable.inApp": "Drive sync is not available in the desktop and Android apps yet. Use the website, or the export and import file.",
   "drive.unavailable.signedOut": "Sign in to sync.",
   "drive.unavailable.notGoogle": "Drive sync needs a Google sign-in. You signed in with email and password.",
+  "ai.deviceKeysCaveat": "Keys kept on this device are stored unencrypted in this browser's own storage. Anything running in this page, and anyone who can open this browser profile, could read them. Use keys with a spending limit, and remove a key you no longer use.",
 } as const;
 
 export const he: { readonly [K in keyof typeof en]: string } = {
@@ -171,4 +172,5 @@ export const he: { readonly [K in keyof typeof en]: string } = {
   "drive.unavailable.inApp": "סנכרון Drive עדיין לא זמין באפליקציות לשולחן העבודה ולאנדרואיד. השתמשו באתר, או בקובץ הייצוא והייבוא.",
   "drive.unavailable.signedOut": "התחברו כדי לסנכרן.",
   "drive.unavailable.notGoogle": "סנכרון Drive דורש התחברות עם Google. התחברתם עם אימייל וסיסמה.",
+  "ai.deviceKeysCaveat": "מפתחות ששמורים במכשיר הזה נשמרים ללא הצפנה באחסון של הדפדפן הזה. כל מה שרץ בדף הזה, וכל מי שיכול לפתוח את פרופיל הדפדפן הזה, יכול לקרוא אותם. השתמשו במפתחות עם מגבלת הוצאה, והסירו מפתח שאינכם משתמשים בו.",
 };
