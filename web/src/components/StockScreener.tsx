@@ -30,13 +30,22 @@ const BLANK: Draft = { maxPe: "", maxVolatility: "", maxDrawdown: "", minPerf: "
 const toDraft = (f: Filters): Draft => Object.fromEntries(NUMBER_KEYS.map((k) => [k, f[k] === null ? "" : String(f[k])])) as Draft;
 const numberOrNull = (text: string): number | null => (text.trim() === "" || Number.isNaN(Number(text)) ? null : Number(text));
 
+const SORTS: readonly (readonly [SortKey, MessageKey])[] = [
+  ["perf_3m", "screener.col.3m"], ["perf_1m", "screener.col.1m"], ["perf_12m", "screener.col.12m"], ["momentum", "screener.col.momentum"],
+  ["pct_from_high", "screener.col.fromHigh"], ["pct_from_low", "screener.col.fromLow"], ["volatility_pct", "screener.col.volatility"],
+  ["pe", "screener.col.pe"], ["price", "common.price"], ["symbol", "common.symbol"],
+];
+
 function Choice({ label, options, chosen, show, onChange }: { label: string; options: readonly string[]; chosen: readonly string[]; show: (v: string) => string; onChange: (next: string[]) => void }) {
   return (
-    <details className="f">
-      <summary>{label}{chosen.length > 0 && ` (${chosen.length})`}</summary>
-      <div style={{ maxHeight: 180, overflowY: "auto", padding: "6px 0" }}>
+    <details className="scr-choice">
+      <summary>
+        <span>{label}</span>
+        {chosen.length > 0 && <span className="chip ok">{chosen.length}</span>}
+      </summary>
+      <div className="scr-options">
         {options.map((o) => (
-          <label key={o} style={{ display: "flex", gap: 6, alignItems: "center", padding: "2px 0" }}>
+          <label key={o}>
             <input type="checkbox" checked={chosen.includes(o)} onChange={(e) => onChange(e.target.checked ? [...chosen, o] : chosen.filter((c) => c !== o))} />
             {show(o)}
           </label>
@@ -44,6 +53,10 @@ function Choice({ label, options, chosen, show, onChange }: { label: string; opt
       </div>
     </details>
   );
+}
+
+function Stat({ label, value, kind = "" }: { label: string; value: string; kind?: string }) {
+  return <div className="scr-stat"><span>{label}</span><b className={kind}>{value}</b></div>;
 }
 
 /**
@@ -158,96 +171,106 @@ export default function StockScreener({ watched, onAdded }: { watched: ReadonlyS
     setStatus(failures.length ? t("screener.addedSome", { added: symbols.length - failures.length, failed: failures.join("; ") }) : t("screener.added", { n: symbols.length }));
   };
 
-  const header = (key: SortKey, label: MessageKey) => (
-    <th className={key === "symbol" ? "" : "n"}>
-      <button className="btn sm ghost" onClick={() => setSort((s) => ({ key, direction: s.key === key && s.direction === "desc" ? "asc" : "desc" }))}>
-        {t(label)}{sort.key === key ? (sort.direction === "desc" ? " ▼" : " ▲") : ""}
-      </button>
-    </th>
-  );
   const field = (key: keyof Draft, label: MessageKey, step = "any") => (
     <label className="f">{t(label)}
-      <input type="number" step={step} value={draft[key]} onChange={(e) => setDraft({ ...draft, [key]: e.target.value })} />
+      <input type="number" inputMode="decimal" step={step} value={draft[key]} onChange={(e) => setDraft({ ...draft, [key]: e.target.value })} />
     </label>
   );
 
   return (
-    <div className="card" style={{ marginBottom: 16 }}>
+    <div className="card scr" style={{ marginBottom: 16 }}>
       <h2>{t("screener.title")}</h2>
       <p className="sub">{t("screener.intro", { n: universe.length })}</p>
 
-      <div className="row" style={{ alignItems: "flex-start" }}>
-        <Choice label={t("screener.sector")} options={sectors} chosen={where.sectors} show={ts}
-          onChange={(sectors) => setWhere({ ...where, sectors, industries: [] })} />
-        <Choice label={t("screener.industry")} options={industries} chosen={where.industries} show={ts} onChange={(next) => setWhere({ ...where, industries: next })} />
-        <Choice label={t("screener.country")} options={countries} chosen={where.countries} show={ts} onChange={(next) => setWhere({ ...where, countries: next })} />
-      </div>
-
-      <div className="row" style={{ margin: "8px 0" }}>
-        {PRESET_LABELS.map(([key, label]) => <button key={key} className="btn sm" onClick={() => applyPreset(key)}>{t(label)}</button>)}
-        <button className="btn sm ghost" onClick={() => { setDraft(BLANK); setAboveSma200(false); }}>{t("screener.clear")}</button>
-      </div>
-
-      <div className="row" style={{ flexWrap: "wrap" }}>
-        {field("maxPe", "screener.maxPe")}
-        {field("maxVolatility", "screener.maxVolatility")}
-        {field("maxDrawdown", "screener.maxDrawdown")}
-        <label className="f">{t("screener.perfWindow")}
-          <select value={perfWindow} onChange={(e) => setPerfWindow(e.target.value as PerfWindow)}>
-            {WINDOWS.map(([w, label]) => <option key={w} value={w}>{t(label)}</option>)}
-          </select>
-        </label>
-        {field("minPerf", "screener.minPerf")}
-        {field("maxPerf", "screener.maxPerf")}
-        {field("minMomentum", "screener.minMomentum")}
-        {field("nearHigh", "screener.nearHigh")}
-        {field("nearLow", "screener.nearLow")}
-        <label className="f" style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-          <input type="checkbox" checked={aboveSma200} onChange={(e) => setAboveSma200(e.target.checked)} />{t("screener.aboveSma200")}
-        </label>
-      </div>
-
-      <div className="row" style={{ alignItems: "center", margin: "10px 0" }}>
-        {progress === null ? (
-          <button className="btn primary" disabled={toLoad.length === 0} onClick={() => void load(toLoad.map((u) => u.symbol), false)}>
-            {t("screener.load", { n: toLoad.length })}
-          </button>
-        ) : (
-          <>
-            <button className="btn primary" disabled>{t("screener.loading", { done: progress, total: toLoad.length })}</button>
-            <button className="btn" onClick={() => run.current?.abort()}>{t("screener.stop")}</button>
-          </>
-        )}
-        {toLoad.length === 0 && <span className="sub">{t("screener.noCandidates")}</span>}
-      </div>
-      {toLoad.length > BIG_RUN && progress === null && <p className="sub" style={{ fontSize: 12 }}>{t("screener.bigRun", { n: toLoad.length })}</p>}
-
-      <div className="row" style={{ alignItems: "center", marginBottom: 8 }}>
-        <span className="sub">{t("screener.addCompany")}</span>
-        <SymbolSearch placeholder={t("screener.addCompanyPlaceholder")} onPick={(s) => void addCompany(s)} />
-        {adding && <span className="sub">{t("common.loading")}</span>}
-      </div>
-      <details style={{ marginBottom: 8 }}>
-        <summary>{t("screener.fullList", { shown: toLoad.length, total: universe.length })}</summary>
-        <div className="scroll-x" style={{ maxHeight: 280, overflowY: "auto" }}>
-          <table aria-label={t("screener.listTable")}>
-            <thead><tr><th>{t("common.symbol")}</th><th>{t("screener.col.name")}</th><th>{t("screener.sector")}</th><th>{t("screener.industry")}</th><th>{t("screener.country")}</th><th /></tr></thead>
-            <tbody>
-              {toLoad.map((u) => (
-                <tr key={u.symbol}>
-                  <td><Link className="sym" href={`/stock?s=${u.symbol}`}>{u.symbol}</Link></td>
-                  <td>{u.name}</td><td className="sub">{ts(u.sector)}</td><td className="sub">{ts(u.industry)}</td><td className="sub">{ts(u.country)}</td>
-                  <td style={{ textAlign: "end" }}>{custom.some((c) => c.symbol === u.symbol) && <button className="btn sm ghost" onClick={() => removeCompany(u.symbol)}>{t("common.remove")}</button>}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      <section className="scr-step">
+        <h3><i>1</i>{t("screener.step.where")}</h3>
+        <div className="scr-grid">
+          <Choice label={t("screener.sector")} options={sectors} chosen={where.sectors} show={ts}
+            onChange={(sectors) => setWhere({ ...where, sectors, industries: [] })} />
+          <Choice label={t("screener.industry")} options={industries} chosen={where.industries} show={ts} onChange={(next) => setWhere({ ...where, industries: next })} />
+          <Choice label={t("screener.country")} options={countries} chosen={where.countries} show={ts} onChange={(next) => setWhere({ ...where, countries: next })} />
         </div>
-      </details>
+        <details className="scr-list">
+          <summary>{t("screener.fullList", { shown: toLoad.length, total: universe.length })}</summary>
+          <div className="scroll-x scr-listbox">
+            <table aria-label={t("screener.listTable")}>
+              <thead><tr><th>{t("common.symbol")}</th><th>{t("screener.col.name")}</th><th>{t("screener.sector")}</th><th>{t("screener.industry")}</th><th>{t("screener.country")}</th><th /></tr></thead>
+              <tbody>
+                {toLoad.map((u) => (
+                  <tr key={u.symbol}>
+                    <td><Link className="sym" href={`/stock?s=${u.symbol}`}>{u.symbol}</Link></td>
+                    <td>{u.name}</td><td className="sub">{ts(u.sector)}</td><td className="sub">{ts(u.industry)}</td><td className="sub">{ts(u.country)}</td>
+                    <td style={{ textAlign: "end" }}>{custom.some((c) => c.symbol === u.symbol) && <button className="btn sm ghost" onClick={() => removeCompany(u.symbol)}>{t("common.remove")}</button>}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </details>
+        <div className="scr-add">
+          <span className="sub">{t("screener.addCompany")}</span>
+          <SymbolSearch placeholder={t("screener.addCompanyPlaceholder")} onPick={(s) => void addCompany(s)} />
+          {adding && <span className="sub">{t("common.loading")}</span>}
+        </div>
+      </section>
+
+      <section className="scr-step">
+        <h3><i>2</i>{t("screener.step.what")}</h3>
+        <div className="seg scr-presets">
+          {PRESET_LABELS.map(([key, label]) => <button key={key} className="btn sm" onClick={() => applyPreset(key)}>{t(label)}</button>)}
+          <button className="btn sm ghost" onClick={() => { setDraft(BLANK); setAboveSma200(false); }}>{t("screener.clear")}</button>
+        </div>
+        <div className="scr-groups">
+          <fieldset>
+            <legend>{t("screener.group.value")}</legend>
+            {field("maxPe", "screener.maxPe")}
+            {field("maxVolatility", "screener.maxVolatility")}
+            {field("maxDrawdown", "screener.maxDrawdown")}
+          </fieldset>
+          <fieldset>
+            <legend>{t("screener.group.performance")}</legend>
+            <label className="f">{t("screener.perfWindow")}
+              <select value={perfWindow} onChange={(e) => setPerfWindow(e.target.value as PerfWindow)}>
+                {WINDOWS.map(([w, label]) => <option key={w} value={w}>{t(label)}</option>)}
+              </select>
+            </label>
+            {field("minPerf", "screener.minPerf")}
+            {field("maxPerf", "screener.maxPerf")}
+            {field("minMomentum", "screener.minMomentum")}
+          </fieldset>
+          <fieldset>
+            <legend>{t("screener.group.range")}</legend>
+            {field("nearHigh", "screener.nearHigh")}
+            {field("nearLow", "screener.nearLow")}
+            <label className="scr-toggle">
+              <input type="checkbox" checked={aboveSma200} onChange={(e) => setAboveSma200(e.target.checked)} />{t("screener.aboveSma200")}
+            </label>
+          </fieldset>
+        </div>
+      </section>
+
+      <section className="scr-step">
+        <h3><i>3</i>{t("screener.step.load")}</h3>
+        <div className="scr-actions">
+          {progress === null ? (
+            <button className="btn primary" disabled={toLoad.length === 0} onClick={() => void load(toLoad.map((u) => u.symbol), false)}>
+              {t("screener.load", { n: toLoad.length })}
+            </button>
+          ) : (
+            <>
+              <button className="btn primary" disabled>{t("screener.loading", { done: progress, total: toLoad.length })}</button>
+              <button className="btn" onClick={() => run.current?.abort()}>{t("screener.stop")}</button>
+            </>
+          )}
+          {toLoad.length === 0 && <span className="sub">{t("screener.noCandidates")}</span>}
+        </div>
+        {toLoad.length > BIG_RUN && progress === null && <p className="sub" style={{ fontSize: 12 }}>{t("screener.bigRun", { n: toLoad.length })}</p>}
+        {progress !== null && <div className="bar" aria-hidden><span style={{ width: `${toLoad.length ? Math.min(100, (progress / toLoad.length) * 100) : 0}%` }} /></div>}
+      </section>
       {status && <p className="sub" role="status">{status}</p>}
 
       {rows && (
-        <>
+        <section className="scr-step">
           {isSampleData(source) && <div className="err" style={{ marginBottom: 8 }}>{t("screener.sample")}</div>}
           {stopped && (
             <p className="sub" role="status">
@@ -261,54 +284,57 @@ export default function StockScreener({ watched, onAdded }: { watched: ReadonlyS
               <button className="btn sm" disabled={progress !== null} onClick={() => void load(failedRows.map((r) => r.symbol), true)}>{t("screener.retry", { n: failed })}</button>
             </p>
           )}
-          <div className="row" style={{ alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+          <div className="scr-bar">
             <span className="sub">{t("screener.count", { shown: shown.length, total: rows.length })}</span>
-            <span className="row" style={{ flex: "0 1 auto" }}>
+            <label className="scr-sort">{t("screener.sortBy")}
+              <select value={sort.key} onChange={(e) => setSort({ ...sort, key: e.target.value as SortKey })}>
+                {SORTS.map(([k, label]) => <option key={k} value={k}>{t(label)}</option>)}
+              </select>
+            </label>
+            <button className="btn sm" aria-label={t("screener.direction")} onClick={() => setSort({ ...sort, direction: sort.direction === "desc" ? "asc" : "desc" })}>
+              {sort.direction === "desc" ? `▼ ${t("screener.highFirst")}` : `▲ ${t("screener.lowFirst")}`}
+            </button>
+            <span className="scr-bulk">
               <button className="btn sm" disabled={picked.size === 0} onClick={() => void add([...picked])}>{t("screener.addPicked", { n: picked.size })}</button>
               <button className="btn sm" disabled={addable.length === 0} onClick={() => void add(addable.map((r) => r.symbol))}>{t("screener.addAll", { n: addable.length })}</button>
             </span>
           </div>
-          <div className="scroll-x">
-            <table aria-label={t("screener.resultsTable")}>
-              <thead>
-                <tr>
-                  <th />{header("symbol", "common.symbol")}<th>{t("screener.sector")}</th>{header("price", "common.price")}
-                  {header("perf_1m", "screener.col.1m")}{header("perf_3m", "screener.col.3m")}{header("perf_12m", "screener.col.12m")}
-                  {header("momentum", "screener.col.momentum")}{header("pct_from_high", "screener.col.fromHigh")}{header("pct_from_low", "screener.col.fromLow")}
-                  {header("volatility_pct", "screener.col.volatility")}{header("pe", "screener.col.pe")}<th />
-                </tr>
-              </thead>
-              <tbody>
-                {shown.map((r) => {
-                  const u = byId.get(r.symbol);
-                  const on = watched.has(r.symbol);
-                  return (
-                    <tr key={r.symbol}>
-                      <td><input type="checkbox" aria-label={r.symbol} disabled={on} checked={picked.has(r.symbol)}
-                        onChange={(e) => setPicked(new Set(e.target.checked ? [...picked, r.symbol] : [...picked].filter((s) => s !== r.symbol)))} /></td>
-                      <td><Link className="sym" href={`/stock?s=${r.symbol}`}>{r.symbol}</Link> <span className="sub" style={{ fontSize: 11 }}>{u?.name}</span></td>
-                      <td className="sub">{u ? ts(u.sector) : ""}</td>
-                      <td className="n">{money(r.price)}</td>
-                      <td className={`n ${tone(r.perf_1m)}`}>{pct(r.perf_1m)}</td>
-                      <td className={`n ${tone(r.perf_3m)}`}>{pct(r.perf_3m)}</td>
-                      <td className={`n ${tone(r.perf_12m)}`}>{pct(r.perf_12m)}</td>
-                      <td className={`n ${tone(r.momentum)}`}>{pct(r.momentum)}</td>
-                      <td className="n">{pct(r.pct_from_high)}</td>
-                      <td className="n">{pct(r.pct_from_low)}</td>
-                      <td className="n">{share(r.volatility_pct, 1)}</td>
-                      <td className="n">{r.pe == null ? "—" : r.pe.toFixed(1)}</td>
-                      <td style={{ textAlign: "end" }}>
-                        {on ? <span className="sub">{t("screener.watching")}</span> : <button className="btn sm" onClick={() => void add([r.symbol])}>{t("common.add")}</button>}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+          <ul className="scr-cards" aria-label={t("screener.resultsTable")}>
+            {shown.map((r) => {
+              const u = byId.get(r.symbol);
+              const on = watched.has(r.symbol);
+              return (
+                <li key={r.symbol} className="scr-card">
+                  <header>
+                    <input type="checkbox" aria-label={r.symbol} disabled={on} checked={picked.has(r.symbol)}
+                      onChange={(e) => setPicked(new Set(e.target.checked ? [...picked, r.symbol] : [...picked].filter((s) => s !== r.symbol)))} />
+                    <div className="scr-id">
+                      <Link className="sym" href={`/stock?s=${r.symbol}`}>{r.symbol}</Link>
+                      <span className="sub">{u?.name}</span>
+                    </div>
+                    <b className="num">{money(r.price)}</b>
+                  </header>
+                  {u && <p className="sub scr-where">{ts(u.sector)} · {ts(u.country)}</p>}
+                  <div className="scr-stats">
+                    <Stat label={t("screener.col.1m")} value={pct(r.perf_1m)} kind={tone(r.perf_1m)} />
+                    <Stat label={t("screener.col.3m")} value={pct(r.perf_3m)} kind={tone(r.perf_3m)} />
+                    <Stat label={t("screener.col.12m")} value={pct(r.perf_12m)} kind={tone(r.perf_12m)} />
+                    <Stat label={t("screener.col.momentum")} value={pct(r.momentum)} kind={tone(r.momentum)} />
+                    <Stat label={t("screener.col.fromHigh")} value={pct(r.pct_from_high)} />
+                    <Stat label={t("screener.col.fromLow")} value={pct(r.pct_from_low)} />
+                    <Stat label={t("screener.col.volatility")} value={share(r.volatility_pct, 1)} />
+                    <Stat label={t("screener.col.pe")} value={r.pe == null ? "—" : r.pe.toFixed(1)} />
+                  </div>
+                  <footer>
+                    {on ? <span className="chip ok">{t("screener.watching")}</span> : <button className="btn sm" onClick={() => void add([r.symbol])}>{t("common.add")}</button>}
+                  </footer>
+                </li>
+              );
+            })}
+          </ul>
           {shown.length === 0 && <div className="empty">{t("screener.none")}</div>}
           <p className="sub" style={{ fontSize: 12 }}>{t("screener.note")}</p>
-        </>
+        </section>
       )}
     </div>
   );

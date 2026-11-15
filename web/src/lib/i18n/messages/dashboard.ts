@@ -165,6 +165,16 @@ export const en = {
   "screener.col.name": "Company",
   "screener.resultsTable": "Screener results",
   "screener.listTable": "Companies in the search list",
+  "screener.step.where": "Where to look",
+  "screener.step.what": "What to look for",
+  "screener.step.load": "Load and compare",
+  "screener.group.value": "Value and risk",
+  "screener.group.performance": "Performance",
+  "screener.group.range": "Place in the yearly range",
+  "screener.sortBy": "Sort by",
+  "screener.direction": "Change the sort direction",
+  "screener.highFirst": "High first",
+  "screener.lowFirst": "Low first",
 } as const;
 
 export const he: { readonly [K in keyof typeof en]: string } = {
@@ -333,4 +343,14 @@ export const he: { readonly [K in keyof typeof en]: string } = {
   "screener.col.name": "חברה",
   "screener.resultsTable": "תוצאות החיפוש",
   "screener.listTable": "החברות ברשימת החיפוש",
+  "screener.step.where": "איפה לחפש",
+  "screener.step.what": "מה לחפש",
+  "screener.step.load": "טעינה והשוואה",
+  "screener.group.value": "ערך וסיכון",
+  "screener.group.performance": "ביצועים",
+  "screener.group.range": "מקום בטווח השנתי",
+  "screener.sortBy": "מיון לפי",
+  "screener.direction": "החלפת כיוון המיון",
+  "screener.highFirst": "מהגבוה לנמוך",
+  "screener.lowFirst": "מהנמוך לגבוה",
 };
