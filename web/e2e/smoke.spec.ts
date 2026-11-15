@@ -87,12 +87,15 @@ test("a stock page labels mock market data as sample data", async ({ page }) => 
 test("the watchlist screener loads a country's numbers, filters them and adds a stock", async ({ page }) => {
   await page.addInitScript(() => window.localStorage.setItem("moatmine.intro", "seen"));
   await page.goto("/watchlist/");
-  await page.getByText("Country", { exact: true }).click();
+  await page.locator("summary", { hasText: "Country" }).click();
   await page.getByLabel("Israel").check();
+  await page.locator("summary", { hasText: "Show the full list" }).click();
+  await expect(page.getByRole("table", { name: "Companies in the search list" }).getByRole("row")).toHaveCount(9); // the header and the 8 Israeli companies
   await button(page, "Load the numbers for 8 companies").click();
+  await expect(page.getByRole("button", { name: "Stop" })).toHaveCount(0, { timeout: 15_000 }); // the run finishes by itself
 
   await expect(page.getByText("These numbers are sample data, not real prices.")).toBeVisible();
-  const table = page.getByRole("table").first(); // the screener's results come before the watchlist itself
+  const table = page.getByRole("table", { name: "Screener results" });
   await expect(table.getByRole("link", { name: "TEVA" })).toBeVisible();
 
   await page.getByLabel("Value: max P/E").fill("0.5"); // nothing has a P/E that low
@@ -101,5 +104,5 @@ test("the watchlist screener loads a country's numbers, filters them and adds a 
 
   await table.getByRole("row", { name: /TEVA/ }).getByRole("button", { name: "Add" }).click();
   await expect(page.getByText("Added 1 to your watchlist.")).toBeVisible();
-  await expect(page.getByRole("table").last().getByRole("link", { name: "TEVA" })).toBeVisible();
+  await expect(page.getByRole("table", { name: "Screener results" }).getByRole("row", { name: /TEVA.*Watching/ })).toBeVisible();
 });

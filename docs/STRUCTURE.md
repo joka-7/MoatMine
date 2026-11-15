@@ -415,6 +415,8 @@ MoatMine/
 │   │   │   │   ├── progress.ts
 │   │   │   │   └── types.ts
 │   │   │   ├── screener/
+│   │   │   │   ├── custom.test.ts
+│   │   │   │   ├── custom.ts
 │   │   │   │   ├── filter.test.ts
 │   │   │   │   ├── filter.ts
 │   │   │   │   ├── load.test.ts

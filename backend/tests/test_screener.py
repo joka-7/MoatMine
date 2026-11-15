@@ -101,7 +101,7 @@ def test_one_symbol_without_data_gets_an_error_row_and_the_others_still_come(cli
         app.dependency_overrides.clear()
 
     assert rows[0]["symbol"] == "AAPL" and "error" not in rows[0]
-    assert rows[1] == {"symbol": "BROKEN", "error": "MarketDataError"}
+    assert rows[1] == {"symbol": "BROKEN", "error": "no_data"}
 
 
 def test_endpoint_is_behind_the_market_rate_limit() -> None:
@@ -109,3 +109,54 @@ def test_endpoint_is_behind_the_market_rate_limit() -> None:
     from app.routers.screener import router
 
     assert [getattr(d.dependency, "__name__", "") for d in router.dependencies] == ["check"]
+
+
+def _run(provider: MockProvider, symbols: list[str], timeout: float = 0.2) -> list[dict[str, Any]]:
+    import asyncio
+    import time
+
+    from app.screener import screen
+
+    return asyncio.run(screen(provider, symbols, int(time.time()), timeout))
+
+
+def test_a_company_that_takes_too_long_is_cut_off_and_the_rest_still_come() -> None:
+    import asyncio
+
+    class _OneSlow(MockProvider):
+        async def candles(self, symbol: str, resolution: str, start: int, end: int) -> list[Candle]:
+            if symbol == "SLOW":
+                await asyncio.sleep(5)
+            return await super().candles(symbol, resolution, start, end)
+
+    rows = _run(_OneSlow(), ["SLOWPOKE-OK", "SLOW", "FAST"])
+    assert rows[1] == {"symbol": "SLOW", "error": "timeout"}
+    assert "error" not in rows[0] and "error" not in rows[2]
+
+
+def test_a_feed_that_says_slow_down_is_reported_as_rate_limited_not_as_missing_data() -> None:
+    import httpx
+
+    class _Busy(MockProvider):
+        async def metrics(self, symbol: str) -> dict[str, float | None]:
+            request = httpx.Request("GET", "https://example.test/metric")
+            raise httpx.HTTPStatusError("429", request=request, response=httpx.Response(429, request=request))
+
+    assert _run(_Busy(), ["AAA"]) == [{"symbol": "AAA", "error": "rate_limited"}]
+
+
+def test_ratios_are_fetched_once_for_a_symbol_and_reused() -> None:
+    from app import cache
+
+    calls: list[str] = []
+
+    class _Counting(MockProvider):
+        async def metrics(self, symbol: str) -> dict[str, float | None]:
+            calls.append(symbol)
+            return await super().metrics(symbol)
+
+    cache.clear()
+    provider = _Counting()
+    _run(provider, ["AAPL", "MSFT"])
+    _run(provider, ["AAPL", "MSFT"])
+    assert sorted(calls) == ["AAPL", "MSFT"]

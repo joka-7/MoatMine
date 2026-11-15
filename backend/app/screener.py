@@ -11,6 +11,7 @@ import logging
 import httpx
 
 from app.analytics import TRADING_DAYS, annual_volatility_pct, max_drawdown_pct, rsi, sma
+from app.cache import ttl_cache
 from app.errors import MarketDataError
 from app.jsontypes import JSONDict
 from app.market import describe_error
@@ -24,7 +25,24 @@ WINDOWS = {"perf_1m": 21, "perf_3m": 63, "perf_6m": 126, "perf_12m": 252}
 SKIP_DAYS = 21  # momentum skips the latest month: "12-1" is the return from a year ago to a month ago
 HISTORY_DAYS = 400  # calendar days fetched: enough for 253 trading days
 MAX_SYMBOLS = 30
-CONCURRENCY = 6
+CONCURRENCY = 4
+SYMBOL_TIMEOUT_SECONDS = 20.0  # a feed that is rate-limiting must not hold a whole request up for one company
+FUNDAMENTALS_TTL_SECONDS = 6 * 3600
+
+
+@ttl_cache(FUNDAMENTALS_TTL_SECONDS)
+async def _fundamentals(provider: MarketProvider, symbol: str) -> dict[str, float | None]:
+    """The provider's ratios for a symbol, kept for hours: P/E, yield and beta barely move in a day."""
+    return await provider.metrics(symbol)
+
+
+def _reason(e: BaseException) -> str:
+    """Why a symbol has no numbers, in a word the app can show: busy, slow, or just no data."""
+    if isinstance(e, httpx.HTTPStatusError) and e.response.status_code == 429:
+        return "rate_limited"
+    if isinstance(e, TimeoutError | httpx.TimeoutException):
+        return "timeout"
+    return "no_data"
 
 
 def _pct_change(closes: list[float], days_back: int) -> float | None:
@@ -71,13 +89,14 @@ def price_metrics(bars: list[Candle]) -> JSONDict:
     }
 
 
-async def _row(provider: MarketProvider, symbol: str, start: int, end: int, gate: asyncio.Semaphore) -> JSONDict:
+async def _row(provider: MarketProvider, symbol: str, start: int, end: int, gate: asyncio.Semaphore, timeout: float) -> JSONDict:
     async with gate:
         try:
-            bars, fundamentals = await asyncio.gather(cached_daily_candles(provider, symbol, start, end), provider.metrics(symbol))
-        except (httpx.HTTPError, MarketDataError) as e:  # one symbol's feed failing must not sink the other 29; the row says so
+            async with asyncio.timeout(timeout):
+                bars, fundamentals = await asyncio.gather(cached_daily_candles(provider, symbol, start, end), _fundamentals(provider, symbol))
+        except (httpx.HTTPError, MarketDataError, TimeoutError) as e:  # one symbol's feed failing must not sink the others; the row says why
             logger.warning("screener: metrics failed", extra={"symbol": symbol, **describe_error(e)})
-            return {"symbol": symbol, "error": type(e).__name__}
+            return {"symbol": symbol, "error": _reason(e)}
     return {
         "symbol": symbol,
         **price_metrics(bars),
@@ -87,9 +106,13 @@ async def _row(provider: MarketProvider, symbol: str, start: int, end: int, gate
     }
 
 
-async def screen(provider: MarketProvider, symbols: list[str], now: int) -> list[JSONDict]:
-    """One row of metrics per symbol, in the order given. A symbol whose data could not be fetched has an `error` key."""
+async def screen(provider: MarketProvider, symbols: list[str], now: int, timeout: float = SYMBOL_TIMEOUT_SECONDS) -> list[JSONDict]:
+    """One row of metrics per symbol, in the order given.
+
+    A symbol whose data could not be fetched has an `error` key: "rate_limited" (the feed said slow
+    down), "timeout" (it took longer than `timeout` seconds) or "no_data".
+    """
     end = now // 86400 * 86400  # day-aligned so the cached bars are shared by every request that day
     start = end - HISTORY_DAYS * 86400
     gate = asyncio.Semaphore(CONCURRENCY)
-    return list(await asyncio.gather(*(_row(provider, s, start, end, gate) for s in symbols)))
+    return list(await asyncio.gather(*(_row(provider, s, start, end, gate, timeout) for s in symbols)))
