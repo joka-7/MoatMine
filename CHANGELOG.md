@@ -6,6 +6,12 @@ API share one version.
 
 ## [Unreleased]
 
+### Fixed
+- The watchlist screener no longer looks stuck. On a real data plan a full run costs hundreds of upstream calls, and the data source slows or refuses them; the app used to wait for the whole list with no sign of life. Now it asks for six companies at a time, shows rows as they arrive, has a **Stop** button, cuts a single slow company off after 20 seconds, keeps ratios for 6 hours, reports which companies were turned away because the data source was busy (with a retry button), gives up cleanly after three failed requests in a row, and warns before a run of more than 30 companies. `GET /screener/metrics` now returns an `error` of `rate_limited`, `timeout` or `no_data` per company.
+
+### Added
+- The screener's search list can be extended: add any company by name or symbol (its sector, industry and country are read from the company profile, "Unknown" where the data source has none), up to 100, kept in the browser; remove them again. "Show the full list" shows every company being searched with its sector, industry and country.
+
 ## [0.5.0] - 2026-11-14
 
 ### Security
