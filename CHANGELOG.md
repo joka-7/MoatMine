@@ -6,6 +6,9 @@ API share one version.
 
 ## [Unreleased]
 
+### Changed
+- The watchlist screener has a new layout. It is three numbered steps (where to look, what to look for, load and compare); the sector, industry and country boxes and the filters line up in even columns grouped as value and risk, performance, and place in the yearly range; and results are cards with the company name, price and key numbers instead of a 13-column table, with a sort menu and direction button. It reads on a phone too.
+
 ### Fixed
 - The watchlist screener no longer looks stuck. On a real data plan a full run costs hundreds of upstream calls, and the data source slows or refuses them; the app used to wait for the whole list with no sign of life. Now it asks for six companies at a time, shows rows as they arrive, has a **Stop** button, cuts a single slow company off after 20 seconds, keeps ratios for 6 hours, reports which companies were turned away because the data source was busy (with a retry button), gives up cleanly after three failed requests in a row, and warns before a run of more than 30 companies. `GET /screener/metrics` now returns an `error` of `rate_limited`, `timeout` or `no_data` per company.
 

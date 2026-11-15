@@ -95,14 +95,14 @@ test("the watchlist screener loads a country's numbers, filters them and adds a 
   await expect(page.getByRole("button", { name: "Stop" })).toHaveCount(0, { timeout: 15_000 }); // the run finishes by itself
 
   await expect(page.getByText("These numbers are sample data, not real prices.")).toBeVisible();
-  const table = page.getByRole("table", { name: "Screener results" });
+  const table = page.getByRole("list", { name: "Screener results" });
   await expect(table.getByRole("link", { name: "TEVA" })).toBeVisible();
 
   await page.getByLabel("Value: max P/E").fill("0.5"); // nothing has a P/E that low
   await expect(page.getByText("Nothing matches. Loosen a filter.")).toBeVisible();
   await page.getByLabel("Value: max P/E").fill("");
 
-  await table.getByRole("row", { name: /TEVA/ }).getByRole("button", { name: "Add" }).click();
+  await table.getByRole("listitem").filter({ hasText: "TEVA" }).getByRole("button", { name: "Add" }).click();
   await expect(page.getByText("Added 1 to your watchlist.")).toBeVisible();
-  await expect(page.getByRole("table", { name: "Screener results" }).getByRole("row", { name: /TEVA.*Watching/ })).toBeVisible();
+  await expect(page.getByRole("list", { name: "Screener results" }).getByRole("listitem").filter({ hasText: /TEVA/ }).getByText("Watching")).toBeVisible();
 });

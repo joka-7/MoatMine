@@ -25,14 +25,14 @@ const ROWS = [
 ];
 
 const loadButton = () => screen.getByRole("button", { name: /^Load the numbers for/ });
-const results = () => screen.getByRole("table", { name: "Screener results" });
+const results = () => screen.getByRole("list", { name: "Screener results" });
 const symbolsShown = () => within(results()).queryAllByRole("link").map((a) => a.textContent);
 
 async function loaded(source = "finnhub", watched: string[] = [], onAdded = vi.fn()) {
   vi.mocked(loadMetrics).mockResolvedValue(done(ROWS, { source }));
   render(<StockScreener watched={new Set(watched)} onAdded={onAdded} />);
   fireEvent.click(loadButton());
-  await screen.findByRole("table", { name: "Screener results" });
+  await screen.findByRole("list", { name: "Screener results" });
   return onAdded;
 }
 
@@ -77,6 +77,14 @@ describe("StockScreener", () => {
     expect(screen.getByText("1 companies had no data and are left out.")).toBeTruthy();
   });
 
+  it("re-sorts the loaded stocks by the chosen measure and direction", async () => {
+    await loaded();
+    fireEvent.change(screen.getByLabelText("Sort by"), { target: { value: "pe" } });
+    expect(symbolsShown()).toEqual(["NVDA", "AAPL", "MSFT"]);
+    fireEvent.click(screen.getByRole("button", { name: "Change the sort direction" }));
+    expect(symbolsShown()).toEqual(["MSFT", "AAPL", "NVDA"]);
+  });
+
   it("narrows by a value filter at once, without loading again", async () => {
     await loaded();
     fireEvent.change(screen.getByLabelText("Value: max P/E"), { target: { value: "30" } });
@@ -105,7 +113,7 @@ describe("StockScreener", () => {
 
   it("adds one stock to the watchlist and tells the page to reload", async () => {
     const onAdded = await loaded();
-    const row = within(results()).getByText("MSFT").closest("tr") as HTMLElement;
+    const row = within(results()).getByText("MSFT").closest("li") as HTMLElement;
     fireEvent.click(within(row).getByRole("button", { name: "Add" }));
     await waitFor(() => expect(onAdded).toHaveBeenCalled());
     expect(addWatch).toHaveBeenCalledWith({ symbol: "MSFT", note: "", alert_above: null, alert_below: null });
@@ -114,7 +122,7 @@ describe("StockScreener", () => {
 
   it("shows a stock already on the watchlist as watched and does not offer to add it again", async () => {
     await loaded("finnhub", ["AAPL"]);
-    const row = within(results()).getByText("AAPL").closest("tr") as HTMLElement;
+    const row = within(results()).getByText("AAPL").closest("li") as HTMLElement;
     expect(within(row).getByText("Watching")).toBeTruthy();
     expect(within(row).queryByRole("button", { name: "Add" })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: /^Add all shown/ }));
